@@ -12,6 +12,15 @@ const nodes = [
   { id: 10, x: -860, y: 360, name: 'Lambda' },
   { id: 11, x: 480,  y: 760, name: 'Mu' },        // detour, off to the side of the highway tear
   { id: 12, x: 220,  y: 760, name: 'Nu' },        // detour
+
+  // Hunting loop — north of the den; intact inherited ground, no planned tear
+  { id: 13, x: 250,  y: 20,  name: 'Xi' },
+  { id: 14, x: 560,  y: -10, name: 'Omicron' },
+
+  // Water route — southeast; tears as the 'creek' group (Rho is swallowed)
+  { id: 15, x: 820,  y: 480, name: 'Pi' },
+  { id: 16, x: 900,  y: 660, name: 'Rho' },
+  { id: 17, x: 1020, y: 840, name: 'Sigma' },     // detour around the creek tear (outside the bend)
 ];
 
 const edges = [
@@ -36,4 +45,18 @@ const edges = [
   { id: 13, a: 1,  b: 11, state: 'unknown',   days: 3, expected: 'open', actual: 'open',    tearGroup: null },
   { id: 14, a: 11, b: 12, state: 'unknown',   days: 2, expected: 'open', actual: 'open',    tearGroup: null },
   { id: 15, a: 12, b: 4,  state: 'unknown',   days: 3, expected: 'open', actual: 'open',    tearGroup: null },
+
+  // Hunting loop — den → Xi → Omicron → den; all intact
+  { id: 16, a: 0,  b: 13, state: 'inherited', days: 1, expected: 'open', actual: 'open',    tearGroup: null },
+  { id: 17, a: 13, b: 14, state: 'inherited', days: 1, expected: 'open', actual: 'open',    tearGroup: null },
+  { id: 18, a: 14, b: 0,  state: 'inherited', days: 1, expected: 'open', actual: 'open',    tearGroup: null },
+
+  // Water route — Beta → Pi → Rho → Mu; Pi→Rho→Mu tears as one 'creek' group
+  { id: 19, a: 1,  b: 15, state: 'inherited', days: 1, expected: 'open', actual: 'open',    tearGroup: null },
+  { id: 20, a: 15, b: 16, state: 'inherited', days: 1, expected: 'open', actual: 'blocked', tearGroup: 'creek' },
+  { id: 21, a: 16, b: 11, state: 'inherited', days: 1, expected: 'open', actual: 'blocked', tearGroup: 'creek' },
+
+  // Detour around the creek tear — unknown, higher day cost
+  { id: 22, a: 15, b: 17, state: 'unknown',   days: 2, expected: 'open', actual: 'open',    tearGroup: null },
+  { id: 23, a: 17, b: 11, state: 'unknown',   days: 3, expected: 'open', actual: 'open',    tearGroup: null },
 ];

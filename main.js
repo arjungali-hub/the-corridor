@@ -21,6 +21,8 @@ const C_NODE      = '#5B4632';
 const C_INK_DARK  = '#7A3F12';
 const C_INK_LIGHT = '#C7893F';
 const C_TRAIL     = '#4E7A8C';
+const C_PATCH     = '#E4DCC0';
+const C_STITCH    = '#8A795A';
 
 // ── GAME STATE ────────────────────────────────────────────────────────────────
 
@@ -42,6 +44,14 @@ const confirmed = new Map();  // node.id → boolean
 // faint, uncertain "ghost" memory rather than solid confirmed ink.
 const ghostNodes = new Set();
 const ghostEdges = new Set();
+
+// Every traversal ever made, in order — the raw material for the ending's
+// satellite-dissolve route trace. Cheap to keep now, painful to retrofit.
+const travelHistory = [];  // { day, from, to, edgeId }
+
+// Torn groups whose two surviving end-nodes have been reconnected by a path
+// of Aspen's own new ink. The rip scar stays; a paper patch marks the stitch.
+const bridgedGroups = new Set();  // tearGroup keys
 
 // Recomputes ghost status from scratch: anything not reachable from the den
 // through non-torn edges, but still connected to the graph via a torn-off
@@ -76,12 +86,48 @@ function recomputeGhosts() {
   }
 }
 
+// True if a path of Aspen's own new ink (current-dotted / current-solid)
+// connects nodes a and b. Inherited ink never counts — a patch is new
+// knowledge stitched around the tear, not the memory that just failed.
+function newInkPathExists(a, b) {
+  const seen  = new Set([a]);
+  const queue = [a];
+  while (queue.length > 0) {
+    const nid = queue.shift();
+    if (nid === b) return true;
+    for (const e of edges) {
+      if (e.state !== 'current-dotted' && e.state !== 'current-solid') continue;
+      const nb = e.a === nid ? e.b : e.b === nid ? e.a : null;
+      if (nb !== null && !seen.has(nb)) { seen.add(nb); queue.push(nb); }
+    }
+  }
+  return false;
+}
+
+// Marks any torn group whose surviving end-nodes are now connected by new ink
+// as bridged. Run after every arrival and after every tear (a detour walked
+// before the tear counts — the knowledge already existed when the map broke).
+function checkBridges() {
+  for (const group of computeTornGroups().values()) {
+    if (bridgedGroups.has(group.key)) continue;
+    const path = reconstructPath(group);
+    const a = path[0], b = path[path.length - 1];
+    if (a === b) continue;
+    if (newInkPathExists(a, b)) {
+      bridgedGroups.add(group.key);
+      playPatchChime();
+    }
+  }
+}
+
 function initGameState() {
   playerNode = 0;
   day        = 1;
 
   ghostNodes.clear();
   ghostEdges.clear();
+  travelHistory.length = 0;
+  bridgedGroups.clear();
   edgeRT.clear();
   for (const edge of edges) {
     edgeRT.set(edge.id, { traverseCount: 0, lastTraversedDay: null });
@@ -170,6 +216,29 @@ function playTearSting() {
   g2.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
   o2.connect(g2); g2.connect(ac.destination);
   o2.start(now + 0.03); o2.stop(now + 0.8);
+}
+
+// A soft consonant two-note chime (perfect fifth) for when a torn route is
+// bridged — the gentle counterpart to the tear sting.
+function playPatchChime() {
+  const ac  = getAudioCtx();
+  const now = ac.currentTime;
+
+  const o1 = ac.createOscillator(), g1 = ac.createGain();
+  o1.type = 'triangle'; o1.frequency.value = 392;   // G4
+  g1.gain.setValueAtTime(0.001, now);
+  g1.gain.linearRampToValueAtTime(0.16, now + 0.03);
+  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+  o1.connect(g1); g1.connect(ac.destination);
+  o1.start(now); o1.stop(now + 0.75);
+
+  const o2 = ac.createOscillator(), g2 = ac.createGain();
+  o2.type = 'triangle'; o2.frequency.value = 587.33; // D5
+  g2.gain.setValueAtTime(0.001, now);
+  g2.gain.linearRampToValueAtTime(0.13, now + 0.18);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+  o2.connect(g2); g2.connect(ac.destination);
+  o2.start(now + 0.15); o2.stop(now + 0.95);
 }
 
 // ── TEAR FLASH ────────────────────────────────────────────────────────────────
@@ -501,6 +570,52 @@ function drawTornGroup(group) {
   return path.slice(1, -1);  // interior nodes are swallowed
 }
 
+// ── PATCHES ───────────────────────────────────────────────────────────────────
+// A bridged group keeps its grey rip, but each surviving end-node — where the
+// new route stitches back into the old map — gets a small lighter-paper patch
+// with dashed stitch marks, drawn under the node ring.
+
+function drawPatchSquare(x, y, seed) {
+  const rng = makePrng(seed);
+  const s   = 38 + rng() * 8;              // patch side length
+  const rot = (rng() - 0.5) * 0.45;        // slight crooked hand-stitched angle
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(rot);
+
+  ctx.setLineDash([]);
+  ctx.fillStyle = C_PATCH;
+  ctx.beginPath();
+  ctx.rect(-s / 2, -s / 2, s, s);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(90,55,20,0.15)';
+  ctx.lineWidth   = 1;
+  ctx.stroke();
+
+  // Stitch marks just inside the patch edge
+  ctx.setLineDash([5, 4]);
+  ctx.strokeStyle = C_STITCH;
+  ctx.lineWidth   = 1.3;
+  ctx.beginPath();
+  ctx.rect(-s / 2 + 3, -s / 2 + 3, s - 6, s - 6);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.restore();
+}
+
+function drawPatches() {
+  for (const group of computeTornGroups().values()) {
+    if (!bridgedGroups.has(group.key)) continue;
+    const path = reconstructPath(group);
+    for (const nid of [path[0], path[path.length - 1]]) {
+      const p = nodePos(nodesById.get(nid));
+      drawPatchSquare(p.x, p.y, hashStr(group.key + ':' + nid));
+    }
+  }
+}
+
 // The player token: a small front-facing wolf head (pointed ears, grey fur,
 // white muzzle, amber eyes with angled brows) — a mini version of a classic
 // front-on wolf-face illustration.
@@ -698,6 +813,15 @@ function drawDayCounter() {
   ctx.fillText(`Day ${day}`, 28, 28);
 }
 
+function drawHint() {
+  ctx.setLineDash([]);
+  ctx.font         = 'italic 12px serif';
+  ctx.fillStyle    = 'rgba(91,70,50,0.7)';
+  ctx.textAlign    = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('Click a connected place to travel — unfamiliar ground costs more days.', 28, canvas.height - 26);
+}
+
 function draw() {
   ctx.save();
   drawParchment();
@@ -711,12 +835,14 @@ function draw() {
     for (const id of drawTornGroup(group)) swallowed.add(id);
   }
 
+  drawPatches();
   for (const node of nodes) {
     if (!swallowed.has(node.id)) drawNode(node);
   }
   drawToken();
   drawTooltip();
   drawDayCounter();
+  drawHint();
   drawFlash();
   ctx.restore();
 }
@@ -785,6 +911,7 @@ canvas.addEventListener('click', e => {
             : [edge];
           for (const e of group) e.state = 'torn';
           recomputeGhosts();
+          checkBridges();  // a detour walked before the tear already bridges it
           console.log('TEAR', group.length);
           playTearSting();
           startFlash();
@@ -803,6 +930,7 @@ canvas.addEventListener('click', e => {
   if (edge.state === 'current-dotted' && rt.traverseCount >= SOLID_AT) {
     edge.state = 'current-solid';
   }
+  travelHistory.push({ day, from: playerNode, to: target.id, edgeId: edge.id });
   day += edge.days ?? 1;
   applyDecay();
 
@@ -812,6 +940,7 @@ canvas.addEventListener('click', e => {
     onDone: () => {
       playerNode = target.id;
       confirmed.set(playerNode, true);
+      checkBridges();
       draw();
     },
   }]);
