@@ -45,3 +45,16 @@ end-map, music.
 **Tomorrow's first action:** play a real year in the browser start to finish
 and tune feel numbers (traffic wave rhythm, fear rates, decay days, day
 length) — the harness proves correctness, not feel.
+
+## 2026-07-14 (third session)
+
+Prologue (all nine beats, 2D), world doubled + apron, den/pups goal arc, art
+rewrite, Arjun's five bug fixes + F-balk exploit fix, prey smoothing/escapes,
+bridge-over-road, longer scent trails. Pushed to GitHub
+(arjungali-hub/the-corridor, private). TODO.md is the live checklist — the
+big pending items: zone-based pack AI + pack hunting, map click routing +
+deeper zoom, obstacle-accurate tears, The Bend tear rework, slower tutorial +
+scent color lessons, Aspen speed = Sedge.
+
+**Tomorrow's first action:** implement map click routing (mapClick +
+Dijkstra over known ink), then the zone pack AI.

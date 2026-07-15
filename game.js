@@ -497,11 +497,16 @@ function packUpdate(dt) {
 
     const targetOnRoad = onRoad(target.x, target.y);
     const selfOnRoad = onRoad(w.x, w.y);
+    // fear is not a toggle: `balked` persists until fear truly fades,
+    // no matter how many times F is pressed
+    if (w.balked && S.fear < 0.35) w.balked = false;
+    if (w.balked) w.state = 'balk';
     if (w.state === 'balk') {
-      if (S.fear < 0.35) { w.state = 'follow'; }
+      if (!w.balked) { w.state = 'follow'; }
       else { w.moving = false; continue; }
     } else if (targetOnRoad && !selfOnRoad && S.fear > FEAR_BALK && S.mode === 'play') {
       w.state = 'balk';
+      w.balked = true;
       w.moving = false;
       continue;
     }
@@ -521,7 +526,8 @@ function togglePackStay() {
   const anyFollowing = S.pack.some(w => w.state === 'follow' || w.state === 'balk');
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') continue;
-    w.state = anyFollowing ? 'stay' : 'follow';
+    // F never overrides fear: a wolf that balked stays balked
+    w.state = anyFollowing ? 'stay' : (w.balked ? 'balk' : 'follow');
   }
   S.tut.usedHold = true;
   if (S.mode === 'prologue' && S.beat === 6) S.tut._bond = true;
