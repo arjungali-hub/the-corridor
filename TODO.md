@@ -95,6 +95,10 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [ ] ⏳ Prey slightly **slower**, and prey may flee into the apron (where
       Aspen can't follow) and right off the land — an **escape**. Each escape
       spawns a replacement deer near the center of the map.
+- [ ] ⏳ **Aspen's movement speed should equal Sedge's** (Arjun) — Sedge
+      moves at 230 × 1.12 ≈ 258; Aspen currently walks 185 off-route / 265
+      on-route. Rework so Aspen's base speed matches Sedge's (and keep the
+      pack's relative speeds sensible when the zone AI lands).
 - [ ] ⏳ **Tutorial slower**, and it must teach what the scent-view colors
       mean as each is first seen: gold = prey passed, brighter is fresher;
       violet = human noise that blinds the nose; red = rival pack marks.
