@@ -1035,15 +1035,11 @@ function tutorialUpdate(dt) {
 // A trap in the shape of a tutorial: every mechanic at its most generous,
 // on land that no longer exists.
 
-const PROLOGUE_DONE_KEY = 'the-corridor-prologue-done';
-function prologueDone() {
-  if (typeof localStorage === 'undefined') return false;
-  try { return localStorage.getItem(PROLOGUE_DONE_KEY) === '1'; } catch (_) { return false; }
-}
-function markPrologueDone() {
-  if (typeof localStorage === 'undefined') return;
-  try { localStorage.setItem(PROLOGUE_DONE_KEY, '1'); } catch (_) {}
-}
+// Session-scoped only: a page reload always starts the entire game over,
+// prologue included. Within one session, N after finishing it skips ahead.
+let prologueDoneSession = false;
+function prologueDone() { return prologueDoneSession; }
+function markPrologueDone() { prologueDoneSession = true; }
 
 function startPrologue() {
   S.mode = 'prologue';

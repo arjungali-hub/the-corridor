@@ -50,14 +50,10 @@ window.addEventListener('blur', () => {
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
-// Opening index.html?fresh wipes the save AND the prologue-done flag:
-// a complete first-time start, prologue included.
-const wantFresh = typeof location !== 'undefined' && /[?&]fresh/.test(location.search);
-if (wantFresh) {
-  clearSave();
-  try { localStorage.removeItem(PROLOGUE_DONE_KEY); } catch (_) {}
-}
-if (wantFresh || !loadGame()) newGame();
+// A reload is a clean slate: the whole game starts over, prologue included.
+// (Saves are never loaded at boot; the year lives and dies with the tab.)
+clearSave();
+newGame();
 
 let lastT = 0;
 function frame(t) {
