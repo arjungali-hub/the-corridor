@@ -40,6 +40,14 @@ window.addEventListener('keyup', (ev) => {
   if (slot) input[slot] = false;
 });
 
+// clicking the raised map plans a route to a known place
+canvas.addEventListener('click', (ev) => {
+  if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
+  const wx = (ev.clientX - canvas.width / 2) / S.cam.scale + S.cam.x;
+  const wy = (ev.clientY - canvas.height / 2) / S.cam.scale + S.cam.y;
+  mapClick(wx, wy);
+});
+
 // right-mouse hold also raises the map
 canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 canvas.addEventListener('mousedown', (ev) => { if (ev.button === 2) input.sense = true; });

@@ -95,13 +95,19 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [ ] ⏳ Prey slightly **slower**, and prey may flee into the apron (where
       Aspen can't follow) and right off the land — an **escape**. Each escape
       spawns a replacement deer near the center of the map.
-- [ ] ⏳ **Aspen's movement speed should equal Sedge's** (Arjun) — Sedge
-      moves at 230 × 1.12 ≈ 258; Aspen currently walks 185 off-route / 265
-      on-route. Rework so Aspen's base speed matches Sedge's (and keep the
-      pack's relative speeds sensible when the zone AI lands).
-- [ ] ⏳ **Tutorial slower**, and it must teach what the scent-view colors
-      mean as each is first seen: gold = prey passed, brighter is fresher;
-      violet = human noise that blinds the nose; red = rival pack marks.
+- [x] **Days pass 6× faster** (Arjun): MIN_PER_SEC 48 → 288, one day ≈ 5 s,
+      a year ≈ 30 minutes. ⚠ Follow-up tuning likely: everything priced
+      per-day (food 4.5/day, pup food 30/day, injury 2.5 days, decay
+      15/25 days, den deadline, pup dates) now elapses 6× faster in real
+      time — food empties in ~110 s, hungry pups in ~15 s. If that feels
+      frantic in play, the per-day costs need rescaling, not the clock.
+- [x] **Aspen's movement speed equals Sedge's**: 258 off-route (Sedge's
+      pace), 290 on known routes, 210 in snow.
+- [x] **Tutorial slower** (longer gaps between every step) and the scent
+      colors are each taught in place the first time they're seen: gold =
+      prey, brighter is fresher; violet = human noise that blinds the nose;
+      red = another pack's marks (new callout). Map routing gets its own
+      one-time hint the first time the map is raised in Act I.
 - [ ] ⏳ **Tears must mirror the actual human obstacles** (Arjun): a tear
       should exist because a real obstacle severs that ground, and should
       span the whole obstacle — the road tear spans the entire road (every
@@ -109,10 +115,13 @@ resume from the ⏳ items, in order. Verify with the headless harness
       not just one segment). Add more human-made obstacles (fence lines, a
       gravel pit, a powerline cut …) and derive tears from their footprints
       rather than from hand-placed trigger circles.
-- [ ] ⏳ **Clickable map routing** (Arjun): click a node on the map and be
-      shown how to get there along known ink (Dijkstra over untorn edges);
-      no path = the map says so — this is what makes tears matter. Plus the
-      map should zoom out further.
+- [x] **Clickable map routing**: click a known place on the raised map and
+      the way there glows along known ink (Dijkstra over untorn edges);
+      clicking again dismisses it; arriving clears it; a tear that breaks
+      the plan says "The way she had in mind is gone." No path: "The map
+      holds no way there." Map zoomed out further (0.17). Old-den standing
+      can't accidentally choose the den anymore (needs the choice prompt
+      first, and never while the map is up).
 - [ ] ⏳ **The tear at The Bend isn't earned** (Arjun): nothing physically
       blocks the old way there — you can still walk it. Either give the
       drycreek break a real physical cause in the world, or don't tear it at

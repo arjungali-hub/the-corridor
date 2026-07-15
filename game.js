@@ -8,19 +8,19 @@ const CORRIDOR      = 70;    // within this of a route segment counts as walking
 const COV_BUCKETS   = 8;     // a pass requires every stretch of the edge walked
 const COV_FULL      = (1 << COV_BUCKETS) - 1;
 const NODE_VISIT_R  = 70;
-const SPEED_ROUGH   = 185;   // off-route
-const SPEED_ROUTE   = 265;   // along a known, untorn route
-const SPEED_SNOW    = 150;   // off-route in winter
+const SPEED_ROUGH   = 258;   // off-route — matches Sedge's pace
+const SPEED_ROUTE   = 290;   // along a known, untorn route
+const SPEED_SNOW    = 210;   // off-route in winter
 const INJURY_SPEED  = 0.7;   // while hurt
 const INJURY_DAYS   = 2.5;
-const MIN_PER_SEC   = 48;    // game minutes per real second (1 day ≈ 30 s)
+const MIN_PER_SEC   = 288;   // game minutes per real second (1 day ≈ 5 s; a year ≈ 30 min)
 const SOLID_AT      = 3;     // full traversals to lift dotted → solid
 const DECAY_SOLID_DAYS  = 15;
 const DECAY_DOTTED_DAYS = 25;
 const SENSE_IN      = 0.35;  // seconds to raise the map
 const SENSE_OUT     = 0.5;   // the locked 0.5 s blend back
 const SCALE_WORLD   = 1.1;
-const SCALE_MAP     = 0.20;  // the map pulls well back — a document, not a lens
+const SCALE_MAP     = 0.17;  // the map pulls well back — a document, not a lens
 const APRON         = 600;   // land drawn beyond the walkable world — no black void
 const SCALE_VISTA   = 0.5;
 const YEAR_DAYS     = 360;
@@ -112,8 +112,9 @@ function newGame() {
     tut: {
       step: 0, t: 0, moved: 0,
       sawMap: false, scentHold: 0, usedHold: false,
-      fearSeen: false, violetSeen: false, ownInkSeen: false,
+      fearSeen: false, violetSeen: false, ownInkSeen: false, redSeen: false,
       tearPrompt: false, goalSet: false, taughtHelp: false, denPrompt: false,
+      routeTaught: false,
       lastStarveDay: 0,
     },
     prompt: null,
@@ -121,6 +122,7 @@ function newGame() {
     calloutActive: null,
     showHelp: false,
     confirmNewYearT: 0,
+    routeTo: null, routePath: null, routeT: 0,   // the way she has in mind
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
@@ -365,6 +367,17 @@ function traversalUpdate() {
       S.visited.add(n.id);
     }
   }
+  // arriving where she meant to go clears the way she had in mind
+  if (S.routeTo) {
+    const t = NbyId.get(S.routeTo);
+    if (dist(S.wolf.x, S.wolf.y, t.x, t.y) < NODE_VISIT_R) {
+      S.routeTo = null;
+      S.routePath = null;
+    } else {
+      S.routeT += 1 / 60;
+      if (S.routeT > 2) { S.routeT = 0; S.routePath = computeRoute(S.routeTo); }
+    }
+  }
 }
 
 function tearCheck() {
@@ -385,6 +398,12 @@ function tearCheck() {
         else S.forcedSenseT = 2.6;
       }
       say('The land is not what she remembered.');
+      // a tear is a plan that no longer exists
+      if (S.routeTo) {
+        const p = computeRoute(S.routeTo);
+        if (!p && S.routePath) say('The way she had in mind is gone.');
+        S.routePath = p;
+      }
       checkBridges();
       saveGame();
     }
@@ -460,6 +479,66 @@ function violetAt(x, y) {
     v += Math.exp(-(d * d) / (r * r));
   }
   return v;
+}
+
+// ── map routing: click a place she knows, and the map shows the way ─────────
+// Dijkstra over known, untorn ink only — so a tear is not an inconvenience,
+// it is a plan that no longer exists.
+
+function nodeKnownG(id) {
+  if (S.visited.has(id)) return true;
+  return S.edges.some(e => e.state === 'inherited' && !e.torn && (e.a === id || e.b === id));
+}
+
+function computeRoute(targetId) {
+  let start = null, bd = Infinity;
+  for (const n of NODES) {
+    if (!nodeKnownG(n.id)) continue;
+    const d = dist(S.wolf.x, S.wolf.y, n.x, n.y);
+    if (d < bd) { bd = d; start = n.id; }
+  }
+  if (!start) return null;
+  const distMap = new Map([[start, 0]]);
+  const prev = new Map();
+  const done = new Set();
+  for (;;) {
+    let u = null, best = Infinity;
+    for (const [k, v] of distMap) if (!done.has(k) && v < best) { best = v; u = k; }
+    if (u === null || u === targetId) break;
+    done.add(u);
+    for (const e of S.edges) {
+      if (!isKnownEdge(e)) continue;
+      const nb = e.a === u ? e.b : e.b === u ? e.a : null;
+      if (!nb || done.has(nb)) continue;
+      const A = NbyId.get(e.a), B = NbyId.get(e.b);
+      const alt = best + dist(A.x, A.y, B.x, B.y);
+      if (alt < (distMap.has(nb) ? distMap.get(nb) : Infinity)) {
+        distMap.set(nb, alt);
+        prev.set(nb, u);
+      }
+    }
+  }
+  if (targetId !== start && !prev.has(targetId)) return null;
+  const path = [targetId];
+  while (path[0] !== start) path.unshift(prev.get(path[0]));
+  return path;
+}
+
+function mapClick(wx, wy) {
+  if (S.senseBlend < 0.8) return;
+  const reach = 34 / S.cam.scale;
+  const swallowed = swallowedNodeIds();
+  let target = null, bd = Infinity;
+  for (const n of NODES) {
+    if (swallowed.has(n.id) || !nodeKnownG(n.id)) continue;
+    const d = dist(wx, wy, n.x, n.y);
+    if (d < reach && d < bd) { bd = d; target = n; }
+  }
+  if (!target) return;
+  if (S.routeTo === target.id) { S.routeTo = null; S.routePath = null; return; }
+  S.routeTo = target.id;
+  S.routePath = computeRoute(target.id);
+  if (!S.routePath) say('The map holds no way there.');
 }
 
 // ── the pack ─────────────────────────────────────────────────────────────────
@@ -786,7 +865,9 @@ function denUpdate(dt) {
     for (const site of DEN_SITES) {
       if (dist(S.wolf.x, S.wolf.y, site.x, site.y) < 60) near = site;
     }
-    if (near && !S.wolf.moving) {
+    // a den is a deliberate bet: staying only counts once the choice has
+    // been named, and never while she is lost in the map
+    if (near && !S.wolf.moving && S.senseBlend < 0.2 && S.tut.denPrompt) {
       S.denStandT += dt;
       if (S.denStandT > 2.5) chooseDen(near);
     } else {
@@ -883,7 +964,7 @@ function queueCallout(id) {
 
 const CALLOUT_VIEW = {
   'willow-ink': 'map', den: 'map', 'own-ink': 'map', rip: 'map', goal: 'map',
-  gold: 'scent', violet: 'scent',
+  gold: 'scent', violet: 'scent', red: 'scent',
 };
 
 function calloutReady(id) {
@@ -929,21 +1010,21 @@ function tutorialUpdate(dt) {
 
   switch (T.step) {
     case 0:
-      if (T.t > 1.4) { showPrompt('You are Aspen.', [], 3.5); tutStep(1); }
+      if (T.t > 2.4) { showPrompt('You are Aspen.', [], 4); tutStep(1); }
       break;
     case 1:
-      if (T.t > 4.6) tutStep(2);
+      if (T.t > 7) tutStep(2);
       break;
     case 2:
       if (T.moved > 150) {
         clearPrompt();
         S.hud.pack = true;
-        showPrompt('They follow you now. Your mother led them for nine years.', [], 5);
+        showPrompt('They follow you now. Your mother led them for nine years.', [], 5.5);
         tutStep(3);
       }
       break;
     case 3:
-      if (T.moved > 550 || T.t > 24) tutStep(4);
+      if (T.moved > 900 || T.t > 40) tutStep(4);
       break;
     case 4:
       if (S.senseBlend > 0.8) {
@@ -955,21 +1036,21 @@ function tutorialUpdate(dt) {
       }
       break;
     case 5:
-      if (S.senseBlend < 0.2 && T.t > 2) {
+      if (S.senseBlend < 0.2 && T.t > 4) {
         showPrompt('Her memory is old. The land may have moved on.', [], 5.5);
         tutStep(6);
       }
       break;
     case 6:
-      if ((day() >= 2 || S.food < 58) && T.t > 8) {
+      if ((day() >= 2 || S.food < 58) && T.t > 14) {
         S.hud.food = true;
         S.hud.day = true;
-        showPrompt('The pack is hungry.', [], 4);
+        showPrompt('The pack is hungry.', [], 4.5);
         tutStep(7);
       }
       break;
     case 7:
-      if (T.t > 4.5) tutStep(8);
+      if (T.t > 8) tutStep(8);
       break;
     case 8:
       if (input.scent && S.senseBlend < 0.2) T.scentHold += dt;
@@ -980,7 +1061,7 @@ function tutorialUpdate(dt) {
       }
       break;
     case 9:
-      if (T.t > 3) tutStep(10);
+      if (T.t > 6) tutStep(10);
       break;
     case 10:
       if (T.usedHold) {
@@ -1005,6 +1086,15 @@ function tutorialUpdate(dt) {
   if (!T.violetSeen && input.scent && violetAt(S.wolf.x, S.wolf.y) > 0.3) {
     T.violetSeen = true;
     queueCallout('violet');
+  }
+  if (!T.redSeen && input.scent
+      && SCENT_RED.some(r => dist(S.wolf.x, S.wolf.y, r.x, r.y) < 700)) {
+    T.redSeen = true;
+    queueCallout('red');
+  }
+  if (!T.routeTaught && T.step >= 6 && S.senseBlend > 0.85) {
+    T.routeTaught = true;
+    showPrompt('Click a place she knows — the map will show her the way.', [], 6);
   }
   if (!T.ownInkSeen && S.edges.some(e => e.state.startsWith('current'))) {
     T.ownInkSeen = true;

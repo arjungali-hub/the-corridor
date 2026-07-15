@@ -1153,6 +1153,16 @@ function drawMap() {
   }
   ctx.globalAlpha = 1;
 
+  // the way she has in mind — a soft emphasis over her own knowledge
+  if (S.routePath && S.routePath.length > 1) {
+    ctx.globalAlpha = m * (0.35 + 0.15 * Math.sin(S.time * 2.5));
+    for (let i = 1; i < S.routePath.length; i++) {
+      const A = NbyId.get(S.routePath[i - 1]), B = NbyId.get(S.routePath[i]);
+      strokePolyline(ctx, [[A.x, A.y], [B.x, B.y]], 16 / sc, 'rgba(78,122,140,0.6)');
+    }
+    ctx.globalAlpha = 1;
+  }
+
   for (const e of S.edges) drawInkEdge(e, m);
   for (const g of TEAR_GROUPS) if (groupTorn(g)) drawRip(g, m);
   for (const g of TEAR_GROUPS) {
@@ -1216,6 +1226,18 @@ function drawMap() {
       ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     }
+  }
+
+  // the destination she has chosen
+  if (S.routeTo) {
+    const t = NbyId.get(S.routeTo);
+    const p = screenPos(t.x, t.y);
+    const pulse = 0.5 + 0.5 * Math.sin(S.time * 3);
+    ctx.globalAlpha = m * (0.5 + 0.4 * pulse);
+    ctx.strokeStyle = C_TRAIL;
+    ctx.lineWidth = 2.6;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 16 + pulse * 5, 0, Math.PI * 2); ctx.stroke();
+    ctx.globalAlpha = 1;
   }
 
   // the winter range calls, once autumn names it
@@ -1287,6 +1309,7 @@ const CALLOUT_TEXT = {
   goal: 'The winter range. Be there before deep snow.',
   gold: 'Prey passed here. Brighter is fresher.',
   violet: 'The human noise. The nose is blind inside it.',
+  red: "Another pack's marks. That ground is claimed.",
 };
 
 function calloutAnchor(id) {
@@ -1322,6 +1345,7 @@ function calloutAnchor(id) {
     case 'goal': { const wr = NbyId.get('winterRange'); return { x: wr.x, y: wr.y }; }
     case 'gold': return near(S.scent, p => p);
     case 'violet': return near(SCENT_VIOLET, p => p);
+    case 'red': return near(SCENT_RED, p => p);
   }
   return null;
 }
