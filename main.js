@@ -25,10 +25,11 @@ window.addEventListener('keydown', (ev) => {
   const k = ev.key.toLowerCase();
   if (k === ' ' || k.startsWith('arrow')) ev.preventDefault();
 
-  if (S && S.mode === 'intro') { S.mode = 'play'; return; }
+  if (S && S.mode === 'intro') { beginFromIntro(); return; }
 
-  if (k === 'n') { clearSave(); newGame(); S.mode = 'play'; return; }
-  if (k === 'f' && S && S.mode === 'play') { togglePackStay(); return; }
+  if (k === 'n') { requestNewYear(); return; }
+  if (k === 'h' && S && (S.mode === 'play' || S.mode === 'prologue')) { S.showHelp = !S.showHelp; return; }
+  if (k === 'f' && S && (S.mode === 'play' || S.mode === 'prologue')) { togglePackStay(); return; }
 
   const slot = KEYMAP[k];
   if (slot) input[slot] = true;
@@ -49,7 +50,14 @@ window.addEventListener('blur', () => {
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
-if (!loadGame()) newGame();
+// Opening index.html?fresh wipes the save AND the prologue-done flag:
+// a complete first-time start, prologue included.
+const wantFresh = typeof location !== 'undefined' && /[?&]fresh/.test(location.search);
+if (wantFresh) {
+  clearSave();
+  try { localStorage.removeItem(PROLOGUE_DONE_KEY); } catch (_) {}
+}
+if (wantFresh || !loadGame()) newGame();
 
 let lastT = 0;
 function frame(t) {
