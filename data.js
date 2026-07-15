@@ -133,6 +133,9 @@ const OBSTACLES = {
   construction: { x0: 3640, y0: 1440, x1: 4040, y1: 1960 },
   // Rooflines, southeast. Impassable fenced ground.
   subdivision: { x0: 4280, y0: 2760, x1: 4840, y1: 3240 },
+  // Where the diverted creek died, the Bend became a mud sink — the physical
+  // truth behind the drycreek tear. Nothing walks through it.
+  mudSink: { x: 2700, y: 2800, r: 110 },
 };
 
 const TERRAIN = {

@@ -30,9 +30,10 @@ window.addEventListener('keydown', (ev) => {
   if (k === 'n') { requestNewYear(); return; }
   if (k === 'h' && S && (S.mode === 'play' || S.mode === 'prologue')) { S.showHelp = !S.showHelp; return; }
   if (k === 'f' && S && (S.mode === 'play' || S.mode === 'prologue')) { togglePackStay(); return; }
+  if (k === ' ' && !ev.repeat) toggleMap();  // press to open, press to close
 
   const slot = KEYMAP[k];
-  if (slot) input[slot] = true;
+  if (slot) input[slot] = true;  // ' ' still tracked while held: the inherit gesture
 });
 
 window.addEventListener('keyup', (ev) => {
@@ -48,10 +49,9 @@ canvas.addEventListener('click', (ev) => {
   mapClick(wx, wy);
 });
 
-// right-mouse hold also raises the map
+// right-click also toggles the map
 canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
-canvas.addEventListener('mousedown', (ev) => { if (ev.button === 2) input.sense = true; });
-window.addEventListener('mouseup', (ev) => { if (ev.button === 2) input.sense = false; });
+canvas.addEventListener('mousedown', (ev) => { if (ev.button === 2) toggleMap(); });
 window.addEventListener('blur', () => {
   input.up = input.down = input.left = input.right = input.sense = input.scent = false;
 });

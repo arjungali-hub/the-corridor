@@ -4,7 +4,14 @@
 // ── constants ────────────────────────────────────────────────────────────────
 
 const WOLF_R        = 12;
-const CORRIDOR      = 70;    // within this of a route segment counts as walking it
+// Being in the general area of a path counts as walking it. Her mother's
+// routes are broad ways through the land; new ground asks a little more
+// precision; very long segments forgive more still.
+function corridorFor(e) {
+  const A = NbyId.get(e.a), B = NbyId.get(e.b);
+  const long = dist(A.x, A.y, B.x, B.y) > 900 ? 50 : 0;
+  return (e.state === 'inherited' ? 200 : 150) + long;
+}
 const COV_BUCKETS   = 8;     // a pass requires every stretch of the edge walked
 const COV_FULL      = (1 << COV_BUCKETS) - 1;
 const NODE_VISIT_R  = 70;
@@ -109,6 +116,7 @@ function newGame() {
     firstTear: false,
     pendingForcedSense: false,
 
+    mapOpen: false,
     senseBlend: 0, forcedSenseT: 0, flickerT: 0, shake: 0,
     cam: { x: DEN.x, y: DEN.y, scale: SCALE_WORLD },
 
@@ -128,6 +136,7 @@ function newGame() {
     confirmNewYearT: 0,
     routeTo: null, routePath: null, routeT: 0,   // the way she has in mind
     task: null, taskCooldown: 30,                // small demands; time holds for them
+    zoneAnchor: null,                            // F pins the pack's zone here
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
@@ -234,6 +243,8 @@ function blockedAt(x, y, r, canPassGap, margin) {
     const c = OBSTACLES[key];
     if (x > c.x0 - r && x < c.x1 + r && y > c.y0 - r && y < c.y1 + r) return true;
   }
+  const ms = OBSTACLES.mudSink;
+  if (dist(x, y, ms.x, ms.y) < ms.r + r) return true;
   return false;
 }
 
@@ -249,6 +260,8 @@ function wolfBlockedAt(x, y, margin) {
     const c = OBSTACLES[key];
     if (x > c.x0 - WOLF_R && x < c.x1 + WOLF_R && y > c.y0 - WOLF_R && y < c.y1 + WOLF_R) return true;
   }
+  const ms = OBSTACLES.mudSink;
+  if (dist(x, y, ms.x, ms.y) < ms.r + WOLF_R) return true;
   return false;
 }
 
@@ -357,7 +370,7 @@ function traversalUpdate() {
     if (e.torn) continue;
     const A = NbyId.get(e.a), B = NbyId.get(e.b);
     const { d, t } = distSeg(S.wolf.x, S.wolf.y, A.x, A.y, B.x, B.y);
-    if (d >= CORRIDOR) continue;
+    if (d >= corridorFor(e)) continue;
     // Honest knowledge: a pass needs every stretch of the edge actually
     // walked, in however many visits — not just both endpoints touched.
     e.covBits |= 1 << Math.min(COV_BUCKETS - 1, Math.floor(t * COV_BUCKETS));
@@ -470,7 +483,7 @@ function senseRadius() {
     const A = NbyId.get(e.a), B = NbyId.get(e.b);
     if (distSeg(S.wolf.x, S.wolf.y, A.x, A.y, B.x, B.y).d < 700) n++;
   }
-  return 460 + 170 * Math.min(n, 6);
+  return 900 + 250 * Math.min(n, 6);
 }
 
 // Violet human-noise intensity at a point; radii widen every season.
@@ -564,7 +577,40 @@ function trailPoint(distBack) {
   return S.trail[0];
 }
 
+// ── the zone ─────────────────────────────────────────────────────────────────
+// An invisible ring around Aspen. The pack drifts and wanders inside it,
+// lopes back when outside it, and it tightens wherever the land pinches —
+// the road, hard walls, the mud. F anchors the zone in place; releasing it
+// hands it back to her heels. The zone may spill into the apron, and pack
+// wolves may go where Aspen cannot.
+
+const ZONE_R = 150;
+
+function zoneCenter() {
+  const anyFollowing = S.pack.some(w => w.state === 'follow' || w.state === 'balk');
+  if (!anyFollowing && S.zoneAnchor) return S.zoneAnchor;
+  return { x: S.wolf.x, y: S.wolf.y };
+}
+
+function zoneRadius(c) {
+  const h = OBSTACLES.highway;
+  let clear = Infinity;
+  clear = Math.min(clear, c.x < h.x0 ? h.x0 - c.x : c.x > h.x1 ? c.x - h.x1 : 0);
+  if (S.era !== 'past') {
+    for (const key of ['construction', 'subdivision']) {
+      const o = OBSTACLES[key];
+      const dx = Math.max(o.x0 - c.x, 0, c.x - o.x1);
+      const dy = Math.max(o.y0 - c.y, 0, c.y - o.y1);
+      clear = Math.min(clear, Math.hypot(dx, dy));
+    }
+    const ms = OBSTACLES.mudSink;
+    clear = Math.min(clear, Math.max(0, dist(c.x, c.y, ms.x, ms.y) - ms.r));
+  }
+  return clamp(clear * 0.8, 55, ZONE_R);
+}
+
 function packUpdate(dt) {
+  // breadcrumbs kept for flavor and the record; movement no longer uses them
   const last = S.trail[S.trail.length - 1];
   if (dist(last.x, last.y, S.wolf.x, S.wolf.y) > 14) {
     S.trail.push({ x: S.wolf.x, y: S.wolf.y });
@@ -573,37 +619,83 @@ function packUpdate(dt) {
 
   S.fear = Math.max(0, S.fear - 0.02 * dt);
 
-  let slot = 0;
-  for (const w of S.pack) {
-    if (w.state === 'dead' || w.state === 'gone' || w.state === 'stay') { w.moving = false; continue; }
-    slot++;
-    const target = trailPoint(38 * slot);
+  const c = zoneCenter();
+  const zr = zoneRadius(c);
+  const huntLimit = Math.max(320, zr * 2);   // how far a hunt may pull them
 
-    const targetOnRoad = onRoad(target.x, target.y);
-    const selfOnRoad = onRoad(w.x, w.y);
-    // fear is not a toggle: `balked` persists until fear truly fades,
-    // no matter how many times F is pressed
-    if (w.balked && S.fear < 0.35) w.balked = false;
-    if (w.balked) w.state = 'balk';
-    if (w.state === 'balk') {
-      if (!w.balked) { w.state = 'follow'; }
-      else { w.moving = false; continue; }
-    } else if (targetOnRoad && !selfOnRoad && S.fear > FEAR_BALK && S.mode === 'play') {
+  for (const w of S.pack) {
+    if (w.state === 'dead' || w.state === 'gone') { w.moving = false; continue; }
+
+    // fear is not a toggle: `balked` persists until fear truly fades
+    if (w.balked && S.fear < 0.35) { w.balked = false; if (w.state === 'balk') w.state = 'follow'; }
+    if (w.balked) { w.state = 'balk'; w.moving = false; continue; }
+
+    const dZone = dist(w.x, w.y, c.x, c.y);
+
+    // adults hunt on their own: chase near prey, break off beyond the
+    // hunting radius, and never set foot on the asphalt to do it
+    if (!w.pup && S.mode === 'play' && dZone < huntLimit) {
+      let prey = null, pd = 1e9;
+      for (const e of S.elk) {
+        const d = dist(w.x, w.y, e.x, e.y);
+        if (d < 280 && d < pd) { pd = d; prey = e; }
+      }
+      if (prey) {
+        const d = pd || 1;
+        const sp = 250 * w.mult;
+        tryMove(w, (prey.x - w.x) / d * sp * dt, (prey.y - w.y) / d * sp * dt,
+          (x, y) => packBlockedAt(x, y) || onRoad(x, y));
+        w.heading = Math.atan2(prey.y - w.y, prey.x - w.x);
+        w.gait += sp * dt;
+        w.moving = true;
+        continue;
+      }
+    }
+
+    // outside the zone: lope back in. Inside: unhurried wandering.
+    if (dZone > zr) {
+      w.tx = c.x + (Math.random() - 0.5) * zr;
+      w.ty = c.y + (Math.random() - 0.5) * zr;
+      w.wanderT = 1 + Math.random() * 2;
+    } else {
+      w.wanderT = (w.wanderT || 0) - dt;
+      if (w.wanderT <= 0 || w.tx === undefined || dist(w.x, w.y, w.tx, w.ty) < 14) {
+        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * zr;
+        w.tx = c.x + Math.cos(a) * r;
+        w.ty = c.y + Math.sin(a) * r;
+        w.wanderT = 1.5 + Math.random() * 3;
+      }
+    }
+
+    const d = dist(w.x, w.y, w.tx, w.ty);
+    if (d < 10) { w.moving = false; continue; }
+    // fear refuses the road: a frightened wolf will not step toward it
+    const nx = w.x + (w.tx - w.x) / d * 24, ny = w.y + (w.ty - w.y) / d * 24;
+    if ((onRoad(w.tx, w.ty) || onRoad(nx, ny)) && !onRoad(w.x, w.y)
+        && S.fear > FEAR_BALK && S.mode === 'play') {
       w.state = 'balk';
       w.balked = true;
       w.moving = false;
       continue;
     }
-
-    const d = dist(w.x, w.y, target.x, target.y);
-    if (d < 6) { w.moving = false; continue; }
-    let sp = 230 * w.mult;
-    if (d > 700) sp *= 1.6;
+    let sp = (dZone > zr ? 240 : 120) * w.mult;
+    if (dZone > 700) sp *= 1.8;
     const step = Math.min(d, sp * dt);
-    tryMove(w, (target.x - w.x) / d * step, (target.y - w.y) / d * step, wolfBlockedAt);
+    tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, packBlockedAt);
+    w.heading = Math.atan2(w.ty - w.y, w.tx - w.x);
     w.gait = (w.gait || 0) + step;
     w.moving = true;
   }
+}
+
+// SPACE toggles the map: press to raise it, press again to lower it.
+// In beat 9, the held key at her mother's side is the inherit gesture —
+// there, and only there, the press is not the map.
+function toggleMap() {
+  if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
+  if (S.mode === 'prologue' && S.beat === 9 && !S.inherited
+      && S.willow && dist(S.wolf.x, S.wolf.y, S.willow.x, S.willow.y) < 70) return;
+  S.mapOpen = !S.mapOpen;
 }
 
 function togglePackStay() {
@@ -613,9 +705,11 @@ function togglePackStay() {
     // F never overrides fear: a wolf that balked stays balked
     w.state = anyFollowing ? 'stay' : (w.balked ? 'balk' : 'follow');
   }
+  // holding anchors the zone where she stands; releasing hands it back to her
+  S.zoneAnchor = anyFollowing ? { x: S.wolf.x, y: S.wolf.y } : null;
   S.tut.usedHold = true;
   if (S.mode === 'prologue' && S.beat === 6) S.tut._bond = true;
-  say(anyFollowing ? 'The pack holds.' : 'The pack follows.');
+  say(anyFollowing ? 'The pack holds this ground.' : 'The pack follows.');
 }
 
 // ── traffic: the Black River That Roars ──────────────────────────────────────
@@ -1085,7 +1179,8 @@ function tutorialUpdate(dt) {
 
   if (!S.prompt) {
     if (T.step === 2) stickyPrompt('Walk.', ['W', 'A', 'S', 'D']);
-    if (T.step === 4) stickyPrompt('She left you her map of this land. Hold SPACE to remember it.', ['SPACE']);
+    if (T.step === 4) stickyPrompt('She left you her map of this land. Press SPACE to remember it.', ['SPACE']);
+    if (T.step === 5) stickyPrompt('SPACE again returns her to the land.', ['SPACE']);
     if (T.step === 8) stickyPrompt('Prey leaves its scent on the land. Hold E to smell the wind.', ['E']);
     if (T.step === 10) stickyPrompt('Run the prey until it tires. F asks the pack to wait in ambush.', ['F']);
   }
@@ -1254,6 +1349,7 @@ function applyPostPrologue() {
   for (const w of S.pack) { i++; w.x = DEN.x - 30 * i; w.y = DEN.y + (i % 2 ? 20 : -20); w.state = 'follow'; }
   S.cars.length = 0;
   S.willow = null;
+  S.mapOpen = false;
   // the land refills for Act I (the prologue emptied it for its scripted hunt)
   S.elk.length = 0; S.elkRespawn.length = 0;
   for (let h = 0; h < HERDS.length; h++) {
@@ -1370,12 +1466,13 @@ function prologueUpdate(dt) {
         willowSetPath([nodePt('oldFord', 'aspenStand-oldFord')]);
       }
       if (T._b3go && !T.sawMap && !S.prompt) {
-        stickyPrompt('Watch her map become yours. Hold SPACE.', ['SPACE']);
+        stickyPrompt('Watch her map become yours. Press SPACE.', ['SPACE']);
       }
       if (S.senseBlend > 0.8 && !T.sawMap) {
         T.sawMap = true;
         clearPrompt();
         queueCallout('willow-ink');
+        showPrompt('SPACE again lowers the map. Follow her.', [], 6);
       }
       if (w && !w.path.length && dist(w.x, w.y, NbyId.get('oldFord').x, NbyId.get('oldFord').y) < 60
           && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 260 && T.sawMap) {
@@ -1783,12 +1880,7 @@ function update(dt) {
   S.inputLockT = Math.max(0, S.inputLockT - dt);
   S.confirmNewYearT = Math.max(0, S.confirmNewYearT - dt);
 
-  // in beat 9, holding at her side is the inherit gesture, not the map
-  let sensing = input.sense || S.forcedSenseT > 0;
-  if (S.mode === 'prologue' && S.beat === 9 && !S.inherited
-      && S.willow && dist(S.wolf.x, S.wolf.y, S.willow.x, S.willow.y) < 70) {
-    sensing = S.forcedSenseT > 0;
-  }
+  const sensing = S.mapOpen || S.forcedSenseT > 0;
   S.senseBlend = clamp(S.senseBlend + (sensing ? dt / SENSE_IN : -dt / SENSE_OUT), 0, 1);
 
   if (S.mode === 'prologue') {

@@ -199,6 +199,35 @@ function buildBaseLayer() {
     b.stroke();
   }
 
+  // the mud sink at the Bend — where the diverted creek died. Nothing
+  // walks through it; the drycreek tear is this, made honest.
+  if (!past) {
+    const ms = OBSTACLES.mudSink;
+    b.fillStyle = 'rgba(80,66,44,0.5)';
+    b.beginPath(); b.ellipse(ms.x, ms.y, ms.r + 18, (ms.r + 18) * 0.82, 0.2, 0, Math.PI * 2); b.fill();
+    const mg = b.createRadialGradient(ms.x, ms.y, 10, ms.x, ms.y, ms.r);
+    mg.addColorStop(0, '#4a3d2c'); mg.addColorStop(0.7, '#5d4d36'); mg.addColorStop(1, '#75634a');
+    b.fillStyle = mg;
+    b.beginPath(); b.ellipse(ms.x, ms.y, ms.r, ms.r * 0.82, 0.2, 0, Math.PI * 2); b.fill();
+    const mrng = makePrng(313);
+    b.strokeStyle = 'rgba(30,24,16,0.4)';
+    b.lineWidth = 2;
+    for (let i = 0; i < 9; i++) {   // sheen cracks and dead snags
+      const a = mrng() * Math.PI * 2, r1 = mrng() * ms.r * 0.8;
+      b.beginPath();
+      b.moveTo(ms.x + Math.cos(a) * r1, ms.y + Math.sin(a) * r1 * 0.82);
+      b.lineTo(ms.x + Math.cos(a) * (r1 + 26), ms.y + Math.sin(a) * (r1 + 26) * 0.82);
+      b.stroke();
+    }
+    b.strokeStyle = '#3d3226';
+    b.lineWidth = 4;
+    for (let i = 0; i < 4; i++) {
+      const a = mrng() * Math.PI * 2, r1 = ms.r * (0.3 + mrng() * 0.5);
+      const sx2 = ms.x + Math.cos(a) * r1, sy2 = ms.y + Math.sin(a) * r1 * 0.82;
+      b.beginPath(); b.moveTo(sx2, sy2); b.lineTo(sx2 + 10 - mrng() * 20, sy2 - 24 - mrng() * 14); b.stroke();
+    }
+  }
+
   // den hollows (all three candidate sites read as diggable ground)
   for (const site of DEN_SITES) {
     b.fillStyle = 'rgba(70,55,35,0.35)';
@@ -727,10 +756,20 @@ function drawWorld() {
   }
 
   for (const car of S.cars) {
-    // under the bridge, cars vanish beneath the deck and reappear beyond it
+    // near the bridge, cars slide smoothly under the deck: everything the
+    // deck covers is clipped away, nose first, tail last
     const h = OBSTACLES.highway;
-    if (S.era !== 'past' && car.y > h.gapY0 - 22 && car.y < h.gapY1 + 22) continue;
+    const nearDeck = S.era !== 'past' && car.y > h.gapY0 - 220 && car.y < h.gapY1 + 220;
+    if (!nearDeck) { drawCar(car); continue; }
+    ctx.save();
+    ctx.beginPath();
+    const n0 = car.y - 220, n1 = Math.min(h.gapY0, car.y + 220);
+    if (n1 > n0) ctx.rect(car.x - 70, n0, 140, n1 - n0);
+    const s0 = Math.max(h.gapY1, car.y - 220), s1 = car.y + 220;
+    if (s1 > s0) ctx.rect(car.x - 70, s0, 140, s1 - s0);
+    ctx.clip();
     drawCar(car);
+    ctx.restore();
   }
   for (const e of S.elk) drawPrey(e);
 
@@ -748,9 +787,7 @@ function drawWorld() {
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') continue;
     const tone = WOLF_TONES[w.pup ? 'pup' : w.id] || WOLF_TONES.fen;
-    const hd = w.moving ? Math.atan2(S.wolf.y - w.y, S.wolf.x - w.x) : (w.heading || 0);
-    w.heading = hd;
-    drawWolfBody(w.x, w.y, hd, w.pup ? 6.5 : (w.id === 'bram' ? 11 : 10), tone, w.moving, w.gait || 0, false);
+    drawWolfBody(w.x, w.y, w.heading || 0, w.pup ? 6.5 : (w.id === 'bram' ? 11 : 10), tone, w.moving, w.gait || 0, false);
     if (w.state === 'balk') {
       const p = screenPos(w.x, w.y);
       resetTransform();
@@ -1555,7 +1592,7 @@ function drawHelp() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const w = 460, rows = [];
   rows.push(['W A S D', 'walk']);
-  if (S.tut.sawMap) rows.push(['SPACE (hold)', 'remember — her map, and yours']);
+  if (S.tut.sawMap) rows.push(['SPACE', 'the map — press to open, press to close']);
   if (S.tut.scentHold > 0.6) rows.push(['E (hold)', 'smell the wind']);
   if (S.tut.usedHold) rows.push(['F', 'the pack holds, or follows']);
   rows.push(['N  N', 'abandon the year']);

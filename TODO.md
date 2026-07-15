@@ -82,17 +82,27 @@ resume from the ⏳ items, in order. Verify with the headless harness
       rails, abutments, shadows on the asphalt; thin walls seal deck↔road
       transitions mid-span (collision + visual).
 - [x] Prey leaves longer scent trails (drops every 0.9 s, readable ~200 s).
-- [ ] ⏳ **Pack AI v2 — the zone.** An invisible zone around Aspen: pack
-      wolves wander randomly while inside it and steer back toward it when
-      outside; near a road/wall/the bridge's elevation the zone shrinks (the
-      pack tightens around her); **F anchors the zone in place** instead of
-      it following Aspen. The zone may extend into the apron, and pack wolves
-      may enter apron ground even though Aspen cannot.
-- [ ] ⏳ **Pack hunting.** Adult wolves close to prey chase it on their own,
-      breaking off once beyond a hunting radius (~2× the zone) from the zone,
-      and returning to the zone when the prey escapes. They avoid roads and
-      obstacles while hunting. **Pups always stay inside the zone.**
-- [ ] ⏳ Prey slightly **slower**, and prey may flee into the apron (where
+- [x] **Pack AI v2 — the zone.** Invisible zone (≤150 u) around Aspen: pack
+      wolves wander inside it (unhurried), lope back when outside; it
+      shrinks to 55 u where the land pinches (road, walls, the mud sink);
+      **F anchors the zone in place** ("The pack holds this ground"); the
+      zone spills into the apron and pack wolves may enter it.
+- [x] **Pack hunting.** Adults chase prey within 280 u on their own, only
+      while within a hunting radius (max(320, 2× zone)) of the zone; they
+      never step onto asphalt to hunt; they fall back to the zone when the
+      prey is gone. Pups never hunt and stay in the zone.
+- [x] **The Bend tear is earned now**: a mud sink (impassable to everything)
+      sits where the diverted creek died — the drycreek tear reflects a real
+      physical obstacle, drawn in the world with cracked sheen and snags.
+- [x] Cars **slide** under the bridge deck (clipped nose-first, tail-last)
+      instead of vanishing whole.
+- [x] Map is a **toggle** (SPACE opens, SPACE closes; right-click too); the
+      beat-9 inheritance keeps its deliberate hold. Visible map radius
+      roughly doubled (900–2400 u).
+- [x] **Inking is much easier**: being in the general area counts — corridor
+      200 u on her mother's routes, 150 u on new ground, +50 on very long
+      segments.
+- [x] Prey slightly **slower**, and prey may flee into the apron (where
       Aspen can't follow) and right off the land — an **escape**. Each escape
       spawns a replacement deer near the center of the map.
 - [x] **Days pass 6× faster** (Arjun): MIN_PER_SEC 48 → 288, one day ≈ 5 s,
@@ -131,12 +141,9 @@ resume from the ⏳ items, in order. Verify with the headless harness
       holds no way there." Map zoomed out further (0.17). Old-den standing
       can't accidentally choose the den anymore (needs the choice prompt
       first, and never while the map is up).
-- [ ] ⏳ **The tear at The Bend isn't earned** (Arjun): nothing physically
-      blocks the old way there — you can still walk it. Either give the
-      drycreek break a real physical cause in the world, or don't tear it at
-      all and let the water route fail differently (the creek is dry, so the
-      route's *purpose* is gone while the path itself survives — e.g. its
-      ink fades to a "dry" state instead of ripping).
+- [x] **The tear at The Bend is now earned**: resolved by the mud sink at
+      the Bend (see above) — the old way is physically impassable, so the
+      tear tells the truth.
 
 ## Acknowledged gaps vs the production bible (future sessions)
 
