@@ -12,11 +12,13 @@ const SPEED_ROUGH   = 258;   // off-route — matches Sedge's pace
 const SPEED_ROUTE   = 290;   // along a known, untorn route
 const SPEED_SNOW    = 210;   // off-route in winter
 const INJURY_SPEED  = 0.7;   // while hurt
-const INJURY_DAYS   = 2.5;
+const INJURY_DAYS   = 15;    // ≈ 75 real seconds — same real recovery as before the 6× clock
 const MIN_PER_SEC   = 288;   // game minutes per real second (1 day ≈ 5 s; a year ≈ 30 min)
 const SOLID_AT      = 3;     // full traversals to lift dotted → solid
-const DECAY_SOLID_DAYS  = 15;
-const DECAY_DOTTED_DAYS = 25;
+// Ink decay alone rides the fast calendar at 2× its old real-time pace:
+// solid fades after ~225 real s idle, dotted vanishes ~375 real s later.
+const DECAY_SOLID_DAYS  = 45;
+const DECAY_DOTTED_DAYS = 75;
 const SENSE_IN      = 0.35;  // seconds to raise the map
 const SENSE_OUT     = 0.5;   // the locked 0.5 s blend back
 const SCALE_WORLD   = 1.1;
@@ -25,8 +27,10 @@ const APRON         = 600;   // land drawn beyond the walkable world — no blac
 const SCALE_VISTA   = 0.5;
 const YEAR_DAYS     = 360;
 const WINTER_START  = 271;
-const FOOD_PER_DAY  = 4.5;
-const PUP_FOOD_PER_DAY = 30;
+// Survival pressure is priced in REAL time, decoupled from the fast
+// calendar: the same pace it had at the old 48 min/s clock.
+const FOOD_PER_SEC     = 0.15;
+const PUP_FOOD_PER_SEC = 0.45;  // less than half the old pace — pups keep for minutes
 const PUPS_BORN_DAY    = 75;
 const PUPS_TRAVEL_DAY  = 240;
 const DEN_DEADLINE_DAY = 70;
@@ -123,6 +127,7 @@ function newGame() {
     showHelp: false,
     confirmNewYearT: 0,
     routeTo: null, routePath: null, routeT: 0,   // the way she has in mind
+    task: null, taskCooldown: 30,                // small demands; time holds for them
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
@@ -831,7 +836,7 @@ function preyUpdate(dt) {
 // ── hunger and Sedge's restlessness ──────────────────────────────────────────
 
 function hungerUpdate(dt) {
-  S.food = Math.max(0, S.food - FOOD_PER_DAY / 1440 * MIN_PER_SEC * dt);
+  S.food = Math.max(0, S.food - FOOD_PER_SEC * dt);
   const sedge = S.pack.find(w => w.id === 'sedge');
   if (!sedge || sedge.state === 'dead' || sedge.state === 'gone') return;
   if (S.food <= 0) {
@@ -899,7 +904,7 @@ function pupUpdate(dt) {
   }
   if (!S.pups || S.pups.count <= 0 || S.pups.traveling) return;
 
-  S.pups.food = Math.max(0, S.pups.food - PUP_FOOD_PER_DAY / 1440 * MIN_PER_SEC * dt);
+  S.pups.food = Math.max(0, S.pups.food - PUP_FOOD_PER_SEC * dt);
 
   if (S.denSite && dist(S.wolf.x, S.wolf.y, S.denSite.x, S.denSite.y) < 90
       && S.food > 25 && S.pups.food < 98) {
@@ -932,6 +937,83 @@ function pupUpdate(dt) {
     }
     say('The pups are strong enough to travel. They walk where you walk now.');
     saveGame();
+  }
+}
+
+// ── tasks: the small demands of a day ────────────────────────────────────────
+// Roughly half of play carries a task. While one is open, the calendar holds
+// still — the day is spent on the thing itself. When none is open, days flow.
+
+const TASK_TIMEOUT = 120;
+
+function taskDone(t) {
+  switch (t.kind) {
+    case 'patch': return S.bridged.has(t.key);
+    case 'pups': return !S.pups || S.pups.count <= 0 || S.pups.traveling || S.pups.food > 70;
+    case 'hunt': return S.food > 60;
+    case 'den-look': return S.seenDens.includes(t.key) || S.denId !== null;
+    case 'scout': {
+      const e = S.edges.find(x => x.id === t.key);
+      return e.passCount > 0 || S.visited.has(t.far);
+    }
+    case 'renew': {
+      const e = S.edges.find(x => x.id === t.key);
+      return e.torn || e.lastUsedDay >= t.sinceDay || e.state === 'current-solid';
+    }
+  }
+  return true;
+}
+
+function issueTask() {
+  if (S.tut.step < 7) { S.taskCooldown = 10; return; }
+  const mk = (kind, text, extra) => { S.task = { kind, text, t: 0, ...(extra || {}) }; };
+
+  const torn = TEAR_GROUPS.find(g => g.key !== 'mudspring' && groupTorn(g) && !S.bridged.has(g.key));
+  if (torn) { mk('patch', 'find a way around the tear', { key: torn.key }); return; }
+  if (S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food < 40) {
+    mk('pups', 'the pups are hungry — carry food home', {}); return;
+  }
+  if (S.food < 45) { mk('hunt', 'the pack is hungry — bring something down', {}); return; }
+  if (!S.denId) {
+    const unseen = DEN_SITES.find(s => !S.seenDens.includes(s.id));
+    if (unseen) { mk('den-look', `go and look at ${unseen.name}`, { key: unseen.id }); return; }
+  }
+  // walk new ground: an unknown edge leading out of somewhere she has stood
+  const scouts = S.edges.filter(e => !e.torn && e.state === 'unknown'
+    && (S.visited.has(e.a) || S.visited.has(e.b)));
+  if (scouts.length) {
+    const e = scouts[Math.floor(Math.random() * scouts.length)];
+    const far = S.visited.has(e.a) ? e.b : e.a;
+    mk('scout', `walk new ground, toward ${NbyId.get(far).name}`, { key: e.id, far });
+    return;
+  }
+  // renew fading ink
+  const fading = S.edges.filter(e => !e.torn && e.state === 'current-dotted' && e.passCount > 0);
+  if (fading.length) {
+    const e = fading[Math.floor(Math.random() * fading.length)];
+    mk('renew', `renew a fading way: ${NbyId.get(e.a).name} to ${NbyId.get(e.b).name}`,
+      { key: e.id, sinceDay: day() });
+    return;
+  }
+  S.taskCooldown = 15;
+}
+
+function taskUpdate(dt) {
+  if (S.task) {
+    S.task.t += dt;
+    if (taskDone(S.task)) {
+      S.task = null;
+      S.taskCooldown = 18 + Math.random() * 22;
+      playTaskChime();
+      say('Done. The day moves on.');
+    } else if (S.task.t > TASK_TIMEOUT) {
+      S.task = null;
+      S.taskCooldown = 24 + Math.random() * 20;
+      say('The moment passes.');
+    }
+  } else {
+    S.taskCooldown -= dt;
+    if (S.taskCooldown <= 0) issueTask();
   }
 }
 
@@ -1569,6 +1651,19 @@ function playImpact() {
   o2.start(now); o2.stop(now + 0.2);
 }
 
+// A single soft note when a small task resolves.
+function playTaskChime() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'triangle'; o.frequency.value = 659.26;  // E5
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.linearRampToValueAtTime(0.12, now + 0.03);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + 0.55);
+}
+
 // A distant diesel horn — the sound of beat 8's hard cut.
 function playHorn() {
   const ac = getAudioCtx(); if (!ac) return;
@@ -1613,6 +1708,7 @@ function saveGame() {
       yearlingKnows: [...S.yearlingKnows],
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
       pups: S.pups,
+      task: S.task, taskCooldown: S.taskCooldown,
       hud: S.hud, tut: S.tut, callouts: S.callouts,
       elkRespawn: S.elkRespawn,
       history: S.history.slice(-4000),
@@ -1655,6 +1751,8 @@ function loadGame() {
   S.yearlingKnows = new Set(d.yearlingKnows);
   S.denId = d.denId; S.denSite = d.denSite; S.seenDens = d.seenDens || [];
   S.pups = d.pups;
+  S.task = d.task || null;
+  S.taskCooldown = typeof d.taskCooldown === 'number' ? d.taskCooldown : 30;
   Object.assign(S.hud, d.hud || {});
   Object.assign(S.tut, d.tut || {});
   S.callouts = d.callouts || [];
@@ -1696,7 +1794,8 @@ function update(dt) {
   if (S.mode === 'prologue') {
     prologueUpdate(dt);
   } else {
-    S.clock.min += dt * MIN_PER_SEC;
+    // an open task holds the calendar still: the day is spent on the thing
+    if (!S.task) S.clock.min += dt * MIN_PER_SEC;
     if (day() !== S.lastDay) { S.lastDay = day(); applyDecay(); }
 
     if (S.pendingForcedSense && !onRoad(S.wolf.x, S.wolf.y)) {
@@ -1721,6 +1820,7 @@ function update(dt) {
     hungerUpdate(dt);
     denUpdate(dt);
     pupUpdate(dt);
+    taskUpdate(dt);
     tutorialUpdate(dt);
     calloutUpdate(dt);
     endingCheck();

@@ -630,13 +630,14 @@ function daylight() {
 function drawLightAndAir() {
   resetTransform();
   const dl = daylight();
+  // days are 5 seconds long now: night is a suggestion, never a strobe
   if (dl < 1) {
-    ctx.fillStyle = `rgba(13,22,38,${(1 - dl) * 0.34})`;
+    ctx.fillStyle = `rgba(13,22,38,${(1 - dl) * 0.10})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   const warm = dl > 0.15 && dl < 0.95 ? (1 - Math.abs(2 * ((dl - 0.15) / 0.8) - 1)) : 0;
   if (warm > 0) {
-    ctx.fillStyle = `rgba(255,150,60,${warm * 0.1})`;
+    ctx.fillStyle = `rgba(255,150,60,${warm * 0.04})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   if (S.era === 'past' || S.vistaT > 0) {
@@ -1483,14 +1484,20 @@ function drawHUD() {
     ctx.font = `bold 17px ${FONT}`;
     ctx.fillStyle = inkText;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText(`Day ${day()} · ${seasonName()}`, 20, 16);
+    ctx.fillText(`Day ${day()} · ${seasonName()}${S.task ? ' — the day holds' : ''}`, 20, 16);
     ctx.font = `italic 12px ${FONT}`;
     ctx.fillStyle = onMap ? 'rgba(91,70,50,0.85)' : 'rgba(235,228,208,0.85)';
     ctx.fillText(objectiveText(), 20, 38);
+    if (S.task) {
+      const pulse = 0.75 + 0.25 * Math.sin(S.time * 2);
+      ctx.font = `italic 14px ${FONT}`;
+      ctx.fillStyle = onMap ? `rgba(122,63,18,${pulse})` : `rgba(240,205,140,${pulse})`;
+      ctx.fillText('› ' + S.task.text, 20, 56);
+    }
   }
   ctx.shadowBlur = 0;
 
-  let by = 60;
+  let by = S.task ? 80 : 60;
   if (S.hud.food) { drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f'); by += 16; }
   if (S.hud.fear) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }
   if (S.hud.pups && S.pups && !S.pups.traveling && S.pups.count > 0) {

@@ -96,11 +96,20 @@ resume from the ⏳ items, in order. Verify with the headless harness
       Aspen can't follow) and right off the land — an **escape**. Each escape
       spawns a replacement deer near the center of the map.
 - [x] **Days pass 6× faster** (Arjun): MIN_PER_SEC 48 → 288, one day ≈ 5 s,
-      a year ≈ 30 minutes. ⚠ Follow-up tuning likely: everything priced
-      per-day (food 4.5/day, pup food 30/day, injury 2.5 days, decay
-      15/25 days, den deadline, pup dates) now elapses 6× faster in real
-      time — food empties in ~110 s, hungry pups in ~15 s. If that feels
-      frantic in play, the per-day costs need rescaling, not the clock.
+      a year ≈ 30 minutes.
+- [x] **Decouple survival pressure from the fast calendar** (Arjun): food,
+      injury recovery, starvation timers keep the same *real-time* pace they
+      had before the 6× clock (food 0.15/s; injury 75 s). **Pups drain at
+      less than half** even of that old pace (0.45/s, ~3.7 min from full).
+      **Ink decay alone runs 2× faster than before** in real time
+      (solid→dotted 225 s idle, dotted→void 375 s more).
+- [x] **Tasks** (Arjun): small objectives fill roughly half of play time.
+      While a task is open **the calendar holds still** ("the day holds");
+      when none is open, days flow at 6×. Tasks are drawn from the world by
+      priority: find a way around an unbridged tear → feed hungry pups →
+      hunt when food is low → go look at an unvisited den hollow → walk new
+      ground toward a named place → renew a fading route. Tasks complete
+      from state (with a soft chime) or quietly expire after 120 s.
 - [x] **Aspen's movement speed equals Sedge's**: 258 off-route (Sedge's
       pace), 290 on known routes, 210 in snow.
 - [x] **Tutorial slower** (longer gaps between every step) and the scent
