@@ -73,15 +73,15 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [ ] ⏳ Prey movement must be smooth — no rapid vibration. Damped steering,
       low-frequency wander; kill the per-frame panic jitter and separation
       flip-flop.
-- [ ] ⏳ No black void outside the playable area: an **apron of extra land**
-      is rendered beyond the world bounds. Aspen cannot walk into it
-      (invisible wall at the current bounds).
-- [ ] ⏳ Cars slide in from the edge of the apron (never pop in at the world
-      edge) and **pass under the bridge** — hidden beneath its deck, then
-      reappearing on the far side.
-- [ ] ⏳ The crossing at Water-Under-Stone is a real **bridge over the road**
-      with an elevation difference: you can never step from the road onto the
-      bridge or from the bridge onto the road within its span.
+- [x] No black void outside the playable area: a 600 u **apron of land**
+      (ground, forests, the road itself) renders beyond the world bounds.
+      Aspen cannot walk into it; pack and prey can.
+- [x] Cars slide in from the far edge of the apron and **pass under the
+      bridge** — hidden beneath its deck, reappearing on the far side.
+- [x] Water-Under-Stone is a real **bridge over the road**: earth deck,
+      rails, abutments, shadows on the asphalt; thin walls seal deck↔road
+      transitions mid-span (collision + visual).
+- [x] Prey leaves longer scent trails (drops every 0.9 s, readable ~200 s).
 - [ ] ⏳ **Pack AI v2 — the zone.** An invisible zone around Aspen: pack
       wolves wander randomly while inside it and steer back toward it when
       outside; near a road/wall/the bridge's elevation the zone shrinks (the

@@ -540,7 +540,7 @@ function trafficUpdate(dt) {
     if (trafficBusy() && S.time >= S.laneNext[li]) {
       const lane = LANES[li];
       S.cars.push({
-        x: lane.x, y: lane.vy > 0 ? -80 : WORLD.h + 80, vy: lane.vy,
+        x: lane.x, y: lane.vy > 0 ? -APRON - 80 : WORLD.h + APRON + 80, vy: lane.vy,
         tone: CAR_TONES[Math.floor(Math.random() * CAR_TONES.length)],
         met: new Set(),
       });
@@ -553,7 +553,7 @@ function trafficUpdate(dt) {
 
 function moveCars(dt) {
   for (const car of S.cars) car.y += car.vy * dt;
-  S.cars = S.cars.filter(c => c.y > -200 && c.y < WORLD.h + 200);
+  S.cars = S.cars.filter(c => c.y > -APRON - 220 && c.y < WORLD.h + APRON + 220);
 }
 
 function carCollisions() {
@@ -717,10 +717,10 @@ function preyUpdate(dt) {
       S.elk.push(nd);
     }
   }
-  if (S.scentDropT > 1.4) {
+  if (S.scentDropT > 0.9) {
     S.scentDropT = 0;
     for (const elk of S.elk) S.scent.push({ x: elk.x, y: elk.y, t: S.time });
-    if (S.scent.length > 400) S.scent.splice(0, S.scent.length - 400);
+    if (S.scent.length > 900) S.scent.splice(0, S.scent.length - 900);
   }
 
   for (let i = S.elk.length - 1; i >= 0; i--) {

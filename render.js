@@ -106,19 +106,22 @@ function buildBaseLayer() {
   baseKey = S.era + '|' + si;
   if (!baseLayer) {
     baseLayer = document.createElement('canvas');
-    baseLayer.width = WORLD.w; baseLayer.height = WORLD.h;
+    baseLayer.width = WORLD.w + 2 * APRON;
+    baseLayer.height = WORLD.h + 2 * APRON;
   }
   const b = baseLayer.getContext('2d');
+  b.setTransform(1, 0, 0, 1, APRON, APRON);   // world coords; apron is negative space
   const past = S.era === 'past';
+  const AX = -APRON, AW = WORLD.w + 2 * APRON, AH = WORLD.h + 2 * APRON;
 
-  // ground
+  // ground — the land continues past where she can walk; no black void
   b.fillStyle = past ? PAST_GROUND : SEASON_GROUND[si];
-  b.fillRect(0, 0, WORLD.w, WORLD.h);
+  b.fillRect(AX, AX, AW, AH);
 
   const rng = makePrng(710);
   // broad tonal patches
-  for (let i = 0; i < 46; i++) {
-    const x = rng() * WORLD.w, y = rng() * WORLD.h, r = 260 + rng() * 480;
+  for (let i = 0; i < 60; i++) {
+    const x = AX + rng() * AW, y = AX + rng() * AH, r = 260 + rng() * 480;
     const g = b.createRadialGradient(x, y, r * 0.2, x, y, r);
     const dark = rng() > 0.5;
     g.addColorStop(0, dark ? 'rgba(50,60,30,0.10)' : 'rgba(240,240,200,0.08)');
@@ -128,33 +131,33 @@ function buildBaseLayer() {
   }
   // mottling
   b.fillStyle = SEASON_GROUND_DARK[si];
-  for (let i = 0; i < 700; i++) {
+  for (let i = 0; i < 900; i++) {
     b.globalAlpha = 0.05 + rng() * 0.05;
     b.beginPath();
-    b.ellipse(rng() * WORLD.w, rng() * WORLD.h, 30 + rng() * 90, 18 + rng() * 50, rng() * 3, 0, Math.PI * 2);
+    b.ellipse(AX + rng() * AW, AX + rng() * AH, 30 + rng() * 90, 18 + rng() * 50, rng() * 3, 0, Math.PI * 2);
     b.fill();
   }
   b.globalAlpha = 1;
   // fine speckle: grass tufts / stones
-  for (let i = 0; i < 2600; i++) {
+  for (let i = 0; i < 3200; i++) {
     b.fillStyle = rng() > 0.5 ? 'rgba(40,55,25,0.12)' : 'rgba(235,235,205,0.10)';
-    b.fillRect(rng() * WORLD.w, rng() * WORLD.h, 2 + rng() * 3, 1.5 + rng() * 2);
+    b.fillRect(AX + rng() * AW, AX + rng() * AH, 2 + rng() * 3, 1.5 + rng() * 2);
   }
   // season dressing
   if (si === 0) {
-    for (let i = 0; i < 500; i++) {   // wildflowers
+    for (let i = 0; i < 640; i++) {   // wildflowers
       b.fillStyle = rng() > 0.5 ? 'rgba(250,245,220,0.7)' : 'rgba(230,200,120,0.6)';
-      b.beginPath(); b.arc(rng() * WORLD.w, rng() * WORLD.h, 1.6 + rng() * 1.6, 0, Math.PI * 2); b.fill();
+      b.beginPath(); b.arc(AX + rng() * AW, AX + rng() * AH, 1.6 + rng() * 1.6, 0, Math.PI * 2); b.fill();
     }
   } else if (si === 2 && !past) {
-    for (let i = 0; i < 600; i++) {   // leaf litter
+    for (let i = 0; i < 760; i++) {   // leaf litter
       b.fillStyle = `rgba(${150 + rng() * 60 | 0},${70 + rng() * 40 | 0},30,0.5)`;
-      b.beginPath(); b.ellipse(rng() * WORLD.w, rng() * WORLD.h, 3, 1.6, rng() * 3, 0, Math.PI * 2); b.fill();
+      b.beginPath(); b.ellipse(AX + rng() * AW, AX + rng() * AH, 3, 1.6, rng() * 3, 0, Math.PI * 2); b.fill();
     }
   } else if (si === 3 && !past) {
-    for (let i = 0; i < 260; i++) {   // drifts
+    for (let i = 0; i < 330; i++) {   // drifts
       b.fillStyle = 'rgba(255,255,255,0.5)';
-      b.beginPath(); b.ellipse(rng() * WORLD.w, rng() * WORLD.h, 40 + rng() * 90, 8 + rng() * 16, rng() * 0.6 - 0.3, 0, Math.PI * 2); b.fill();
+      b.beginPath(); b.ellipse(AX + rng() * AW, AX + rng() * AH, 40 + rng() * 90, 8 + rng() * 16, rng() * 0.6 - 0.3, 0, Math.PI * 2); b.fill();
     }
   }
 
@@ -225,51 +228,82 @@ function buildBaseLayer() {
   }
   // lone trees
   const lrng = makePrng(4242);
-  for (let i = 0; i < 120; i++) {
-    const x = lrng() * WORLD.w, y = lrng() * WORLD.h;
+  for (let i = 0; i < 170; i++) {
+    const x = AX + lrng() * AW, y = AX + lrng() * AH;
     if (x > 820 && x < 1020) continue;  // not in the road bed
     drawTree(b, x, y, 10 + lrng() * 12, lrng, si, past);
   }
+  // the wilder country beyond her bounds: apron forest
+  const apr = makePrng(9911);
+  for (let i = 0; i < 90; i++) {
+    const x = AX + apr() * AW, y = AX + apr() * AH;
+    const inWorld = x > 60 && y > 60 && x < WORLD.w - 60 && y < WORLD.h - 60;
+    if (inWorld) continue;
+    const r = 100 + apr() * 170;
+    b.fillStyle = 'rgba(35,50,30,0.15)';
+    b.beginPath(); b.arc(x + 12, y + 16, r, 0, Math.PI * 2); b.fill();
+    const trees = Math.floor(r * r / 2400);
+    for (let t = 0; t < trees; t++) {
+      const a = apr() * Math.PI * 2, d = Math.sqrt(apr()) * r;
+      const tx = x + Math.cos(a) * d;
+      if (tx > 820 && tx < 1020) continue;
+      drawTree(b, tx, y + Math.sin(a) * d, 11 + apr() * 15, apr, si, past);
+    }
+  }
 
-  // THE ROAD — asphalt in the present; pale gravel in her mother's time
+  // THE ROAD — asphalt in the present; pale gravel in her mother's time.
+  // It runs the full apron: cars slide in from beyond her world.
   const h = OBSTACLES.highway;
+  const RY0 = -APRON, RY1 = WORLD.h + APRON;
   if (past) {
     b.fillStyle = 'rgba(190,175,140,0.9)';
-    b.fillRect(h.x0 + 6, 0, h.x1 - h.x0 - 12, WORLD.h);
+    b.fillRect(h.x0 + 6, RY0, h.x1 - h.x0 - 12, RY1 - RY0);
     b.strokeStyle = 'rgba(140,125,95,0.6)';
     b.lineWidth = 3;
     for (const lx of [h.x0 + 18, h.x1 - 18]) {   // wheel ruts
-      b.beginPath(); b.moveTo(lx, 0); b.lineTo(lx, WORLD.h); b.stroke();
+      b.beginPath(); b.moveTo(lx, RY0); b.lineTo(lx, RY1); b.stroke();
     }
   } else {
     b.fillStyle = 'rgba(60,60,60,0.35)';
-    b.fillRect(h.x0 - 14, 0, h.x1 - h.x0 + 28, WORLD.h);  // shoulders
+    b.fillRect(h.x0 - 14, RY0, h.x1 - h.x0 + 28, RY1 - RY0);  // shoulders
     const ag = b.createLinearGradient(h.x0, 0, h.x1, 0);
     ag.addColorStop(0, '#3c3f44'); ag.addColorStop(0.5, '#484b50'); ag.addColorStop(1, '#3c3f44');
     b.fillStyle = ag;
-    b.fillRect(h.x0, 0, h.x1 - h.x0, WORLD.h);
+    b.fillRect(h.x0, RY0, h.x1 - h.x0, RY1 - RY0);
     b.strokeStyle = 'rgba(225,220,200,0.8)';
     b.lineWidth = 2.5;
-    b.beginPath(); b.moveTo(h.x0 + 5, 0); b.lineTo(h.x0 + 5, WORLD.h); b.stroke();
-    b.beginPath(); b.moveTo(h.x1 - 5, 0); b.lineTo(h.x1 - 5, WORLD.h); b.stroke();
+    b.beginPath(); b.moveTo(h.x0 + 5, RY0); b.lineTo(h.x0 + 5, RY1); b.stroke();
+    b.beginPath(); b.moveTo(h.x1 - 5, RY0); b.lineTo(h.x1 - 5, RY1); b.stroke();
     b.strokeStyle = 'rgba(235,205,120,0.75)';
     b.lineWidth = 3;
     b.setLineDash([34, 40]);
-    b.beginPath(); b.moveTo((h.x0 + h.x1) / 2, 0); b.lineTo((h.x0 + h.x1) / 2, WORLD.h); b.stroke();
+    b.beginPath(); b.moveTo((h.x0 + h.x1) / 2, RY0); b.lineTo((h.x0 + h.x1) / 2, RY1); b.stroke();
     b.setLineDash([]);
-    // the culvert: concrete headwalls and the dark passage under
+
+    // THE BRIDGE — earth carried over the road. Cars pass beneath it;
+    // its deck never touches the asphalt.
+    const bx0 = h.x0 - 30, bx1 = h.x1 + 30;
+    // shadow cast on the asphalt at both openings
+    b.fillStyle = 'rgba(0,0,0,0.35)';
+    b.fillRect(h.x0, h.gapY0 - 14, h.x1 - h.x0, 14);
+    b.fillRect(h.x0, h.gapY1, h.x1 - h.x0, 14);
+    // abutments
     b.fillStyle = '#8e8d88';
-    b.fillRect(h.x0 - 26, h.gapY0 - 8, 26, h.gapY1 - h.gapY0 + 16);
-    b.fillRect(h.x1, h.gapY0 - 8, 26, h.gapY1 - h.gapY0 + 16);
-    b.fillStyle = '#232528';
-    b.fillRect(h.x0 - 6, h.gapY0, h.x1 - h.x0 + 12, h.gapY1 - h.gapY0);
-    const crng = makePrng(55);
-    for (let i = 0; i < 24; i++) {   // riprap
-      b.fillStyle = 'rgba(140,138,130,0.9)';
-      b.beginPath();
-      b.arc(h.x0 - 30 + crng() * (h.x1 - h.x0 + 60), (crng() > 0.5 ? h.gapY0 - 14 : h.gapY1 + 14) + (crng() - 0.5) * 10, 3 + crng() * 4, 0, Math.PI * 2);
-      b.fill();
+    b.fillRect(bx0 - 8, h.gapY0 - 6, 12, h.gapY1 - h.gapY0 + 12);
+    b.fillRect(bx1 - 4, h.gapY0 - 6, 12, h.gapY1 - h.gapY0 + 12);
+    // the deck itself: living ground, over the road
+    b.fillStyle = SEASON_GROUND[si];
+    b.fillRect(bx0, h.gapY0, bx1 - bx0, h.gapY1 - h.gapY0);
+    const drg = makePrng(55);
+    for (let i = 0; i < 40; i++) {
+      b.fillStyle = drg() > 0.5 ? 'rgba(40,55,25,0.14)' : 'rgba(235,235,205,0.12)';
+      b.fillRect(bx0 + drg() * (bx1 - bx0), h.gapY0 + drg() * (h.gapY1 - h.gapY0), 3, 2);
     }
+    // rails along the deck edges — the elevation line she cannot cross
+    b.strokeStyle = '#4a4238';
+    b.lineWidth = 4;
+    b.beginPath(); b.moveTo(bx0, h.gapY0 + 2); b.lineTo(bx1, h.gapY0 + 2); b.stroke();
+    b.beginPath(); b.moveTo(bx0, h.gapY1 - 2); b.lineTo(bx1, h.gapY1 - 2); b.stroke();
   }
 
   if (!past) {
@@ -670,7 +704,7 @@ function drawWorld() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   applyCamera();
-  ctx.drawImage(baseLayer, 0, 0);
+  ctx.drawImage(baseLayer, -APRON, -APRON);
 
   // living water glints
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -691,7 +725,12 @@ function drawWorld() {
     ctx.beginPath(); ctx.arc(S.denSite.x, S.denSite.y, 56, 0, Math.PI * 2); ctx.stroke();
   }
 
-  for (const car of S.cars) drawCar(car);
+  for (const car of S.cars) {
+    // under the bridge, cars vanish beneath the deck and reappear beyond it
+    const h = OBSTACLES.highway;
+    if (S.era !== 'past' && car.y > h.gapY0 - 22 && car.y < h.gapY1 + 22) continue;
+    drawCar(car);
+  }
   for (const e of S.elk) drawPrey(e);
 
   // pups at the den, tumbling
@@ -855,9 +894,9 @@ function drawScent() {
   // gold: prey trails with freshness falloff — blotted where violet sits
   for (const p of S.scent) {
     const age = S.time - p.t;
-    if (age > 90) continue;
+    if (age > 200) continue;   // long trails: a story readable hours later
     if (violetAt(p.x, p.y) > 0.45) continue;
-    const a = 0.7 * (1 - age / 90);
+    const a = 0.7 * (1 - age / 200);
     const g = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, 16);
     g.addColorStop(0, `rgba(240,195,90,${a})`);
     g.addColorStop(1, 'rgba(240,195,90,0)');
