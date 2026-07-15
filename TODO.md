@@ -98,6 +98,17 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [ ] ⏳ **Tutorial slower**, and it must teach what the scent-view colors
       mean as each is first seen: gold = prey passed, brighter is fresher;
       violet = human noise that blinds the nose; red = rival pack marks.
+- [ ] ⏳ **Tears must mirror the actual human obstacles** (Arjun): a tear
+      should exist because a real obstacle severs that ground, and should
+      span the whole obstacle — the road tear spans the entire road (every
+      inherited route that crosses it tears, the rip drawn along the road,
+      not just one segment). Add more human-made obstacles (fence lines, a
+      gravel pit, a powerline cut …) and derive tears from their footprints
+      rather than from hand-placed trigger circles.
+- [ ] ⏳ **Clickable map routing** (Arjun): click a node on the map and be
+      shown how to get there along known ink (Dijkstra over untorn edges);
+      no path = the map says so — this is what makes tears matter. Plus the
+      map should zoom out further.
 - [ ] ⏳ **The tear at The Bend isn't earned** (Arjun): nothing physically
       blocks the old way there — you can still walk it. Either give the
       drycreek break a real physical cause in the world, or don't tear it at

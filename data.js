@@ -164,10 +164,10 @@ const PACK_DEF = [
 // Four herds across the widened land, so hunting is never finished and never
 // exhausted: elk north and west of the river, deer south and east.
 const HERDS = [
-  { anchor: { x: 2500, y: 760 },  count: 6, leash: 500, respawnDays: 7, food: 45, size: 16, speed: 300, antlers: true },
-  { anchor: { x: 1560, y: 3120 }, count: 5, leash: 420, respawnDays: 5, food: 26, size: 11, speed: 330, antlers: false },
-  { anchor: { x: 700,  y: 2950 }, count: 4, leash: 420, respawnDays: 7, food: 45, size: 16, speed: 300, antlers: true },
-  { anchor: { x: 4050, y: 2400 }, count: 4, leash: 350, respawnDays: 5, food: 26, size: 11, speed: 330, antlers: false },
+  { anchor: { x: 2500, y: 760 },  count: 6, leash: 500, respawnDays: 7, food: 45, size: 16, speed: 272, antlers: true },
+  { anchor: { x: 1560, y: 3120 }, count: 5, leash: 420, respawnDays: 5, food: 26, size: 11, speed: 296, antlers: false },
+  { anchor: { x: 700,  y: 2950 }, count: 4, leash: 420, respawnDays: 7, food: 45, size: 16, speed: 272, antlers: true },
+  { anchor: { x: 4050, y: 2400 }, count: 4, leash: 350, respawnDays: 5, food: 26, size: 11, speed: 296, antlers: false },
 ];
 
 // Candidate den sites — spring's bet. Each is a distance argument: near the

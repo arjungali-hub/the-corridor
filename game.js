@@ -20,7 +20,8 @@ const DECAY_DOTTED_DAYS = 25;
 const SENSE_IN      = 0.35;  // seconds to raise the map
 const SENSE_OUT     = 0.5;   // the locked 0.5 s blend back
 const SCALE_WORLD   = 1.1;
-const SCALE_MAP     = 0.26;  // the map pulls well back — a document, not a lens
+const SCALE_MAP     = 0.20;  // the map pulls well back — a document, not a lens
+const APRON         = 600;   // land drawn beyond the walkable world — no black void
 const SCALE_VISTA   = 0.5;
 const YEAR_DAYS     = 360;
 const WINTER_START  = 271;
@@ -201,13 +202,26 @@ function setCaption(text, dur, sub) { S.caption = { text, sub: sub || '', t: 0, 
 
 // ── movement & collision ─────────────────────────────────────────────────────
 
-function blockedAt(x, y, r, canPassGap) {
-  if (x < r || y < r || x > WORLD.w - r || y > WORLD.h - r) return true;
+// The bridge at Water-Under-Stone crosses OVER the road: its deck (the gap
+// band) never connects to the asphalt at grade. Thin walls seal the deck's
+// north and south edges wherever they meet the road, so road→bridge and
+// bridge→road are both impossible mid-span.
+function bridgeWallAt(x, y, r) {
+  if (S.era === 'past') return false;
+  const h = OBSTACLES.highway;
+  if (x <= h.x0 - 8 - r || x >= h.x1 + 8 + r) return false;
+  return Math.abs(y - h.gapY0) < 8 + r || Math.abs(y - h.gapY1) < 8 + r;
+}
+
+function blockedAt(x, y, r, canPassGap, margin) {
+  const m = margin || 0;
+  if (x < r - m || y < r - m || x > WORLD.w - r + m || y > WORLD.h - r + m) return true;
   const h = OBSTACLES.highway;
   if (x > h.x0 - r && x < h.x1 + r) {
     const inGap = canPassGap && y > h.gapY0 + r && y < h.gapY1 - r;
     if (!inGap) return true;
   }
+  if (bridgeWallAt(x, y, r)) return true;
   if (S.era === 'past') return false;  // none of it has been built yet
   for (const key of ['construction', 'subdivision']) {
     const c = OBSTACLES[key];
@@ -218,8 +232,11 @@ function blockedAt(x, y, r, canPassGap) {
 
 // Wolves are blocked by fences and buildings but NOT by the road surface —
 // the road can be walked onto. That is the whole problem with it.
-function wolfBlockedAt(x, y) {
-  if (x < WOLF_R || y < WOLF_R || x > WORLD.w - WOLF_R || y > WORLD.h - WOLF_R) return true;
+// `margin` lets pack wolves roam the apron; Aspen never gets one.
+function wolfBlockedAt(x, y, margin) {
+  const m = margin || 0;
+  if (x < WOLF_R - m || y < WOLF_R - m || x > WORLD.w - WOLF_R + m || y > WORLD.h - WOLF_R + m) return true;
+  if (bridgeWallAt(x, y, WOLF_R)) return true;
   if (S.era === 'past') return false;
   for (const key of ['construction', 'subdivision']) {
     const c = OBSTACLES[key];
@@ -227,6 +244,8 @@ function wolfBlockedAt(x, y) {
   }
   return false;
 }
+
+function packBlockedAt(x, y) { return wolfBlockedAt(x, y, APRON); }
 
 function tryMove(who, dx, dy, blockFn) {
   const nx = who.x + dx;
@@ -614,23 +633,27 @@ function preyUpdate(dt) {
       }
     }
 
+    // Smooth steering: desired velocity is damped into actual velocity, so
+    // prey glides rather than vibrating; wander is low-frequency, not noise.
+    elk.vx = elk.vx || 0; elk.vy = elk.vy || 0;
+    let wantX = 0, wantY = 0, wantSp = 0;
+
     elk.fleeing = threat > 0;
     if (elk.fleeing) {
       elk.stamina = Math.max(0, elk.stamina - 12 * dt);
       fx += sx * 0.6; fy += sy * 0.6;
-      const wob = elk.heading + (Math.random() - 0.5) * 2;
-      fx += Math.cos(wob) * 40; fy += Math.sin(wob) * 40;
+      const wob = Math.sin(S.time * 1.4 + elk.skittish * 17) * 0.9;
+      const wa = Math.atan2(fy, fx) + wob;
       const dAnchor = dist(elk.x, elk.y, H.anchor.x, H.anchor.y);
-      if (dAnchor > H.leash) {
-        fx += (H.anchor.x - elk.x) / dAnchor * 120;
-        fy += (H.anchor.y - elk.y) / dAnchor * 120;
+      let ax = Math.cos(wa), ay = Math.sin(wa);
+      if (dAnchor > H.leash && !elk.frail) {
+        ax += (H.anchor.x - elk.x) / dAnchor * 0.4;
+        ay += (H.anchor.y - elk.y) / dAnchor * 0.4;
       }
-      const m = Math.hypot(fx, fy) || 1;
-      const sp = (elk.stamina > 25 ? H.speed : H.speed * 0.56)
+      const m = Math.hypot(ax, ay) || 1;
+      wantSp = (elk.stamina > 25 ? H.speed : H.speed * 0.56)
         * (0.92 + 0.16 * elk.skittish) * (elk.frail || 1);
-      tryMove(elk, fx / m * sp * dt, fy / m * sp * dt, (x, y) => blockedAt(x, y, 14, false));
-      elk.heading = Math.atan2(fy, fx);
-      elk.gait += sp * dt;
+      wantX = ax / m * wantSp; wantY = ay / m * wantSp;
     } else {
       elk.stamina = Math.min(100, elk.stamina + 8 * dt);
       elk.grazeT -= dt;
@@ -640,19 +663,59 @@ function preyUpdate(dt) {
         let mx = (elk.tx - elk.x) / dT + sx * 0.02;
         let my = (elk.ty - elk.y) / dT + sy * 0.02;
         const mm = Math.hypot(mx, my) || 1;
-        const sp = 34 + 18 * Math.sin(hashStr('e' + elk.tx) + S.time * 0.3);
-        tryMove(elk, mx / mm * sp * dt, my / mm * sp * dt,
-          (x, y) => blockedAt(x, y, 14, false));
-        elk.heading += (Math.atan2(my, mx) - elk.heading) * Math.min(1, dt * 3);
-        elk.gait += sp * dt;
-      } else if (sx || sy) {
-        const mm = Math.hypot(sx, sy) || 1;
-        tryMove(elk, sx / mm * 22 * dt, sy / mm * 22 * dt, (x, y) => blockedAt(x, y, 14, false));
-        elk.gait += 22 * dt;
+        wantSp = 26 + 12 * Math.sin(S.time * 0.23 + elk.skittish * 31);
+        wantX = mx / mm * wantSp; wantY = my / mm * wantSp;
+      } else if (Math.hypot(sx, sy) > 12) {
+        const mm = Math.hypot(sx, sy);
+        wantX = sx / mm * 20; wantY = sy / mm * 20;
       }
     }
 
+    const damp = Math.min(1, dt * (elk.fleeing ? 3.5 : 1.8));
+    elk.vx += (wantX - elk.vx) * damp;
+    elk.vy += (wantY - elk.vy) * damp;
+    const spd = Math.hypot(elk.vx, elk.vy);
+    if (spd > 2) {
+      // prey may roam the apron, where Aspen cannot follow
+      tryMove(elk, elk.vx * dt, elk.vy * dt, (x, y) => blockedAt(x, y, 14, false, APRON));
+      const targetHd = Math.atan2(elk.vy, elk.vx);
+      let dh = targetHd - elk.heading;
+      while (dh > Math.PI) dh -= Math.PI * 2;
+      while (dh < -Math.PI) dh += Math.PI * 2;
+      elk.heading += dh * Math.min(1, dt * 5);
+      elk.gait += spd * dt;
+    }
+
+    // beyond the world's edge: it has escaped the land entirely
+    if (elk.x < 0 || elk.y < 0 || elk.x > WORLD.w || elk.y > WORLD.h) {
+      elk.outT = (elk.outT || 0) + dt;
+    } else {
+      elk.outT = 0;
+    }
+
     S.scentDropT += dt;
+  }
+
+  // escapes: gone past the edge and staying there — a new deer wanders into
+  // the heart of the land to replace what the land lost
+  for (let i = S.elk.length - 1; i >= 0; i--) {
+    const elk = S.elk[i];
+    const gone = elk.x < -APRON + 40 || elk.y < -APRON + 40
+      || elk.x > WORLD.w + APRON - 40 || elk.y > WORLD.h + APRON - 40
+      || (elk.outT || 0) > 7;
+    if (gone) {
+      S.elk.splice(i, 1);
+      const nd = {
+        herd: 1,
+        x: WORLD.w / 2 + (Math.random() - 0.5) * 500,
+        y: WORLD.h / 2 + (Math.random() - 0.5) * 500,
+        heading: Math.random() * Math.PI * 2, stamina: 100, fleeing: false,
+        gait: 0, bull: false, skittish: 0.75 + Math.random() * 0.5,
+        grazeT: 2, tx: 0, ty: 0, vx: 0, vy: 0,
+      };
+      pickGrazeTarget(nd);
+      S.elk.push(nd);
+    }
   }
   if (S.scentDropT > 1.4) {
     S.scentDropT = 0;
