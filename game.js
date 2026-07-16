@@ -138,6 +138,19 @@ function newGame() {
     task: null, taskCooldown: 30,                // small demands; time holds for them
     zoneAnchor: null,                            // F pins the pack's zone here
 
+    // the rancher: a hidden, permanent ledger — never shown, always kept
+    conflict: 0, seenCd: 0, shotCd: 0,
+    dogs: [
+      { x: RANCH.dogHome.x - 20, y: RANCH.dogHome.y, heading: 0, gait: 0, moving: false, biteCd: 0 },
+      { x: RANCH.dogHome.x + 20, y: RANCH.dogHome.y + 24, heading: 0, gait: 0, moving: false, biteCd: 0 },
+    ],
+    gift: { given: false, taken: false },
+    alarm: 0,                                    // the silence zone's rising light
+    standoff: null, standoffCd: 0,               // rivals: {t, rivals:[{x,y,...}]}
+    lichenJoined: false,
+    fire: { state: 'none', t: 0 },
+    lastSeason: 0, bondT: 0, bondC: null,
+
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
       state: 'follow', gait: 0, moving: false,
@@ -209,7 +222,7 @@ function spawnPrey(herdIdx) {
     heading: Math.random() * Math.PI * 2, stamina: 100, fleeing: false,
     gait: 0,
     bull: H.antlers && Math.random() < 0.4,
-    skittish: 0.75 + Math.random() * 0.5,
+    skittish: H.cattle ? 0.45 : 0.75 + Math.random() * 0.5,
     grazeT: Math.random() * 6,
     tx: 0, ty: 0,
   };
@@ -852,9 +865,17 @@ function preyUpdate(dt) {
     elk.vx = elk.vx || 0; elk.vy = elk.vy || 0;
     let wantX = 0, wantY = 0, wantSp = 0;
 
+    // the fire drives everything west, together; panic, not pursuit
+    const burning = S.fire && S.fire.state === 'burning';
+    if (burning) {
+      fx -= 320;
+      fy += Math.sin(S.time * 1.1 + elk.skittish * 23) * 60;
+      threat++;
+    }
+
     elk.fleeing = threat > 0;
     if (elk.fleeing) {
-      elk.stamina = Math.max(0, elk.stamina - 12 * dt);
+      if (!burning) elk.stamina = Math.max(0, elk.stamina - 12 * dt);
       fx += sx * 0.6; fy += sy * 0.6;
       const wob = Math.sin(S.time * 1.4 + elk.skittish * 17) * 0.9;
       const wa = Math.atan2(fy, fx) + wob;
@@ -951,7 +972,12 @@ function preyUpdate(dt) {
       S.food = Math.min(100, S.food + H.food + (sedgeIn ? 10 : 0));
       S.tut.usedHold = true;
       S.history.push({ type: 'hunt', day: day() });
-      say(sedgeIn ? 'A kill. Sedge ran it down with her.' : 'A kill. The pack eats.');
+      if (H.cattle) {
+        S.conflict = Math.min(1, S.conflict + 0.3);
+        say('A calf. Easy meat. The house will know.');
+      } else {
+        say(sedgeIn ? 'A kill. Sedge ran it down with her.' : 'A kill. The pack eats.');
+      }
       saveGame();
     }
   }
@@ -1062,6 +1088,253 @@ function pupUpdate(dt) {
     say('The pups are strong enough to travel. They walk where you walk now.');
     saveGame();
   }
+}
+
+// ── the rancher ──────────────────────────────────────────────────────────────
+// One human thread, witnessed entirely from outside. His ledger (S.conflict)
+// is hidden, permanent, and never explained: dogs, lights, and — one way or
+// the other — either a gift by the fence or a rifle.
+
+function rancherUpdate(dt) {
+  S.seenCd = Math.max(0, S.seenCd - dt);
+  S.shotCd = Math.max(0, S.shotCd - dt);
+
+  const dHouse = dist(S.wolf.x, S.wolf.y, RANCH.house.x, RANCH.house.y);
+
+  // being seen from the porch, in daylight
+  if (dHouse < 400 && daylight() > 0.5 && S.seenCd <= 0) {
+    S.seenCd = 10;
+    if (S.conflict === 0) say('A silhouette on the porch. Watching.');
+    S.conflict = Math.min(1, S.conflict + 0.02);
+  }
+
+  // the dogs: loosed farther the worse the ledger reads
+  const chaseR = S.conflict > 0.6 ? 1000 : 620;
+  for (const dog of S.dogs) {
+    dog.biteCd = Math.max(0, dog.biteCd - dt);
+    const dHome = dist(dog.x, dog.y, RANCH.dogHome.x, RANCH.dogHome.y);
+    const dWolf = dist(dog.x, dog.y, S.wolf.x, S.wolf.y);
+    let tx, ty, sp;
+    if (dHouse < 380 && dHome < chaseR) {
+      tx = S.wolf.x; ty = S.wolf.y; sp = 272;          // driven off
+      if (dWolf < 34 && dog.biteCd <= 0) {
+        dog.biteCd = 8;
+        S.fear = Math.min(1, S.fear + 0.25);
+        S.conflict = Math.min(1, S.conflict + 0.05);
+        S.shake = Math.max(S.shake, 5);
+        playBark();
+        say('Teeth at her heels — the dogs know their work.');
+      }
+    } else {
+      tx = RANCH.dogHome.x + Math.sin(S.time * 0.4 + dog.biteCd) * 50;
+      ty = RANCH.dogHome.y + Math.cos(S.time * 0.3) * 40;
+      sp = 150;
+    }
+    const d = dist(dog.x, dog.y, tx, ty);
+    if (d > 12) {
+      const step = Math.min(d, sp * dt);
+      dog.x += (tx - dog.x) / d * step;
+      dog.y += (ty - dog.y) / d * step;
+      dog.heading = Math.atan2(ty - dog.y, tx - dog.x);
+      dog.gait += step;
+      dog.moving = true;
+    } else {
+      dog.moving = false;
+    }
+  }
+
+  // kept low: once, in the cold, something is left by the fence line
+  if (!S.gift.given && S.conflict < 0.35 && seasonIndex() >= 2) {
+    S.gift.given = true;
+    say('Ravens circle the fence line, east.');
+  }
+  if (S.gift.given && !S.gift.taken
+      && dist(S.wolf.x, S.wolf.y, RANCH.giftSpot.x, RANCH.giftSpot.y) < 60) {
+    S.gift.taken = true;
+    S.food = Math.min(100, S.food + 35);
+    say('A gut pile, left by the wire. Maybe forgotten. Maybe not.');
+    saveGame();
+  }
+
+  // kept high: the rifle
+  if (S.conflict > 0.6 && day() > 200 && dHouse < 700 && S.shotCd <= 0) {
+    S.shotCd = 30;
+    playShot();
+    S.fear = 1;
+    S.shake = 10;
+    S.flickerT = 0.3;
+    if (S.conflict > 0.85 && Math.random() < 0.3) {
+      S.injuredUntilDay = day() + INJURY_DAYS;
+      say('CRACK. Fire along her flank. Run.');
+    } else {
+      say('CRACK. The air splits beside her.');
+    }
+  }
+}
+
+// ── the silence zone ─────────────────────────────────────────────────────────
+// Suburb-edge ground: move fast near the rooflines and light cascades into
+// barking into being SEEN — which goes straight into the rancher's ledger.
+
+function silenceUpdate(dt) {
+  const c = OBSTACLES.subdivision;
+  const dx = Math.max(c.x0 - S.wolf.x, 0, S.wolf.x - c.x1);
+  const dy = Math.max(c.y0 - S.wolf.y, 0, S.wolf.y - c.y1);
+  const d = Math.hypot(dx, dy);
+  if (d < 480) {
+    S.alarm = Math.min(1, S.alarm + dt * (S.wolf.moving ? 0.4 : 0.02) * (1 - d / 480));
+    if (S.alarm >= 1) {
+      S.alarm = 0;
+      S.conflict = Math.min(1, S.conflict + 0.08);
+      S.fear = Math.min(1, S.fear + 0.3);
+      S.flickerT = 0.3;
+      playBark();
+      say('Porch lights. Barking, house to house. Seen.');
+    }
+  } else {
+    S.alarm = Math.max(0, S.alarm - dt * 0.15);
+  }
+}
+
+// ── the standoff ─────────────────────────────────────────────────────────────
+// Rival ground, northeast. Two shapes at the treeline: hold with the pack
+// at your back, leave, or press alone and learn about lines.
+
+function nearestRedDist() {
+  let bd = Infinity;
+  for (const m of SCENT_RED) bd = Math.min(bd, dist(S.wolf.x, S.wolf.y, m.x, m.y));
+  return bd;
+}
+
+function standoffUpdate(dt) {
+  S.standoffCd = Math.max(0, S.standoffCd - dt);
+
+  if (!S.standoff) {
+    if (S.standoffCd <= 0 && nearestRedDist() < 500) {
+      let mark = SCENT_RED[0], bd = Infinity;
+      for (const m of SCENT_RED) {
+        const d = dist(S.wolf.x, S.wolf.y, m.x, m.y);
+        if (d < bd) { bd = d; mark = m; }
+      }
+      const a = Math.atan2(mark.y - S.wolf.y, mark.x - S.wolf.x);
+      S.standoff = {
+        t: 0,
+        rivals: [-0.5, 0.5].map(off => ({
+          x: S.wolf.x + Math.cos(a + off * 0.5) * 200,
+          y: S.wolf.y + Math.sin(a + off * 0.5) * 200,
+          heading: a + Math.PI, gait: 0, moving: false,
+        })),
+      };
+      S.fear = Math.min(1, S.fear + 0.2);
+      playGrowl();
+      say('Shapes at the treeline. Still. Watching.');
+    }
+    return;
+  }
+
+  const so = S.standoff;
+  so.t += dt;
+  for (const rv of so.rivals) {
+    // they hold a posture-distance from her, always facing
+    const d = dist(rv.x, rv.y, S.wolf.x, S.wolf.y);
+    const want = 130;
+    if (Math.abs(d - want) > 12) {
+      const dir = d > want ? 1 : -1;
+      const step = 120 * dt * dir;
+      rv.x += (S.wolf.x - rv.x) / d * step;
+      rv.y += (S.wolf.y - rv.y) / d * step;
+      rv.gait += Math.abs(step);
+      rv.moving = true;
+    } else {
+      rv.moving = false;
+    }
+    rv.heading = Math.atan2(S.wolf.y - rv.y, S.wolf.x - rv.x);
+  }
+
+  const adultsNear = alivePack().filter(w => !w.pup && dist(w.x, w.y, S.wolf.x, S.wolf.y) < 220).length;
+
+  if (nearestRedDist() > 560) {
+    S.standoff = null;
+    S.standoffCd = 60;
+    say('Their ground. Not yours today.');
+  } else if (adultsNear >= 2 && so.t > 4) {
+    S.standoff = null;
+    S.standoffCd = 90;
+    say('The line holds. They give back into the trees.');
+  } else if (adultsNear < 2 && so.t > 6) {
+    S.standoff = null;
+    S.standoffCd = 90;
+    S.injuredUntilDay = day() + INJURY_DAYS;
+    S.fear = Math.min(1, S.fear + 0.6);
+    S.shake = 8;
+    // shoved back toward home ground
+    let mark = SCENT_RED[0], bd = Infinity;
+    for (const m of SCENT_RED) {
+      const d = dist(S.wolf.x, S.wolf.y, m.x, m.y);
+      if (d < bd) { bd = d; mark = m; }
+    }
+    const a = Math.atan2(S.wolf.y - mark.y, S.wolf.x - mark.x);
+    tryMove(S.wolf, Math.cos(a) * 120, Math.sin(a) * 120, wolfBlockedAt);
+    playGrowl();
+    say('Teeth. A shove. A lesson about lines.');
+  }
+}
+
+// ── Lichen ───────────────────────────────────────────────────────────────────
+// An outsider from a different fragmented territory, come south. She brings
+// the only knowledge of ground beyond Willow's range — and an unsettled pack.
+
+function lichenUpdate() {
+  if (S.lichenJoined || day() < 100) return;
+  S.lichenJoined = true;
+  S.pack.push({
+    id: 'lichen', name: 'Lichen', mult: 1.05, yearling: false,
+    x: S.wolf.x, y: S.wolf.y - 300, state: 'follow', gait: 0, moving: false,
+  });
+  for (const eid of ['northRidge-blackPines', 'blackPines-birchDraw', 'northRidge-ridgeSaddle']) {
+    const e = S.edges.find(x => x.id === eid);
+    if (e && e.state === 'unknown') {
+      e.state = 'current-dotted';
+      e.passCount = 1;
+      e.inkLo = 0; e.inkHi = 1;
+      e.lastUsedDay = day();
+    }
+  }
+  recomputeGhosts();
+  checkBridges();
+  S.fear = Math.min(1, S.fear + 0.15);
+  say('A stranger walks in from the north. Thin, watchful. She knows ground you do not.');
+  saveGame();
+}
+
+// ── the fire ─────────────────────────────────────────────────────────────────
+// Dry lightning in the east, one summer day. Everything that runs, runs west
+// together — predator and prey in truce-by-panic. Afterward the eastern
+// woods stand charred for the rest of the year.
+
+function fireUpdate(dt) {
+  const f = S.fire;
+  if (f.state === 'none' && seasonIndex() === 1 && day() >= 130) {
+    f.state = 'burning';
+    f.t = 0;
+    setCaption('Dry lightning, east.', 4, 'the world runs west together');
+    playRumble();
+    S.fear = Math.min(1, S.fear + 0.3);
+  }
+  if (f.state === 'burning') {
+    f.t += dt;
+    if (f.t > 50) {
+      f.state = 'done';
+      say('Rain, at last, on black ground.');
+      saveGame();
+    }
+  }
+}
+
+function totalCount() {
+  let n = 1 + S.pack.length;
+  if (S.pups) n += S.pups.traveling ? S.pups.lost : S.pups.count + S.pups.lost;
+  return n;
 }
 
 // ── tasks: the small demands of a day ────────────────────────────────────────
@@ -1564,9 +1837,31 @@ function prologueUpdate(dt) {
 
     // Beat 6 — rest and bonding (optional; it skips itself)
     case 6:
+      if (S.bondT > 0 && w) {
+        // the play-fight: two wolves circling, tails high
+        S.bondT -= dt;
+        const a2 = S.time * 5;
+        S.wolf.x = S.bondC.x + Math.cos(a2) * 26;
+        S.wolf.y = S.bondC.y + Math.sin(a2) * 26;
+        S.wolf.heading = a2 + Math.PI / 2;
+        S.wolf.moving = true; S.wolf.gait += 140 * dt;
+        w.x = S.bondC.x - Math.cos(a2) * 26;
+        w.y = S.bondC.y - Math.sin(a2) * 26;
+        w.heading = a2 - Math.PI / 2;
+        w.moving = true; w.gait += 140 * dt;
+      }
       if ((S.tut._bond && w && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 90) || S.beatT > 14) {
         clearPrompt();
-        if (S.beatT <= 14) { S.bondGlow = 1.6; setCaption('Hers. Yours.', 3); }
+        if (S.beatT <= 14 && S.bondT <= 0) {
+          S.bondGlow = 1.6;
+          S.bondT = 1.8;
+          S.bondC = { x: (S.wolf.x + w.x) / 2, y: (S.wolf.y + w.y) / 2 };
+          S.inputLockT = 1.8;
+          playYip();
+          setCaption('Hers. Yours.', 3);
+        }
+        if (S.beatT > 14) { /* the moment passed unnoticed; move on */ }
+        else if (S.bondT > 0.05) break;   // let the circling finish first
         S.beat = 7; S.beatT = 0;
         willowSetPath([
           nodePt('farBench', 'sageFlat-farBench'),
@@ -1778,6 +2073,107 @@ function playImpact() {
   o2.start(now); o2.stop(now + 0.2);
 }
 
+// Dogs: three quick hard yips.
+function playBark() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  for (let i = 0; i < 3; i++) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'square';
+    o.frequency.setValueAtTime(520, now + i * 0.14);
+    o.frequency.exponentialRampToValueAtTime(360, now + i * 0.14 + 0.08);
+    g.gain.setValueAtTime(0.001, now + i * 0.14);
+    g.gain.linearRampToValueAtTime(0.16, now + i * 0.14 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.14 + 0.11);
+    o.connect(g); g.connect(ac.destination);
+    o.start(now + i * 0.14); o.stop(now + i * 0.14 + 0.13);
+  }
+}
+
+// The rifle: a crack and its body.
+function playShot() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const o1 = ac.createOscillator(), g1 = ac.createGain();
+  o1.type = 'square';
+  o1.frequency.setValueAtTime(1900, now);
+  o1.frequency.exponentialRampToValueAtTime(180, now + 0.06);
+  g1.gain.setValueAtTime(0.34, now);
+  g1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  o1.connect(g1); g1.connect(ac.destination);
+  o1.start(now); o1.stop(now + 0.14);
+  const o2 = ac.createOscillator(), g2 = ac.createGain();
+  o2.type = 'sawtooth';
+  o2.frequency.setValueAtTime(90, now + 0.02);
+  o2.frequency.exponentialRampToValueAtTime(36, now + 0.3);
+  g2.gain.setValueAtTime(0.22, now + 0.02);
+  g2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
+  o2.connect(g2); g2.connect(ac.destination);
+  o2.start(now + 0.02); o2.stop(now + 0.5);
+}
+
+// Rivals: a low held growl.
+function playGrowl() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth'; o.frequency.value = 58;
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.linearRampToValueAtTime(0.16, now + 0.1);
+  g.gain.setValueAtTime(0.16, now + 0.5);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + 0.95);
+}
+
+// The pack's voice at each season's turning: two staggered gliding howls.
+function playHowl() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  for (const at of [0, 0.6]) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(392, now + at);
+    o.frequency.linearRampToValueAtTime(587, now + at + 0.5);
+    o.frequency.linearRampToValueAtTime(494, now + at + 1.8);
+    g.gain.setValueAtTime(0.001, now + at);
+    g.gain.linearRampToValueAtTime(0.1, now + at + 0.3);
+    g.gain.setValueAtTime(0.1, now + at + 1.2);
+    g.gain.exponentialRampToValueAtTime(0.001, now + at + 2.2);
+    o.connect(g); g.connect(ac.destination);
+    o.start(now + at); o.stop(now + at + 2.3);
+  }
+}
+
+// Play-fight: one soft happy yip.
+function playYip() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(680, now);
+  o.frequency.exponentialRampToValueAtTime(920, now + 0.09);
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.linearRampToValueAtTime(0.14, now + 0.02);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + 0.18);
+}
+
+// The fire: a long low rumble from the east.
+function playRumble() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth'; o.frequency.value = 38;
+  g.gain.setValueAtTime(0.001, now);
+  g.gain.linearRampToValueAtTime(0.18, now + 0.6);
+  g.gain.setValueAtTime(0.18, now + 2.2);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + 3.6);
+}
+
 // A single soft note when a small task resolves.
 function playTaskChime() {
   const ac = getAudioCtx(); if (!ac) return;
@@ -1836,6 +2232,8 @@ function saveGame() {
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
       pups: S.pups,
       task: S.task, taskCooldown: S.taskCooldown,
+      conflict: S.conflict, gift: S.gift, alarm: S.alarm,
+      lichenJoined: S.lichenJoined, fire: S.fire, standoffCd: S.standoffCd,
       hud: S.hud, tut: S.tut, callouts: S.callouts,
       elkRespawn: S.elkRespawn,
       history: S.history.slice(-4000),
@@ -1867,11 +2265,12 @@ function loadGame() {
   S.visited = new Set(d.visited); S.bridged = new Set(d.bridged);
   S.firstTear = d.firstTear;
   for (const sw of d.pack) {
-    if (sw.pup) {
-      S.pack.push({ ...sw, state: sw.state === 'balk' ? 'follow' : sw.state, gait: 0, moving: false });
+    const w = S.pack.find(x => x.id === sw.id);
+    if (w) {
+      w.x = sw.x; w.y = sw.y; w.state = sw.state === 'balk' ? 'follow' : sw.state;
     } else {
-      const w = S.pack.find(x => x.id === sw.id);
-      if (w) { w.x = sw.x; w.y = sw.y; w.state = sw.state === 'balk' ? 'follow' : sw.state; }
+      // pups, Lichen — anyone who joined along the way
+      S.pack.push({ ...sw, state: sw.state === 'balk' ? 'follow' : sw.state, gait: 0, moving: false });
     }
   }
   S.fear = d.fear; S.food = d.food;
@@ -1880,6 +2279,13 @@ function loadGame() {
   S.pups = d.pups;
   S.task = d.task || null;
   S.taskCooldown = typeof d.taskCooldown === 'number' ? d.taskCooldown : 30;
+  S.conflict = d.conflict || 0;
+  S.gift = d.gift || { given: false, taken: false };
+  S.alarm = d.alarm || 0;
+  S.lichenJoined = !!d.lichenJoined;
+  S.fire = d.fire || { state: 'none', t: 0 };
+  S.standoffCd = d.standoffCd || 0;
+  S.lastSeason = seasonIndex();
   Object.assign(S.hud, d.hud || {});
   Object.assign(S.tut, d.tut || {});
   S.callouts = d.callouts || [];
@@ -1942,10 +2348,19 @@ function update(dt) {
     hungerUpdate(dt);
     denUpdate(dt);
     pupUpdate(dt);
+    rancherUpdate(dt);
+    silenceUpdate(dt);
+    standoffUpdate(dt);
+    lichenUpdate();
+    fireUpdate(dt);
     taskUpdate(dt);
     tutorialUpdate(dt);
     calloutUpdate(dt);
     endingCheck();
+
+    // the pack sings each season across
+    const si = seasonIndex();
+    if (si !== S.lastSeason) { S.lastSeason = si; playHowl(); }
 
     S.histT += dt;
     if (S.histT > 3) {

@@ -144,15 +144,45 @@ resume from the ⏳ items, in order. Verify with the headless harness
       the Bend (see above) — the old way is physically impassable, so the
       tear tells the truth.
 
-## Acknowledged gaps vs the production bible (future sessions)
+## Bible content (2026-07-16 batch — SHIPPED)
 
-- [ ] Beat-8-quality art for the cut (matte vista layers); Beat 6 play-fight
-      animation beyond the warm nuzzle glow.
-- [ ] The rancher thread + hidden conflict meter + gate/rifle payoffs.
-- [ ] Standoff and Silence Zone encounter systems.
-- [ ] Lichen, the fire set piece, drought parameter, construction as
-      audible eastward progress bar, overpass adoption arc.
-- [ ] Music decision; fuller audio (pack vocal language, per-season ambience).
+- [x] **The rancher thread**: homestead (house/porch/barn/corral) behind the
+      fence; cattle grazing outside the wire (killing one: +60 food,
+      conflict +0.3, "the house will know"); two dogs that chase within 380
+      of the house (farther when conflict > 0.6), bite = fear + conflict;
+      being seen from the porch in daylight ticks the ledger. **Hidden,
+      permanent conflict meter — never displayed.** Kept low: one gut pile
+      left by the wire in the cold ("Maybe forgotten. Maybe not.", +35
+      food). Kept high (> 0.6, after day 200, near the house): rifle cracks
+      (fear 1, shake), and above 0.85 a shot can wound. Survey stakes
+      appear along his fence in autumn; an unreadable pale sign in winter —
+      his own squeeze, wordless.
+- [x] **Silence Zone**: within 480 of the subdivision, moving fast raises a
+      hidden alarm — window lights answer house by house; at full alarm:
+      barking, SEEN, conflict +0.08, fear +0.3. Walk slowly and nothing
+      wakes.
+- [x] **Standoff**: on rival ground (within 500 of red marks), two rivals
+      materialize at posture distance and hold, facing her. Leave → they
+      let you ("Their ground. Not yours today."). Hold with ≥2 pack adults
+      at your back → the line holds. Press alone → a nip (injury), a shove
+      back, a lesson about lines.
+- [x] **Lichen** joins at day 100 from the north, unsettling the pack
+      (fear +0.15) and inking three northern routes she alone knew.
+- [x] **The fire**: dry lightning east at day ≥130 (summer); 50 s of amber
+      air, drifting smoke, and every herd running west together in
+      truce-by-panic (no stamina drain — panic, not pursuit); afterward the
+      northeastern woods render charred for the rest of the year.
+- [x] **Pack vocal language starter set**: season-turning howls (two
+      staggered gliding voices), dog barks, rival growl, rifle crack +
+      body, fire rumble, play-fight yip.
+- [x] **Beat 6 play-fight**: Aspen and Willow circle each other, tails
+      high, for the bond moment (input locked 1.8 s, yip, warm glow).
+
+## Still open (future sessions)
+
+- [ ] Beat-8 matte-quality art for the cut; drought parameter; construction
+      as an audible eastward progress bar; overpass adoption arc; music
+      decision; per-season ambience beds; a powerline cut obstacle.
 
 ## Verification ritual
 

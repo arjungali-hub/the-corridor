@@ -70,3 +70,17 @@ general-area inking corridors; Twemoji wolf favicon; repo on GitHub
 
 **Next session's first action:** more human obstacles (fence line, gravel
 pit) with footprint-derived tears, then the bible content (rancher thread).
+
+## 2026-07-16
+
+Four-session batch: the rancher thread (homestead, cattle, dogs, hidden
+permanent conflict meter, gift-or-rifle payoffs, stakes/sign squeeze),
+Silence Zone stealth at the subdivision, Standoff encounters on rival
+ground, Lichen at day 100 with northern fragments, the fire set piece
+(scripted westward funnel + charred east woods), season-turning howls and
+the new one-shot sound set, Beat 6 play-fight. 105-check harness passes
+(three consecutive runs; herd-spacing check made time-sampled).
+
+**Next session's first action:** play a full year in the browser — the
+rancher/standoff/silence numbers (radii, conflict increments, alarm rate)
+are harness-correct but tuned blind.

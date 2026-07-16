@@ -34,7 +34,10 @@ const HERD_TONES = [
   { body: '#96714f', dark: '#5d452f', rump: '#e2d2b0' },
   { body: '#7d6349', dark: '#4f3d28', rump: '#d9c9a8' },
   { body: '#96714f', dark: '#5d452f', rump: '#e2d2b0' },
+  { body: '#443c35', dark: '#292420', rump: '#d8d3c8' },   // black-baldy cattle
 ];
+const DOG_TONES   = { base: '#7a5c3a', dark: '#53402a', light: '#b39872' };
+const RIVAL_TONES = { base: '#8d7f7a', dark: '#5c4c47', light: '#bcaea8' };
 
 // ── transform ────────────────────────────────────────────────────────────────
 
@@ -103,7 +106,8 @@ let baseLayer = null, baseKey = '';
 
 function buildBaseLayer() {
   const si = S.era === 'past' ? 0 : seasonIndex();
-  baseKey = S.era + '|' + si;
+  const burned = S.era !== 'past' && S.fire && S.fire.state === 'done';
+  baseKey = S.era + '|' + si + '|' + burned;
   if (!baseLayer) {
     baseLayer = document.createElement('canvas');
     baseLayer.width = WORLD.w + 2 * APRON;
@@ -244,15 +248,26 @@ function buildBaseLayer() {
     }
   }
 
-  // forests: shadowed, clustered trees
+  // forests: shadowed, clustered trees — charred east of the burn line
+  // for the rest of the year, once the fire has passed
   for (const f of TERRAIN.forests) {
     const frng = makePrng(hashStr('f' + f.x + ',' + f.y));
-    b.fillStyle = 'rgba(35,50,30,0.18)';
+    const charred = burned && f.x > 3400 && f.y < 2400;
+    b.fillStyle = charred ? 'rgba(20,18,16,0.25)' : 'rgba(35,50,30,0.18)';
     b.beginPath(); b.arc(f.x + 14, f.y + 18, f.r, 0, Math.PI * 2); b.fill();
     const trees = Math.floor(f.r * f.r / 1700);
     for (let i = 0; i < trees; i++) {
       const a = frng() * Math.PI * 2, d = Math.sqrt(frng()) * f.r;
-      drawTree(b, f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, 12 + frng() * 16, frng, si, past);
+      const tx = f.x + Math.cos(a) * d, ty = f.y + Math.sin(a) * d;
+      if (charred) {
+        b.strokeStyle = '#2e2a26';
+        b.lineWidth = 3;
+        b.beginPath(); b.moveTo(tx, ty + 8); b.lineTo(tx + (frng() - 0.5) * 8, ty - 14 - frng() * 10); b.stroke();
+        b.fillStyle = 'rgba(60,56,52,0.5)';
+        b.beginPath(); b.arc(tx, ty, 5 + frng() * 5, 0, Math.PI * 2); b.fill();
+      } else {
+        drawTree(b, tx, ty, 12 + frng() * 16, frng, si, past);
+      }
     }
   }
   // lone trees
@@ -416,6 +431,32 @@ function buildBaseLayer() {
       b.fillStyle = '#5d4c38';
       b.fillRect(px - 2, py - 6, 4, 10);
     }
+    if (si >= 2) {   // his own squeeze: survey stakes down the wire, come autumn
+      for (let s = 40; s < flen; s += 120) {
+        const px = fe.x0 + fux * s - fuy * 26, py = fe.y0 + fuy * s + fux * 26;
+        b.fillStyle = '#e8e2d0'; b.fillRect(px, py, 3, 9);
+        b.fillStyle = '#d96a2b'; b.fillRect(px + 3, py, 7, 4);
+      }
+    }
+    if (si === 3) {  // and in winter, a pale sign by the west end, unreadable
+      b.fillStyle = '#5d4c38'; b.fillRect(fe.x0 - 8, fe.y0 + 40, 5, 26);
+      b.fillStyle = '#e5e0d2'; b.fillRect(fe.x0 - 20, fe.y0 + 26, 30, 18);
+    }
+
+    // the homestead: house, porch, barn, corral
+    const rh = RANCH.house;
+    b.fillStyle = 'rgba(30,30,30,0.3)';
+    b.fillRect(rh.x - 34, rh.y - 22, 78, 58);
+    b.fillStyle = '#8a5f47'; b.fillRect(rh.x - 40, rh.y - 30, 80, 30);   // roof A
+    b.fillStyle = '#9c6e52'; b.fillRect(rh.x - 40, rh.y, 80, 26);        // roof B
+    b.strokeStyle = 'rgba(40,25,20,0.7)'; b.lineWidth = 2;
+    b.beginPath(); b.moveTo(rh.x - 40, rh.y); b.lineTo(rh.x + 40, rh.y); b.stroke();
+    b.fillStyle = '#d9c9a0'; b.fillRect(rh.x - 46, rh.y + 26, 92, 10);   // porch
+    b.fillStyle = '#7d3b30';                                              // the barn
+    b.fillRect(rh.x + 80, rh.y + 40, 54, 44);
+    b.fillStyle = '#93483a'; b.fillRect(rh.x + 76, rh.y + 34, 62, 16);
+    b.strokeStyle = '#6a5137'; b.lineWidth = 3;                           // corral
+    b.strokeRect(rh.x - 20, rh.y + 70, 90, 60);
 
     // subdivision: street, houses with gabled roofs, fences
     const sub = OBSTACLES.subdivision;
@@ -850,6 +891,29 @@ function drawWorld() {
     }
   }
 
+  // the gut pile by the wire, while it lasts
+  if (S.gift && S.gift.given && !S.gift.taken) {
+    const gs = RANCH.giftSpot;
+    ctx.fillStyle = '#5d3a2e';
+    ctx.beginPath(); ctx.ellipse(gs.x, gs.y, 14, 9, 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(140,60,40,0.6)';
+    ctx.beginPath(); ctx.ellipse(gs.x - 4, gs.y - 2, 7, 4, 0.4, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // the rancher's dogs
+  if (S.dogs && S.era !== 'past') {
+    for (const dog of S.dogs) {
+      drawWolfBody(dog.x, dog.y, dog.heading, 8, DOG_TONES, dog.moving, dog.gait, false);
+    }
+  }
+
+  // rivals, when a standoff is live
+  if (S.standoff) {
+    for (const rv of S.standoff.rivals) {
+      drawWolfBody(rv.x, rv.y, rv.heading, 10.5, RIVAL_TONES, rv.moving, rv.gait, false);
+    }
+  }
+
   // the pack, then Willow, then Aspen
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') continue;
@@ -903,8 +967,49 @@ function drawWorld() {
     }
   }
 
+  // the silence zone answering her: window light, house by house
+  if (S.alarm > 0.35 && S.era !== 'past') {
+    const sub = OBSTACLES.subdivision;
+    const glow = (S.alarm - 0.35) / 0.65;
+    for (let rx = sub.x0 + 40; rx < sub.x1 - 100; rx += 96) {
+      for (const ry of [sub.y0 + 40, sub.y1 - 110]) {
+        ctx.fillStyle = `rgba(255,220,130,${0.25 + glow * 0.6})`;
+        ctx.fillRect(rx + 18, ry + 14, 10, 8);
+        ctx.fillRect(rx + 38, ry + 30, 8, 8);
+      }
+    }
+  }
+
   drawWeather();
+  drawFireAir();
   drawLightAndAir();
+}
+
+// the burning east: a wall of amber air and drifting smoke
+let smokeParts = [];
+function drawFireAir() {
+  if (!S.fire || S.fire.state !== 'burning') { smokeParts.length = 0; return; }
+  resetTransform();
+  const g = ctx.createLinearGradient(canvas.width, 0, canvas.width * 0.3, 0);
+  g.addColorStop(0, 'rgba(214,110,40,0.30)');
+  g.addColorStop(1, 'rgba(214,110,40,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  while (smokeParts.length < 26) {
+    smokeParts.push({
+      x: canvas.width + Math.random() * 200, y: Math.random() * canvas.height,
+      vx: -60 - Math.random() * 60, r: 20 + Math.random() * 40,
+    });
+  }
+  for (const p of smokeParts) {
+    p.x += p.vx / 60;
+    if (p.x < -60) { p.x = canvas.width + 60; p.y = Math.random() * canvas.height; }
+    const sg = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, p.r);
+    sg.addColorStop(0, 'rgba(120,110,100,0.22)');
+    sg.addColorStop(1, 'rgba(120,110,100,0)');
+    ctx.fillStyle = sg;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+  }
 }
 
 // prologue-only world effects: the guiding light, the ghost map, the bloom
@@ -1826,7 +1931,7 @@ function drawEnding() {
     ctx.fillText(line1, canvas.width / 2, canvas.height / 2 - 66);
     ctx.font = `15px ${FONT}`;
     ctx.fillStyle = `rgba(200,190,165,${a})`;
-    ctx.fillText(`Of the seven, ${survivorCount()} came through the year.`, canvas.width / 2, canvas.height / 2 - 34);
+    ctx.fillText(`Of the ${totalCount()} that walked the year, ${survivorCount()} came through.`, canvas.width / 2, canvas.height / 2 - 34);
     ctx.font = `17px ${FONT}`;
     ctx.fillStyle = `rgba(237,226,201,${a})`;
     ctx.fillText('A wolf’s territory once passed from mother to daughter, unchanged, for generations.',

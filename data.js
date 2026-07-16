@@ -187,7 +187,17 @@ const HERDS = [
   { anchor: { x: 1560, y: 3120 }, count: 5, leash: 420, respawnDays: 5, food: 26, size: 11, speed: 296, antlers: false },
   { anchor: { x: 700,  y: 2950 }, count: 4, leash: 420, respawnDays: 7, food: 45, size: 16, speed: 272, antlers: true },
   { anchor: { x: 4050, y: 2400 }, count: 4, leash: 350, respawnDays: 5, food: 26, size: 11, speed: 296, antlers: false },
+  // The rancher's cattle, grazing outside the wire. Slow, rich, and watched:
+  // taking one is arithmetic he will do.
+  { anchor: { x: 4250, y: 650 },  count: 4, leash: 260, respawnDays: 20, food: 60, size: 18, speed: 190, antlers: false, cattle: true },
 ];
+
+// The rancher's homestead, behind the fence. He is weather, not a character.
+const RANCH = {
+  house: { x: 4750, y: 470 },
+  dogHome: { x: 4690, y: 560 },
+  giftSpot: { x: 4460, y: 660 },
+};
 
 // Candidate den sites — spring's bet. Each is a distance argument: near the
 // hunts, near the water, or the known middle ground. No hidden modifiers;
