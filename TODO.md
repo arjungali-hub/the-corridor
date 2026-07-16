@@ -127,13 +127,13 @@ resume from the ⏳ items, in order. Verify with the headless harness
       prey, brighter is fresher; violet = human noise that blinds the nose;
       red = another pack's marks (new callout). Map routing gets its own
       one-time hint the first time the map is raised in Act I.
-- [ ] ⏳ **Tears must mirror the actual human obstacles** (Arjun): a tear
-      should exist because a real obstacle severs that ground, and should
-      span the whole obstacle — the road tear spans the entire road (every
-      inherited route that crosses it tears, the rip drawn along the road,
-      not just one segment). Add more human-made obstacles (fence lines, a
-      gravel pit, a powerline cut …) and derive tears from their footprints
-      rather than from hand-placed trigger circles.
+- [~] **Tears mirror the actual human obstacles** — partially done: tear
+      groups can carry a `ripPath` following the obstacle itself, and the
+      Black River rip now runs along the whole road from the north edge down
+      to the bridge (the one stitch that holds); the mud sink grounds the
+      drycreek tear. ⏳ Still open: more human obstacles (fence lines, a
+      gravel pit, a powerline cut) and deriving tears from obstacle
+      footprints instead of hand-placed trigger circles.
 - [x] **Clickable map routing**: click a known place on the raised map and
       the way there glows along known ink (Dijkstra over untorn edges);
       clicking again dismisses it; arriving clears it; a tear that breaks

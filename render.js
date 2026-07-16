@@ -1087,13 +1087,27 @@ function pointAt(pts, s) {
   return { x: p.x, y: p.y, ux: 1, uy: 0 };
 }
 
+function nearestOnPath(pts, x, y) {
+  let best = null, bd = Infinity;
+  for (let i = 1; i < pts.length; i++) {
+    const { d, t } = distSeg(x, y, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+    if (d < bd) {
+      bd = d;
+      best = { x: lerp(pts[i - 1].x, pts[i].x, t), y: lerp(pts[i - 1].y, pts[i].y, t) };
+    }
+  }
+  return best;
+}
+
 function drawRip(g, m) {
-  const pts = chainPoints(g);
+  // if the group names its obstacle (ripPath), the rip follows the obstacle
+  // itself — the wound is the road, not just the place she found it
+  const pts = g.ripPath ? g.ripPath.map(p => ({ x: p[0], y: p[1] })) : chainPoints(g);
   const total = pathLength(pts);
-  const margin = Math.min(70, total * 0.25);
+  const margin = g.ripPath ? 0 : Math.min(70, total * 0.25);
   const rng = makePrng(hashStr(g.key));
   const W = Math.max(36, Math.min(110, (total - 2 * margin) * 0.14));
-  const N = 12;
+  const N = g.ripPath ? 22 : 12;
 
   const pos = [], neg = [];
   for (let i = 0; i <= N; i++) {
@@ -1106,9 +1120,13 @@ function drawRip(g, m) {
 
   ctx.globalAlpha = m;
   const sc = S.cam.scale;
-  for (const [endIdx, sDist] of [[0, margin], [pts.length - 1, total - margin]]) {
-    const end = pts[endIdx];
-    const stubTo = pointAt(pts, sDist);
+  const chain = chainPoints(g);
+  for (const endIdx of [0, chain.length - 1]) {
+    const end = chain[endIdx];
+    const stubTo = g.ripPath
+      ? (() => { const n = nearestOnPath(pts, end.x, end.y);
+          return { x: lerp(end.x, n.x, 0.72), y: lerp(end.y, n.y, 0.72) }; })()
+      : pointAt(pts, endIdx === 0 ? margin : total - margin);
     const ghost = S.ghostNodes.has(g.chain[endIdx]);
     if (ghost) {
       ctx.globalAlpha = 0.3 * m;

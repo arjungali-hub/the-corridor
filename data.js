@@ -109,9 +109,12 @@ const EDGES = [
 // Triggers sit clear of the asphalt: the tear must never fire while she is
 // standing in traffic.
 const TEAR_GROUPS = [
+  // ripPath: the rip on the map follows the obstacle itself — the whole
+  // road, from the north edge down to the bridge (the one stitch that holds).
   { key: 'blackriver', edges: ['oldFord-sageFlat', 'sageFlat-farBench'],
     chain: ['oldFord', 'sageFlat', 'farBench'],
-    trigger: { x: 1180, y: 1510, r: 100 } },
+    trigger: { x: 1180, y: 1510, r: 100 },
+    ripPath: [[920, 60], [920, 1200], [920, 2340]] },
   { key: 'machines',   edges: ['birchDraw-fenceLine', 'fenceLine-dustyRise'],
     chain: ['birchDraw', 'fenceLine', 'dustyRise'],
     trigger: { x: 3600, y: 1545, r: 110 } },

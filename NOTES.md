@@ -58,3 +58,15 @@ scent color lessons, Aspen speed = Sedge.
 
 **Tomorrow's first action:** implement map click routing (mapClick +
 Dijkstra over known ink), then the zone pack AI.
+
+## 2026-07-14 (later)
+
+Map is a press-toggle (beat 9 keeps its hold); tasks freeze the calendar
+("the day holds"); survival costs decoupled from the 6x clock (pups < half);
+zone pack AI + autonomous pack hunting; mud sink grounds the drycreek tear;
+road-spanning rip via ripPath; routes persist on the land until arrival;
+general-area inking corridors; Twemoji wolf favicon; repo on GitHub
+(arjungali-hub/the-corridor). TODO.md is the live checklist.
+
+**Next session's first action:** more human obstacles (fence line, gravel
+pit) with footprint-derived tears, then the bible content (rancher thread).
