@@ -34,27 +34,23 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [x] Long natural tutorial (game layer): staged steps teach walk → map →
       colors (map callouts) → hunger → scent → hunt; HUD appears
       contextually; sticky prompts self-heal; H = recall learned controls.
-- [ ] ⏳ Realistic art + animations (render rewrite in progress):
-      pre-rendered terrain base layer (trees w/ shadows, creek banks, road
-      texture, construction, rooflines, season dressing), articulated
-      walking wolves/elk/deer (legs, tails, gaits), day/night light,
-      weather particles, screen shake, upgraded parchment map (wobbled ink,
-      compass, fibered rips), nicer HUD/prompt/keycap art, help overlay.
-- [ ] ⏳ Scent view must cloud the edges of Aspen's vision, worse inside
-      violet human noise (edge fog scaled by `violetAt`).
-- [ ] ⏳ NO route lines in the world view — trails told you where to go.
-      Routes appear only as ink on the map, only once walked (inherited ink
-      from the start, per the bible).
-- [ ] ⏳ Map bigger / zoomed out more (SCALE_MAP 0.26 for the big world,
-      larger senseRadius) — verify feel in browser.
+- [x] Realistic art + animations (render rewrite SHIPPED): pre-rendered
+      terrain base layer per season/era, articulated walking
+      wolves/elk/deer, day/night light + headlights, weather particles,
+      screen shake, upgraded parchment map, keycap prompts, help overlay.
+- [x] Scent view clouds the edges of vision, worse inside violet (edge fog
+      scaled by `violetAt`).
+- [x] NO route lines in the world view — routes exist only as map ink.
+      (Planned-route guide lines are the deliberate exception, by request.)
+- [x] Map bigger / zoomed out (SCALE_MAP 0.17, radius 900–2400).
 - [x] A LOT more land ("I meant it"): world 5200×3600 (was 2600×1800), all
       geometry rescaled ×2 plus new territory: North Ridge / Black Pines
       (north), Long Marsh / Salt Lick (southeast), Low Flats (southwest,
       gives a second at-grade road crossing), 4 herds, more forests.
 - [x] Time passed too slowly: MIN_PER_SEC 24 → 48 (1 day ≈ 30 s, year ≈ 3 h).
 
-- [ ] ⏳ **The game must follow the production bible — including the
-      prologue.** Arjun: "There should be these scenes like the prologue
+- [x] **The nine-beat prologue SHIPPED** (plays on first load; reload
+      restarts it; N skips). Original ask — Arjun: "There should be these scenes like the prologue
       that are very important in learning how to play the game and
       connecting to it on an emotional level. Don't skip these beats.
       Refer back to the bible and keep making changes to make it match the
@@ -70,9 +66,9 @@ resume from the ⏳ items, in order. Verify with the headless harness
 
 ## Movement & world feel (Arjun, 2026-07-14)
 
-- [ ] ⏳ Prey movement must be smooth — no rapid vibration. Damped steering,
-      low-frequency wander; kill the per-frame panic jitter and separation
-      flip-flop.
+- [x] Prey movement smooth — damped velocity steering, low-frequency
+      wander, no per-frame jitter; zone wolves also lope smoothly to stable
+      slots.
 - [x] No black void outside the playable area: a 600 u **apron of land**
       (ground, forests, the road itself) renders beyond the world bounds.
       Aspen cannot walk into it; pack and prey can.
@@ -131,9 +127,12 @@ resume from the ⏳ items, in order. Verify with the headless harness
       groups can carry a `ripPath` following the obstacle itself, and the
       Black River rip now runs along the whole road from the north edge down
       to the bridge (the one stitch that holds); the mud sink grounds the
-      drycreek tear. ⏳ Still open: more human obstacles (fence lines, a
-      gravel pit, a powerline cut) and deriving tears from obstacle
-      footprints instead of hand-placed trigger circles.
+      drycreek tear. Now also done: a benched **gravel pit** severs the
+      hunting loop (with a North Ridge detour, and its own violet dust), a
+      **ranch fence line** closes the northeast, and `deriveTriggers()`
+      computes machines/drycreek/gravelpit triggers from their obstacle
+      footprints. Only the Black River keeps a hand trigger (it must never
+      fire on the asphalt). Optional later: a powerline cut.
 - [x] **Clickable map routing**: click a known place on the raised map and
       the way there glows along known ink (Dijkstra over untorn edges);
       clicking again dismisses it; arriving clears it; a tear that breaks
