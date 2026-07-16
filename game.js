@@ -652,11 +652,13 @@ function packUpdate(dt) {
       }
     }
 
-    // outside the zone: lope back in. Inside: unhurried wandering.
+    // outside the zone: lope smoothly back to a stable personal slot in it
+    // (a fixed angle per wolf — no per-frame re-rolls, no frenzy)
     if (dZone > zr) {
-      w.tx = c.x + (Math.random() - 0.5) * zr;
-      w.ty = c.y + (Math.random() - 0.5) * zr;
-      w.wanderT = 1 + Math.random() * 2;
+      if (w.slotA === undefined) w.slotA = Math.random() * Math.PI * 2;
+      w.tx = c.x + Math.cos(w.slotA) * zr * 0.5;
+      w.ty = c.y + Math.sin(w.slotA) * zr * 0.5;
+      w.wanderT = 0.5;
     } else {
       w.wanderT = (w.wanderT || 0) - dt;
       if (w.wanderT <= 0 || w.tx === undefined || dist(w.x, w.y, w.tx, w.ty) < 14) {
@@ -678,11 +680,17 @@ function packUpdate(dt) {
       w.moving = false;
       continue;
     }
-    let sp = (dZone > zr ? 240 : 120) * w.mult;
+    // speed eases between amble and lope; heading turns, never snaps
+    const urgency = clamp((dZone - zr * 0.7) / (zr * 0.6), 0, 1);
+    let sp = lerp(120, 240, urgency) * w.mult;
     if (dZone > 700) sp *= 1.8;
     const step = Math.min(d, sp * dt);
     tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, packBlockedAt);
-    w.heading = Math.atan2(w.ty - w.y, w.tx - w.x);
+    const want = Math.atan2(w.ty - w.y, w.tx - w.x);
+    let dh = want - (w.heading || 0);
+    while (dh > Math.PI) dh -= Math.PI * 2;
+    while (dh < -Math.PI) dh += Math.PI * 2;
+    w.heading = (w.heading || 0) + dh * Math.min(1, dt * 6);
     w.gait = (w.gait || 0) + step;
     w.moving = true;
   }

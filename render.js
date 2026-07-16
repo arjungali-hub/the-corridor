@@ -748,6 +748,28 @@ function drawWorld() {
   }
   ctx.globalAlpha = 1;
 
+  // the way she has in mind stays with her on the land until she arrives
+  if (S.routePath && S.routePath.length > 1 && S.mode === 'play') {
+    ctx.save();
+    ctx.globalAlpha = 0.4 + 0.12 * Math.sin(S.time * 2);
+    ctx.lineDashOffset = -S.time * 50;
+    for (let i = 1; i < S.routePath.length; i++) {
+      const A = NbyId.get(S.routePath[i - 1]), B = NbyId.get(S.routePath[i]);
+      strokePolyline(ctx, [[A.x, A.y], [B.x, B.y]], 7, 'rgba(78,122,140,0.75)', [26, 22]);
+    }
+    ctx.lineDashOffset = 0;
+    if (S.routeTo) {
+      const t = NbyId.get(S.routeTo);
+      const pulse = 0.5 + 0.5 * Math.sin(S.time * 3);
+      ctx.globalAlpha = 0.5 + 0.35 * pulse;
+      ctx.strokeStyle = 'rgba(78,122,140,0.9)';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(t.x, t.y, 28 + pulse * 10, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
   // the chosen den: trampled, home
   if (S.denSite) {
     ctx.strokeStyle = 'rgba(90,70,50,0.5)';
