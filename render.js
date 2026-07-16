@@ -372,6 +372,51 @@ function buildBaseLayer() {
       b.fillStyle = '#d96a2b'; b.fillRect(sx + 3, sy, 8, 5);
     }
 
+    // the gravel pit: benched excavation, spoil, dust
+    const gp = OBSTACLES.gravelPit;
+    b.fillStyle = 'rgba(60,55,45,0.25)';
+    b.fillRect(gp.x0 - 26, gp.y0 - 20, gp.x1 - gp.x0 + 52, gp.y1 - gp.y0 + 46);
+    const benches = ['#b0a184', '#97876c', '#7d6f58', '#665a47'];
+    for (let i = 0; i < benches.length; i++) {
+      const inset = i * 26;
+      b.fillStyle = benches[i];
+      b.fillRect(gp.x0 + inset, gp.y0 + inset, (gp.x1 - gp.x0) - inset * 2, (gp.y1 - gp.y0) - inset * 2);
+    }
+    b.fillStyle = '#4f4638';
+    b.fillRect(gp.x0 + 92, gp.y0 + 92, (gp.x1 - gp.x0) - 184, (gp.y1 - gp.y0) - 184);
+    b.strokeStyle = 'rgba(90,80,60,0.8)';   // haul ramp
+    b.lineWidth = 10;
+    b.beginPath(); b.moveTo(gp.x1 - 20, gp.y0 + 20); b.lineTo(gp.x1 + 60, gp.y0 - 50); b.stroke();
+    const grng = makePrng(717);
+    for (let i = 0; i < 6; i++) {   // spoil piles around the rim
+      const px = gp.x0 - 30 + grng() * (gp.x1 - gp.x0 + 60);
+      const py = grng() > 0.5 ? gp.y0 - 26 : gp.y1 + 26;
+      const g2 = b.createRadialGradient(px - 5, py - 5, 3, px, py, 20);
+      g2.addColorStop(0, '#c2b28a'); g2.addColorStop(1, '#8a7a58');
+      b.fillStyle = g2;
+      b.beginPath(); b.arc(px, py, 16 + grng() * 8, 0, Math.PI * 2); b.fill();
+    }
+
+    // the ranch fence: posts and two runs of wire, with a worn track beside
+    const fe = OBSTACLES.fence;
+    const flen = Math.hypot(fe.x1 - fe.x0, fe.y1 - fe.y0);
+    const fux = (fe.x1 - fe.x0) / flen, fuy = (fe.y1 - fe.y0) / flen;
+    b.strokeStyle = 'rgba(120,100,70,0.35)';
+    b.lineWidth = 10;
+    b.beginPath(); b.moveTo(fe.x0 + fuy * 16, fe.y0 - fux * 16); b.lineTo(fe.x1 + fuy * 16, fe.y1 - fux * 16); b.stroke();
+    for (const off of [2, 5]) {   // wire
+      b.strokeStyle = `rgba(60,55,48,0.${7 - off})`;
+      b.lineWidth = 1.4;
+      b.beginPath(); b.moveTo(fe.x0, fe.y0 - off); b.lineTo(fe.x1, fe.y1 - off); b.stroke();
+    }
+    for (let s = 0; s <= flen; s += 64) {   // posts
+      const px = fe.x0 + fux * s, py = fe.y0 + fuy * s;
+      b.fillStyle = 'rgba(30,25,18,0.4)';
+      b.fillRect(px + 2, py + 2, 4, 7);
+      b.fillStyle = '#5d4c38';
+      b.fillRect(px - 2, py - 6, 4, 10);
+    }
+
     // subdivision: street, houses with gabled roofs, fences
     const sub = OBSTACLES.subdivision;
     b.fillStyle = '#9aa07c';

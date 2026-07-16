@@ -178,7 +178,25 @@ function newGame() {
   for (let h = 0; h < HERDS.length; h++) {
     for (let i = 0; i < HERDS[h].count; i++) spawnPrey(h);
   }
+  deriveTriggers();
   recomputeGhosts();
+}
+
+// Tears mirror the obstacles that cause them: any group naming a footprint
+// gets its trigger computed from the obstacle itself, not a hand-set circle.
+function deriveTriggers() {
+  for (const g of TEAR_GROUPS) {
+    if (!g.footprint) continue;
+    const o = OBSTACLES[g.footprint];
+    if (o.r !== undefined) {
+      g.trigger = { x: o.x, y: o.y, r: o.r + 70 };
+    } else {
+      g.trigger = {
+        x: (o.x0 + o.x1) / 2, y: (o.y0 + o.y1) / 2,
+        r: Math.max(o.x1 - o.x0, o.y1 - o.y0) / 2 + 70,
+      };
+    }
+  }
 }
 
 function spawnPrey(herdIdx) {
@@ -239,12 +257,14 @@ function blockedAt(x, y, r, canPassGap, margin) {
   }
   if (bridgeWallAt(x, y, r)) return true;
   if (S.era === 'past') return false;  // none of it has been built yet
-  for (const key of ['construction', 'subdivision']) {
+  for (const key of ['construction', 'subdivision', 'gravelPit']) {
     const c = OBSTACLES[key];
     if (x > c.x0 - r && x < c.x1 + r && y > c.y0 - r && y < c.y1 + r) return true;
   }
   const ms = OBSTACLES.mudSink;
   if (dist(x, y, ms.x, ms.y) < ms.r + r) return true;
+  const f = OBSTACLES.fence;
+  if (distSeg(x, y, f.x0, f.y0, f.x1, f.y1).d < r + 5) return true;
   return false;
 }
 
@@ -256,12 +276,14 @@ function wolfBlockedAt(x, y, margin) {
   if (x < WOLF_R - m || y < WOLF_R - m || x > WORLD.w - WOLF_R + m || y > WORLD.h - WOLF_R + m) return true;
   if (bridgeWallAt(x, y, WOLF_R)) return true;
   if (S.era === 'past') return false;
-  for (const key of ['construction', 'subdivision']) {
+  for (const key of ['construction', 'subdivision', 'gravelPit']) {
     const c = OBSTACLES[key];
     if (x > c.x0 - WOLF_R && x < c.x1 + WOLF_R && y > c.y0 - WOLF_R && y < c.y1 + WOLF_R) return true;
   }
   const ms = OBSTACLES.mudSink;
   if (dist(x, y, ms.x, ms.y) < ms.r + WOLF_R) return true;
+  const f = OBSTACLES.fence;
+  if (distSeg(x, y, f.x0, f.y0, f.x1, f.y1).d < WOLF_R + 5) return true;
   return false;
 }
 
@@ -597,7 +619,7 @@ function zoneRadius(c) {
   let clear = Infinity;
   clear = Math.min(clear, c.x < h.x0 ? h.x0 - c.x : c.x > h.x1 ? c.x - h.x1 : 0);
   if (S.era !== 'past') {
-    for (const key of ['construction', 'subdivision']) {
+    for (const key of ['construction', 'subdivision', 'gravelPit']) {
       const o = OBSTACLES[key];
       const dx = Math.max(o.x0 - c.x, 0, c.x - o.x1);
       const dy = Math.max(o.y0 - c.y, 0, c.y - o.y1);

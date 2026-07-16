@@ -93,6 +93,7 @@ const EDGES = [
 
   // The wider land
   { id: 'elkMeadow-northRidge',   a: 'elkMeadow',    b: 'northRidge',   state: 'unknown', tearGroup: null },
+  { id: 'northRidge-ridgeSaddle', a: 'northRidge',   b: 'ridgeSaddle',  state: 'unknown', tearGroup: null },
   { id: 'northRidge-blackPines',  a: 'northRidge',   b: 'blackPines',   state: 'unknown', tearGroup: null },
   { id: 'blackPines-birchDraw',   a: 'blackPines',   b: 'birchDraw',    state: 'unknown', tearGroup: null },
   { id: 'springs-longMarsh',      a: 'springs',      b: 'longMarsh',    state: 'unknown', tearGroup: null },
@@ -115,12 +116,19 @@ const TEAR_GROUPS = [
     chain: ['oldFord', 'sageFlat', 'farBench'],
     trigger: { x: 1180, y: 1510, r: 100 },
     ripPath: [[920, 60], [920, 1200], [920, 2340]] },
+  // footprint: the trigger is derived from the obstacle itself at newGame
   { key: 'machines',   edges: ['birchDraw-fenceLine', 'fenceLine-dustyRise'],
     chain: ['birchDraw', 'fenceLine', 'dustyRise'],
+    footprint: 'construction',
     trigger: { x: 3600, y: 1545, r: 110 } },
   { key: 'drycreek',   edges: ['cutbank-theBend', 'theBend-gravelBar'],
     chain: ['cutbank', 'theBend', 'gravelBar'],
+    footprint: 'mudSink',
     trigger: { x: 2710, y: 2780, r: 95 } },
+  { key: 'gravelpit',  edges: ['elkMeadow-ridgeSaddle'],
+    chain: ['elkMeadow', 'ridgeSaddle'],
+    footprint: 'gravelPit',
+    trigger: { x: 2200, y: 920, r: 190 } },
   // Pre-torn before play begins (beat 8's world-change); its trigger is
   // parked off-world so it can never re-fire.
   { key: 'mudspring',  edges: ['den-mudSpring'],
@@ -139,6 +147,11 @@ const OBSTACLES = {
   // Where the diverted creek died, the Bend became a mud sink — the physical
   // truth behind the drycreek tear. Nothing walks through it.
   mudSink: { x: 2700, y: 2800, r: 110 },
+  // A gravel pit, opened in the saddle between the elk meadow and the ridge:
+  // the hunting loop's own wound.
+  gravelPit: { x0: 2080, y0: 800, x1: 2320, y1: 1040 },
+  // A ranch fence along the northeast — the rancher's edge of the world.
+  fence: { x0: 4400, y0: 300, x1: 5100, y1: 900 },
 };
 
 const TERRAIN = {
@@ -192,6 +205,7 @@ const SCENT_VIOLET = [
   { x: 920,  y: 3000, r: 520 },
   { x: 3840, y: 1700, r: 620 },
   { x: 4560, y: 3000, r: 620 },
+  { x: 2200, y: 920,  r: 420 },   // the gravel pit's dust and diesel
 ];
 // Red = rival pack marks, along the northeast edge of the territory.
 const SCENT_RED = [

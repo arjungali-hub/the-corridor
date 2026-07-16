@@ -127,7 +127,7 @@ resume from the ⏳ items, in order. Verify with the headless harness
       prey, brighter is fresher; violet = human noise that blinds the nose;
       red = another pack's marks (new callout). Map routing gets its own
       one-time hint the first time the map is raised in Act I.
-- [~] **Tears mirror the actual human obstacles** — partially done: tear
+- [x] **Tears mirror the actual human obstacles** — partially done: tear
       groups can carry a `ripPath` following the obstacle itself, and the
       Black River rip now runs along the whole road from the north edge down
       to the bridge (the one stitch that holds); the mud sink grounds the
