@@ -90,6 +90,7 @@ const input = { up: false, down: false, left: false, right: false, sense: false,
 let S = null;
 
 function newGame() {
+  stripDynamicDen();   // a den dug last year is not part of the eternal graph
   S = {
     mode: 'intro',           // intro | prologue | play | ending
     era: 'present',          // 'past' during prologue beats 1–7
@@ -834,20 +835,18 @@ function packUpdate(dt) {
 }
 
 // SPACE toggles the map: press to raise it, press again to lower it.
-// In beat 9, the held key at her mother's side is the inherit gesture —
-// there, and only there, the press is not the map.
+// In the prologue the map is Willow's — shown to Aspen in forced views,
+// never held. Only the inheritance puts it in her jaws; before that, the
+// held key at her mother's side is the inherit gesture, not the map.
 function mapAllowed() {
-  if (S.tut.sawMap) return true;
-  if (S.mode === 'prologue') return S.beat === 3 && !!S.tut._b3go;
-  return S.tut.step >= 4;
+  if (S.mode === 'prologue') return S.inherited;
+  return S.tut.sawMap || S.tut.step >= 4;
 }
 
 function toggleMap() {
   if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
   if (S.forcedSenseT > 0) return;  // a forced lesson can't be latched open
-  if (!mapAllowed()) return;   // no map before the map is given
-  if (S.mode === 'prologue' && S.beat === 9 && !S.inherited
-      && S.willow && dist(S.wolf.x, S.wolf.y, S.willow.x, S.willow.y) < 70) return;
+  if (!mapAllowed()) return;   // no map before the map is hers
   S.mapOpen = !S.mapOpen;
 }
 
@@ -1165,10 +1164,7 @@ function hungerUpdate(dt) {
 
 function denUpdate(dt) {
   if (!S.denId) {
-    if (!S.tut.denPrompt && day() >= 3 && S.tut.step >= 6) {
-      S.tut.denPrompt = true;
-      showPrompt('The pups will come with the late spring. A den must be chosen — hers, or a new one.', [], 8);
-    }
+    // (the choice is named the moment Act I opens — see applyPostPrologue)
     for (const site of DEN_SITES) {
       if (!S.seenDens.includes(site.id) && dist(S.wolf.x, S.wolf.y, site.x, site.y) < 200) {
         S.seenDens.push(site.id);
@@ -1193,9 +1189,43 @@ function denUpdate(dt) {
   }
 }
 
+// A chosen hollow becomes a real place on the graph — walkable, inkable,
+// with unknown paths toward its nearest neighbors. The old den already is
+// one. Dynamic pieces are stripped at newGame and rebuilt from denId on load.
+function materializeDen(siteId) {
+  if (!siteId || siteId === 'oldDen' || NbyId.has('home')) return;
+  const site = DEN_SITES.find(s => s.id === siteId);
+  if (!site) return;
+  const node = { id: 'home', x: site.x, y: site.y, name: 'The Den', den: true, dynamic: true };
+  NODES.push(node); NbyId.set('home', node);
+  const near = NODES
+    .filter(n => !n.dynamic)
+    .sort((a, b) => dist(site.x, site.y, a.x, a.y) - dist(site.x, site.y, b.x, b.y))
+    .slice(0, 3);
+  for (const n of near) {
+    const def = { id: `home-${n.id}`, a: 'home', b: n.id, state: 'unknown', dynamic: true };
+    EDGES.push(def);
+    S.edges.push({
+      id: def.id, a: def.a, b: def.b, tearGroup: undefined,
+      state: 'unknown', torn: false, passCount: 0, lastUsedDay: day(),
+      inkLo: 1, inkHi: 0, covBits: 0,
+    });
+  }
+  S.visited.add('home');
+  recomputeGhosts();
+}
+
+function stripDynamicDen() {
+  for (let i = NODES.length - 1; i >= 0; i--) {
+    if (NODES[i].dynamic) { NbyId.delete(NODES[i].id); NODES.splice(i, 1); }
+  }
+  for (let i = EDGES.length - 1; i >= 0; i--) if (EDGES[i].dynamic) EDGES.splice(i, 1);
+}
+
 function chooseDen(site) {
   S.denId = site.id;
   S.denSite = { x: site.x, y: site.y };
+  materializeDen(site.id);
   if (!S.seenDens.includes(site.id)) S.seenDens.push(site.id);
   S.history.push({ type: 'den', day: day(), site: site.id });
   say(`${site.name} is home now.`);
@@ -1856,11 +1886,14 @@ function applyPostPrologue() {
   S.tut.sawMap = true; S.tut.scentHold = 1; S.tut.usedHold = true; S.tut.fTaught = true;
   S.hud.pack = true;
   S.clock.min = 8 * 60; S.lastDay = 1;
-  S.wolf.x = DEN.x; S.wolf.y = DEN.y;
-  S.trail = [{ x: DEN.x, y: DEN.y }];
-  S.cam.x = DEN.x; S.cam.y = DEN.y;
+  // Spring opens away from every hollow: the den choice must be walked to,
+  // and the map is how she weighs it
+  const start = NbyId.get('aspenStand');
+  S.wolf.x = start.x; S.wolf.y = start.y;
+  S.trail = [{ x: start.x, y: start.y }];
+  S.cam.x = start.x; S.cam.y = start.y;
   let i = 0;
-  for (const w of S.pack) { i++; w.x = DEN.x - 30 * i; w.y = DEN.y + (i % 2 ? 20 : -20); w.state = 'follow'; }
+  for (const w of S.pack) { i++; w.x = start.x - 30 * i; w.y = start.y + (i % 2 ? 20 : -20); w.state = 'follow'; }
   S.cars.length = 0;
   S.willow = null;
   S.mapOpen = false;
@@ -1870,6 +1903,9 @@ function applyPostPrologue() {
     for (let k = 0; k < HERDS[h].count; k++) spawnPrey(h);
   }
   setCaption('Spring.', 3.5, 'the pack is yours now');
+  // the year's first decision, named at once
+  S.tut.denPrompt = true;
+  showPrompt('The pups will come with the late spring. A den must be chosen — raise the map; the hollows are marked.', ['SPACE'], 9);
 }
 
 function willowSetPath(points) {
@@ -1973,28 +2009,29 @@ function prologueUpdate(dt) {
       }
       break;
 
-    // Beat 3 — following Willow: the map is born
+    // Beat 3 — following Willow: she shows you her map. You don't hold it yet.
     case 3:
       if (S.beatT > 3.5 && !T._b3go) {
         T._b3go = true;
         setCaption('Willow.', 3, 'your mother — follow her');
         willowSetPath([nodePt('oldFord', 'aspenStand-oldFord')]);
       }
-      if (T._b3go && !T.sawMap && !S.prompt) {
-        stickyPrompt('Watch her map become yours. Press SPACE.', ['SPACE']);
-      }
-      if (S.senseBlend > 0.8 && !T.sawMap) {
-        T.sawMap = true;
-        clearPrompt();
+      if (T._b3go && !T._b3shown && S.beatT > 6.5) {
+        T._b3shown = true;
+        S.forcedSenseT = 5;              // her doing, not a key
         queueCallout('willow-ink');
-        showPrompt('SPACE again lowers the map. Follow her.', [], 6);
+        setCaption('Her map.', 4.5, 'not yours — not yet');
       }
-      // the lesson isn't over until the map is down and stays down
-      if (T.sawMap) {
-        T._mapClosedT = S.senseBlend < 0.15 ? (T._mapClosedT || 0) + dt : 0;
+      if (T._b3shown) {
+        T._mapClosedT = (S.forcedSenseT <= 0 && S.senseBlend < 0.15)
+          ? (T._mapClosedT || 0) + dt : 0;
+        if (!T._b3follow && (T._mapClosedT || 0) > 0.5) {
+          T._b3follow = true;
+          showPrompt('Follow her.', [], 5);
+        }
       }
       if (w && !w.path.length && dist(w.x, w.y, NbyId.get('oldFord').x, NbyId.get('oldFord').y) < 60
-          && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 260 && T.sawMap && (T._mapClosedT || 0) > 3) {
+          && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 260 && T._b3shown && (T._mapClosedT || 0) > 1.5) {
         S.beat = 4; S.beatT = 0;
         // an easy hunt on open, unbroken ground
         S.prologueElk = true;
@@ -2154,23 +2191,45 @@ function prologueUpdate(dt) {
     case 9: {
       const nearHer = w && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 70;
       if (!S.inherited) {
-        if (nearHer && input.sense) {
+        // stillness first: the ask comes only after it has weight
+        if (nearHer && !T._b9near) {
+          T._b9near = true;
+          setCaption('Her breathing is shallow.', 3.5);
+        }
+        if (T._b9near && !T._b9ask) {
+          T._b9askT = (T._b9askT || 0) + dt;
+          if (T._b9askT > 6) {
+            T._b9ask = true;
+            setCaption('She has been waiting for you.', 3.5);
+            stickyPrompt('Stay at her side. Hold SPACE.', ['SPACE']);
+          }
+        }
+        if (T._b9ask && nearHer && input.sense) {
           S.inheritHold += dt;
           if (S.inheritHold > INHERIT_HOLD) {
             S.inherited = true;
             w.alive = false;           // her breathing loop simply stops
             S.inheritBloom = 1;        // her warmth blooms around Aspen
             // no sting, no music — the bible is explicit
+            S.tut.sawMap = true;       // the map is hers now
+            clearPrompt();
+            S.mapOpen = true;          // and it rises on its own
+            queueCallout('rip');       // the damage is already waiting
+            setCaption('Her map is yours now.', 4.5, 'and the land has already moved');
           }
         } else {
           S.inheritHold = Math.max(0, S.inheritHold - dt * 2);
         }
-      } else if (dist(S.wolf.x, S.wolf.y, DEN.x, DEN.y) > 240) {
-        // leaving the den begins Act I
-        markPrologueDone();
-        applyPostPrologue();
-        S.mode = 'play';
-        saveGame();
+      } else {
+        // the year begins the moment she lowers the map — or walks away
+        if (!T._b9raised && S.senseBlend > 0.8) T._b9raised = true;
+        const lowered = T._b9raised && !S.mapOpen && S.senseBlend < 0.15;
+        if (lowered || dist(S.wolf.x, S.wolf.y, DEN.x, DEN.y) > 240) {
+          markPrologueDone();
+          applyPostPrologue();
+          S.mode = 'play';
+          saveGame();
+        }
       }
       break;
     }
@@ -2524,6 +2583,7 @@ function loadGame() {
   newGame();
   S.era = 'present';
   S.clock.min = d.clockMin; S.lastDay = day();
+  materializeDen(d.denId);   // rebuild the dug den before its edges restore
   S.wolf.x = d.wolf.x; S.wolf.y = d.wolf.y;
   S.injuredT = d.injuredT || 0;   // pre-fix saves carried injuredUntilDay; read as healed
   S.trail = [{ x: S.wolf.x, y: S.wolf.y }];

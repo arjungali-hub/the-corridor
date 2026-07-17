@@ -1520,8 +1520,9 @@ function drawMap() {
     ctx.globalAlpha = 1;
   }
 
-  // the chosen home, if it isn't the old den node
-  if (S.denSite && S.denId !== 'oldDen') {
+  // the chosen home, if it isn't a graph node yet (older saves only —
+  // a dug den is materialized as the 'home' node now)
+  if (S.denSite && S.denId !== 'oldDen' && !NbyId.has('home')) {
     const p = screenPos(S.denSite.x, S.denSite.y);
     ctx.globalAlpha = m;
     ctx.fillStyle = C_NODE;

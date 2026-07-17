@@ -172,3 +172,27 @@ current — freezing the stale waiting line on screen. The truck's passing
 now replaces the waiting prompt immediately (and skips 'Now. Cross' if she
 already crossed); the crossing flushes beat-5 talk and uses stickyPrompt
 properly.
+
+review fix 13 (the big one): the prologue map-flow redesign + the den as a
+real place.
+- The map is Willow's until the inheritance: mapAllowed() in the prologue
+  is simply S.inherited. Beat 3's SPACE lesson is gone — at ~6.5s she
+  forces the view herself ('Her map.' / 'not yours — not yet') with the
+  willow-ink callout; beat 7's range view stays forced.
+- Beat 9 buildup: 'Her breathing is shallow.' on approach, six seconds of
+  stillness, 'She has been waiting for you.', then the ask (sticky 'Stay
+  at her side. Hold SPACE.'). The hold only counts after the ask.
+- On inherit: sawMap becomes true, the map RAISES ITSELF (S.mapOpen =
+  true), the rip callout labels the Mud Spring tear (absorbs Part 8), and
+  Act I starts promptly when she lowers it (walking out still works).
+- Spring opens at Aspen Stand — away from every hollow — with the den
+  prompt up immediately ('raise the map; the hollows are marked') and
+  denPrompt true from the first frame of Act I.
+- chooseDen materializes the hollow as graph node 'home' (den dot, 'The
+  Den', visited) with unknown edges to its 3 nearest nodes — walkable into
+  ink like any path. Dynamic node/edges strip at newGame and are rebuilt
+  from denId in loadGame before edge states restore.
+Also: fire-day check pinned in the harness (the roll is random now).
+Harness green x4 including new checks: forced beat-3 view, SPACE refusal,
+stillness-then-ask, auto-raise, rip labelled, prompt Act I, spring away
+from hollows, den-node creation/inking/save-load.
