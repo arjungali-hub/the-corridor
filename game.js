@@ -2040,14 +2040,17 @@ function prologueUpdate(dt) {
         if (truckGone) {
           T._b5go = true;
           willowSetPath([{ x: 850, y: 1450 }]);
-          showPrompt('Now. Cross behind her.', [], 6);
+          // the waiting line is stale the moment the truck is past: replace
+          // it now, not after its timer — and skip it if she already crossed
+          S.prompt = null; S.promptQueue.length = 0;
+          if (S.wolf.x >= 880) showPrompt('Now. Cross behind her.', [], 6);
         }
       }
       if (T._b5go && S.wolf.x < 880) {
         S.beat = 6; S.beatT = 0;
         setCaption('The far side.', 3);
-        showPrompt('Lean into her.', ['F'], 0);
-        S.prompt.sticky = true;
+        S.prompt = null; S.promptQueue.length = 0;  // crossing talk ends at the crossing
+        stickyPrompt('Lean into her.', ['F']);
       }
       break;
 

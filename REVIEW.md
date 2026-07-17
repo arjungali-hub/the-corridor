@@ -17,50 +17,50 @@ Status legend: [ ] open · [x] done · [~] partially done (note inline).
       equal `buildBaseLayer`'s three-segment key (era | season | burned).
       (Already fixed in the perf pass; harness now proves one build across
       repeated frames — see 'terrain builds once' check.)
-- [ ] **Part 2 — The ending is the pack's arrival.** 'arrived' requires the
+- [x] **Part 2 — The ending is the pack's arrival.** 'arrived' requires the
       living pack gathered within ~400 of the range; waiting message when
       Aspen is there alone ('Not all of them are through…'); survivorCount
       snapshots who was actually there at `startEnding`; early arrival
       before WINTER_START says 'Not yet. The season has not turned.'
       Harness: stranded-packmate scenarios.
-- [ ] **Part 3 — Road: pack sprints on asphalt** (240·mult when position or
+- [x] **Part 3 — Road: pack sprints on asphalt** (240·mult when position or
       target is on the road) **and the conducted crossing is taught** once
       near the road (F holds → cross → F calls them through), flag saved.
-- [ ] **Part 4 — Seasonal squeeze.** Eastern herds (anchor east of the
+- [x] **Part 4 — Seasonal squeeze.** Eastern herds (anchor east of the
       highway, cattle exempt): respawn ×1 spring/summer, ×2.5 autumn, none
       in winter; western herd ×1 all year. One-time autumn message: 'The
       hunting thins. The east is emptying.' Harness: respawn-day math.
-- [ ] **Part 5 — Winter starvation ends the year.** In winter, food at 0
+- [x] **Part 5 — Winter starvation ends the year.** In winter, food at 0
       continuously for 180 real s (extend `starveT`) → `startEnding
       ('failed')`. Other seasons unchanged. Harness: winter vs autumn.
-- [ ] **Part 6 — Daylight decoupled from the 5-s calendar.** `daylight()`
+- [x] **Part 6 — Daylight decoupled from the 5-s calendar.** `daylight()`
       runs off `S.time` (~75 s per visual day, same curve; keep the past-era
       branch). Night tint, headlights, rancher sighting inherit it. Calendar
       untouched. Harness: smooth change, unaffected by task freeze.
-- [ ] **Part 7 — Resume.** Intro screen offers 'R — return to the year' when
+- [x] **Part 7 — Resume.** Intro screen offers 'R — return to the year' when
       a valid v2 save exists; `r` loads it, any other key starts fresh (move
       boot `clearSave()` into that path). Never auto-load. Harness: reboot →
       r restores day/edges/pack; non-r clears.
-- [ ] **Part 8 — Beat 9 scaffold.** After the inherit, sticky 'Her map is
+- [~] **Part 8 — Beat 9 scaffold** (absorbed into Part 13's redesign). After the inherit, sticky 'Her map is
       yours now.' + SPACE until the map is raised once; then clear and queue
       the `rip` callout (Mud Spring labelled in place). Leaving the den
       unchanged.
-- [ ] **Part 9 — Bram's recall (one line).** Ghost edges render at 0.55·m
+- [x] **Part 9 — Bram's recall (one line).** Ghost edges render at 0.55·m
       (instead of 0.3·m) while Bram lives and is within ~300 of Aspen; first
       time: say('Bram remembers the far side. From before.') Once.
-- [ ] **Part 10 — Injury goes real-time.** Replace `injuredUntilDay` with
+- [x] **Part 10 — Injury goes real-time.** Replace `injuredUntilDay` with
       `S.injuredT` seconds (75), ticking regardless of task freeze; read old
       save field defensively as 0. Harness: recovery proceeds while `day()`
       holds still.
-- [~] **Part 11 — Small fixes** (one commit):
-      1. [ ] Master GainNode + M to mute ('M — quiet' in help).
+- [x] **Part 11 — Small fixes** (one commit):
+      1. [x] Master GainNode + M to mute ('M — quiet' in help).
       2. [x] `mapClick` only in play mode.
-      3. [ ] `senseRadius` ghost-skip — NOTE: superseded while the radius is
+      3. [~] `senseRadius` ghost-skip — superseded while the radius is
              a flat WORLD.w·0.53; revisit only if ink-density radius returns.
-      4. [ ] Past-era strike text: 'The truck clips her. Willow is already
+      4. [x] Past-era strike text: 'The truck clips her. Willow is already
              there, pressing her to the grass.'
-      5. [ ] Fire day randomized 115+rand·45, rolled at newGame.
-      6. [ ] Distinct message for pack-initiated cattle kills (Aspen > 500
+      5. [x] Fire day randomized 115+rand·45, rolled at newGame (S.fire.day).
+      6. [x] Distinct message for pack-initiated cattle kills (Aspen > 500
              away): 'The pack took a calf on its own. The house will not
              know the difference.'
       7. [x] Prologue beat-4 kill: generic 'A kill…' say suppressed.

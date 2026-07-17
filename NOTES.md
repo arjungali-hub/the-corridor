@@ -164,3 +164,11 @@ at newGame: 115 + rand·45, stored on S.fire.day (old saves fall back to
 130). (6) first pack-initiated calf kill (Aspen >500 away): 'The pack took
 a calf on its own. The house will not know the difference.' (2,7,8 were
 done earlier; 3 superseded by the flat map radius.)
+
+playtest fix: beat-5 prompt lag (Arjun). 'Now. Cross behind her.' was
+queueing behind the still-showing 'She waits…' line, surfacing after the
+crossing; and beat 6's 'Lean into her.' stickied whatever prompt was
+current — freezing the stale waiting line on screen. The truck's passing
+now replaces the waiting prompt immediately (and skips 'Now. Cross' if she
+already crossed); the crossing flushes beat-5 talk and uses stickyPrompt
+properly.
