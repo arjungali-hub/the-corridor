@@ -221,6 +221,30 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [x] Explain the red-marked arcs near High Meadow (answer: contour
       lines = high ground; soften them so they read as terrain, not marks).
 
+## Playtest feedback (Arjun, 2026-07-16, second round)
+
+- [x] A deer was trapped inside the gravel pit — prey must never spawn or
+      graze-target inside blocked ground, and any animal wedged inside an
+      obstacle frees itself.
+- [x] Prey can never step onto the road **unless Aspen is on it or just
+      crossed it** (a short grace window — so a chase can drive them across).
+- [x] Crossing **most** of a path fully inks it (6 of 8 coverage buckets,
+      not all 8).
+- [x] Dog attacks cost a lot of **food** and **injure** Aspen; dogs also
+      attack pack wolves (food + fear). 
+- [x] **Fear is more costly**: at high fear the whole pack freezes in
+      place (~a day and more) until fear falls low enough; fear decays a
+      touch faster so the freeze ends.
+- [x] The obstacle at the Bend must be **a lot bigger and clearly
+      human-induced** — a bermed dredge impoundment where the creek was
+      diverted, with pipe, machine, and its own violet, r 110 → 260.
+- [x] The map **always frames the entire land** (camera pulls to the
+      world's center at full raise, zoom fits the world) and the visible
+      radius is a little over half the land's width (~2750).
+- [x] Wolves vibrate at the edge of the hunting radius when prey is near
+      — hysteresis: a chase starts well inside the radius (0.8×) and only
+      breaks well outside it (1.3×).
+
 ## Still open (future sessions)
 
 - [ ] Beat-8 matte-quality art for the cut; drought parameter; construction

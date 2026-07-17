@@ -101,6 +101,8 @@ function newGame() {
     injuredUntilDay: 0,
     roadEntrySide: null,
     wolfWasOnRoad: false,
+    roadGraceT: 0,       // while > 0, driven prey may follow her across
+    packFrozen: false,   // terror: the pack roots itself until fear fades
 
     edges: EDGES.map(d => ({
       id: d.id, a: d.a, b: d.b, tearGroup: d.tearGroup,
@@ -215,11 +217,17 @@ function deriveTriggers() {
 
 function spawnPrey(herdIdx) {
   const H = HERDS[herdIdx];
-  const a = Math.random() * Math.PI * 2;
-  const r = 80 + Math.random() * Math.max(60, H.leash - 120);
+  // never spawn inside blocked ground (the pit, the impoundment, buildings)
+  let px = H.anchor.x, py = H.anchor.y;
+  for (let tries = 0; tries < 14; tries++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 80 + Math.random() * Math.max(60, H.leash - 120);
+    const cx = H.anchor.x + Math.cos(a) * r, cy = H.anchor.y + Math.sin(a) * r;
+    if (!blockedAt(cx, cy, 14, false, APRON)) { px = cx; py = cy; break; }
+  }
   const elk = {
     herd: herdIdx,
-    x: H.anchor.x + Math.cos(a) * r, y: H.anchor.y + Math.sin(a) * r,
+    x: px, y: py,
     heading: Math.random() * Math.PI * 2, stamina: 100, fleeing: false,
     gait: 0,
     bull: H.antlers && Math.random() < 0.4,
@@ -233,10 +241,14 @@ function spawnPrey(herdIdx) {
 
 function pickGrazeTarget(elk) {
   const H = HERDS[elk.herd];
-  const a = Math.random() * Math.PI * 2;
-  const r = 60 + Math.random() * Math.max(60, H.leash - 80);
-  elk.tx = H.anchor.x + Math.cos(a) * r;
-  elk.ty = H.anchor.y + Math.sin(a) * r;
+  for (let tries = 0; tries < 10; tries++) {
+    const a = Math.random() * Math.PI * 2;
+    const r = 60 + Math.random() * Math.max(60, H.leash - 80);
+    const tx = H.anchor.x + Math.cos(a) * r, ty = H.anchor.y + Math.sin(a) * r;
+    if (blockedAt(tx, ty, 14, false, APRON)) continue;  // never aim into a wall
+    elk.tx = tx; elk.ty = ty;
+    break;
+  }
   elk.grazeT = 3 + Math.random() * 9;
 }
 
@@ -267,7 +279,10 @@ function blockedAt(x, y, r, canPassGap, margin) {
   const h = OBSTACLES.highway;
   if (x > h.x0 - r && x < h.x1 + r) {
     const inGap = canPassGap && y > h.gapY0 + r && y < h.gapY1 - r;
-    if (!inGap) return true;
+    // prey never sets foot on the road — unless Aspen is on it, or was
+    // moments ago, and the chase spills across behind her
+    const driven = S.roadGraceT > 0;
+    if (!inGap && !driven) return true;
   }
   if (bridgeWallAt(x, y, r)) return true;
   if (S.era === 'past') return false;  // none of it has been built yet
@@ -412,11 +427,13 @@ function traversalUpdate() {
     const A = NbyId.get(e.a), B = NbyId.get(e.b);
     const { d, t } = distSeg(S.wolf.x, S.wolf.y, A.x, A.y, B.x, B.y);
     if (d >= corridorFor(e)) continue;
-    // Honest knowledge: a pass needs every stretch of the edge actually
-    // walked, in however many visits — not just both endpoints touched.
+    // Honest-but-generous knowledge: walking MOST of the edge (6 of 8
+    // stretches, in however many visits) counts as a full pass.
     e.covBits |= 1 << Math.min(COV_BUCKETS - 1, Math.floor(t * COV_BUCKETS));
     if (e.state === 'unknown') { e.inkLo = Math.min(e.inkLo, t); e.inkHi = Math.max(e.inkHi, t); }
-    if (e.covBits === COV_FULL) {
+    let covered = 0;
+    for (let bit = 0; bit < COV_BUCKETS; bit++) if (e.covBits & (1 << bit)) covered++;
+    if (covered >= 6) {
       completeTraversal(e);
       e.covBits = 0;
     }
@@ -522,15 +539,15 @@ function applyDecay() {
   if (changed) recomputeGhosts();
 }
 
-// The map's visible radius: generous over well-known ground, tight in the void
+// The map's visible radius: a little over half the land's width, always.
 function senseRadius() {
-  let n = 0;
-  for (const e of S.edges) {
-    if (!isKnownEdge(e)) continue;
-    const A = NbyId.get(e.a), B = NbyId.get(e.b);
-    if (distSeg(S.wolf.x, S.wolf.y, A.x, A.y, B.x, B.y).d < 700) n++;
-  }
-  return 900 + 250 * Math.min(n, 6);
+  return WORLD.w * 0.53;
+}
+
+// The raised map frames the whole territory, whatever the screen size.
+function mapFitScale() {
+  if (typeof canvas === 'undefined' || !canvas.width) return SCALE_MAP;
+  return Math.min(canvas.width / (WORLD.w + 500), canvas.height / (WORLD.h + 500));
 }
 
 // Violet human-noise intensity at a point; radii widen every season.
@@ -692,7 +709,19 @@ function packUpdate(dt) {
     if (S.trail.length > 400) S.trail.shift();
   }
 
-  S.fear = Math.max(0, S.fear - 0.02 * dt);
+  S.fear = Math.max(0, S.fear - 0.035 * dt);
+
+  // terror roots the whole pack: past the threshold they freeze where they
+  // stand — for a day and more — until the fear has genuinely faded
+  if (!S.packFrozen && S.fear > 0.85) {
+    S.packFrozen = true;
+    if (S.mode === 'play') say('The pack freezes. Nothing will move them until the terror fades.');
+  }
+  if (S.packFrozen && S.fear < 0.6) S.packFrozen = false;
+  if (S.packFrozen) {
+    for (const w of S.pack) w.moving = false;
+    return;
+  }
 
   const c = zoneCenter();
   const zr = zoneRadius(c);
@@ -708,14 +737,18 @@ function packUpdate(dt) {
     const dZone = dist(w.x, w.y, c.x, c.y);
 
     // adults hunt on their own: chase near prey, break off beyond the
-    // hunting radius, and never set foot on the asphalt to do it
-    if (!w.pup && S.mode === 'play' && dZone < huntLimit) {
+    // hunting radius, never set foot on the asphalt. Hysteresis keeps the
+    // edge honest: a chase starts well inside the radius and is only
+    // abandoned well outside it — no flickering at the line.
+    if (!w.pup && S.mode === 'play') {
       let prey = null, pd = 1e9;
       for (const e of S.elk) {
         const d = dist(w.x, w.y, e.x, e.y);
         if (d < 280 && d < pd) { pd = d; prey = e; }
       }
-      if (prey) {
+      const mayHunt = w.hunting ? dZone < huntLimit * 1.3 : dZone < huntLimit * 0.8;
+      if (prey && mayHunt) {
+        w.hunting = true;
         const d = pd || 1;
         const sp = 250 * w.mult;
         tryMove(w, (prey.x - w.x) / d * sp * dt, (prey.y - w.y) / d * sp * dt,
@@ -725,6 +758,7 @@ function packUpdate(dt) {
         w.moving = true;
         continue;
       }
+      w.hunting = false;
     }
 
     // outside the zone: lope smoothly back to a stable personal slot in it
@@ -893,6 +927,14 @@ function preyUpdate(dt) {
 
   for (const elk of S.elk) {
     const H = HERDS[elk.herd];
+
+    // wedged inside something (spawned badly, or built around it): work free
+    if (blockedAt(elk.x, elk.y, 2, false, APRON)) {
+      const d = dist(elk.x, elk.y, H.anchor.x, H.anchor.y) || 1;
+      elk.x += (H.anchor.x - elk.x) / d * 260 * dt;
+      elk.y += (H.anchor.y - elk.y) / d * 260 * dt;
+      continue;
+    }
     let fx = 0, fy = 0, threat = 0;
     const flightR = 300 * elk.skittish;
     for (const h of hunters) {
@@ -1166,22 +1208,37 @@ function rancherUpdate(dt) {
     S.conflict = Math.min(1, S.conflict + 0.02);
   }
 
-  // the dogs: loosed farther the worse the ledger reads
+  // the dogs: loosed farther the worse the ledger reads. They will run any
+  // wolf — Aspen or family — and their teeth cost meat, blood, and nerve.
   const chaseR = S.conflict > 0.6 ? 1000 : 620;
+  const quarry = [{ ref: S.wolf, aspen: true }, ...alivePack().map(w => ({ ref: w, aspen: false }))];
+  const anyNear = quarry.some(q => dist(q.ref.x, q.ref.y, RANCH.house.x, RANCH.house.y) < 380);
   for (const dog of S.dogs) {
     dog.biteCd = Math.max(0, dog.biteCd - dt);
     const dHome = dist(dog.x, dog.y, RANCH.dogHome.x, RANCH.dogHome.y);
-    const dWolf = dist(dog.x, dog.y, S.wolf.x, S.wolf.y);
     let tx, ty, sp;
-    if (dHouse < 380 && dHome < chaseR) {
-      tx = S.wolf.x; ty = S.wolf.y; sp = 272;          // driven off
-      if (dWolf < 34 && dog.biteCd <= 0) {
+    if (anyNear && dHome < chaseR) {
+      let target = quarry[0], bd = Infinity;
+      for (const q of quarry) {
+        const d = dist(dog.x, dog.y, q.ref.x, q.ref.y);
+        if (d < bd) { bd = d; target = q; }
+      }
+      tx = target.ref.x; ty = target.ref.y; sp = 272;
+      if (bd < 34 && dog.biteCd <= 0) {
         dog.biteCd = 8;
-        S.fear = Math.min(1, S.fear + 0.25);
         S.conflict = Math.min(1, S.conflict + 0.05);
-        S.shake = Math.max(S.shake, 5);
+        S.shake = Math.max(S.shake, 6);
         playBark();
-        say('Teeth at her heels — the dogs know their work.');
+        if (target.aspen) {
+          S.food = Math.max(0, S.food - 15);
+          S.fear = Math.min(1, S.fear + 0.35);
+          S.injuredUntilDay = day() + INJURY_DAYS;
+          say('Teeth find her. Meat lost, blood drawn — the dogs know their work.');
+        } else {
+          S.food = Math.max(0, S.food - 10);
+          S.fear = Math.min(1, S.fear + 0.3);
+          say(`The dogs run ${target.ref.name} off the meat. The pack pays for this ground.`);
+        }
       }
     } else {
       tx = RANCH.dogHome.x + Math.sin(S.time * 0.4 + dog.biteCd) * 50;
@@ -2437,6 +2494,7 @@ function update(dt) {
       S.roadEntrySide = S.wolf.x < (h.x0 + h.x1) / 2 ? 'west' : 'east';
     }
     S.wolfWasOnRoad = onR;
+    S.roadGraceT = onR ? 8 : Math.max(0, S.roadGraceT - dt);
 
     traversalUpdate();
     tearCheck();
@@ -2475,10 +2533,13 @@ function update(dt) {
     }
   }
 
-  // camera
-  let targetScale = lerp(SCALE_WORLD, SCALE_MAP, smooth(S.senseBlend));
+  // camera — the raised map pulls out to frame the entire land
+  const mblend = smooth(S.senseBlend);
+  let targetScale = lerp(SCALE_WORLD, mapFitScale(), mblend);
   if (S.vistaT > 0) targetScale = SCALE_VISTA;
+  const targetX = lerp(S.wolf.x, WORLD.w / 2, mblend);
+  const targetY = lerp(S.wolf.y, WORLD.h / 2, mblend);
   S.cam.scale += (targetScale - S.cam.scale) * Math.min(1, dt * 8);
-  S.cam.x += (S.wolf.x - S.cam.x) * Math.min(1, dt * 6);
-  S.cam.y += (S.wolf.y - S.cam.y) * Math.min(1, dt * 6);
+  S.cam.x += (targetX - S.cam.x) * Math.min(1, dt * 6);
+  S.cam.y += (targetY - S.cam.y) * Math.min(1, dt * 6);
 }

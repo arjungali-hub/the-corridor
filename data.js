@@ -144,9 +144,9 @@ const OBSTACLES = {
   construction: { x0: 3640, y0: 1440, x1: 4040, y1: 1960 },
   // Rooflines, southeast. Impassable fenced ground.
   subdivision: { x0: 4280, y0: 2760, x1: 4840, y1: 3240 },
-  // Where the diverted creek died, the Bend became a mud sink — the physical
-  // truth behind the drycreek tear. Nothing walks through it.
-  mudSink: { x: 2700, y: 2800, r: 110 },
+  // Where they diverted the creek, a bermed dredge impoundment drowned the
+  // Bend — the human truth behind the drycreek tear. Nothing walks through.
+  mudSink: { x: 2700, y: 2800, r: 260 },
   // A gravel pit, opened in the saddle between the elk meadow and the ridge:
   // the hunting loop's own wound.
   gravelPit: { x0: 2080, y0: 800, x1: 2320, y1: 1040 },
@@ -216,6 +216,7 @@ const SCENT_VIOLET = [
   { x: 3840, y: 1700, r: 620 },
   { x: 4560, y: 3000, r: 620 },
   { x: 2200, y: 920,  r: 420 },   // the gravel pit's dust and diesel
+  { x: 2700, y: 2800, r: 460 },   // the impoundment's chemical rot
 ];
 // Red = rival pack marks, along the northeast edge of the territory.
 const SCENT_RED = [

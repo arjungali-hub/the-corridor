@@ -205,32 +205,64 @@ function buildBaseLayer() {
     b.stroke();
   }
 
-  // the mud sink at the Bend — where the diverted creek died. Nothing
-  // walks through it; the drycreek tear is this, made honest.
+  // the impoundment at the Bend — where they diverted the creek into a
+  // bermed dredge pond. Geometry too straight to be anything but built.
   if (!past) {
     const ms = OBSTACLES.mudSink;
-    b.fillStyle = 'rgba(80,66,44,0.5)';
-    b.beginPath(); b.ellipse(ms.x, ms.y, ms.r + 18, (ms.r + 18) * 0.82, 0.2, 0, Math.PI * 2); b.fill();
-    const mg = b.createRadialGradient(ms.x, ms.y, 10, ms.x, ms.y, ms.r);
-    mg.addColorStop(0, '#4a3d2c'); mg.addColorStop(0.7, '#5d4d36'); mg.addColorStop(1, '#75634a');
-    b.fillStyle = mg;
-    b.beginPath(); b.ellipse(ms.x, ms.y, ms.r, ms.r * 0.82, 0.2, 0, Math.PI * 2); b.fill();
-    const mrng = makePrng(313);
-    b.strokeStyle = 'rgba(30,24,16,0.4)';
-    b.lineWidth = 2;
-    for (let i = 0; i < 9; i++) {   // sheen cracks and dead snags
-      const a = mrng() * Math.PI * 2, r1 = mrng() * ms.r * 0.8;
-      b.beginPath();
-      b.moveTo(ms.x + Math.cos(a) * r1, ms.y + Math.sin(a) * r1 * 0.82);
-      b.lineTo(ms.x + Math.cos(a) * (r1 + 26), ms.y + Math.sin(a) * (r1 + 26) * 0.82);
-      b.stroke();
+    const sides = 7;
+    const ringPts = [];
+    const rrng = makePrng(313);
+    for (let i = 0; i < sides; i++) {
+      const a = (i / sides) * Math.PI * 2 + 0.3;
+      const rr2 = ms.r * (0.94 + rrng() * 0.1);
+      ringPts.push([ms.x + Math.cos(a) * rr2, ms.y + Math.sin(a) * rr2 * 0.9]);
     }
+    // outer berm: graded, pale, machine-made
+    b.strokeStyle = '#b7a57e';
+    b.lineWidth = 34;
+    b.lineJoin = 'round';
+    b.beginPath();
+    b.moveTo(ringPts[0][0], ringPts[0][1]);
+    for (let i = 1; i <= sides; i++) b.lineTo(ringPts[i % sides][0], ringPts[i % sides][1]);
+    b.stroke();
+    b.strokeStyle = 'rgba(90,80,60,0.5)';
+    b.lineWidth = 4;
+    b.stroke();
+    // the sludge inside
+    const mg = b.createRadialGradient(ms.x, ms.y, 12, ms.x, ms.y, ms.r);
+    mg.addColorStop(0, '#3f382b'); mg.addColorStop(0.7, '#514434'); mg.addColorStop(1, '#5f5140');
+    b.fillStyle = mg;
+    b.beginPath();
+    b.moveTo(ringPts[0][0], ringPts[0][1]);
+    for (let i = 1; i <= sides; i++) b.lineTo(ringPts[i % sides][0], ringPts[i % sides][1]);
+    b.closePath(); b.fill();
+    b.fillStyle = 'rgba(140,150,120,0.18)';   // chemical sheen
+    b.beginPath(); b.ellipse(ms.x - 40, ms.y - 30, ms.r * 0.5, ms.r * 0.3, 0.4, 0, Math.PI * 2); b.fill();
+    // the discharge pipe, running in from the works to the northeast
+    b.strokeStyle = '#6d6f72';
+    b.lineWidth = 12;
+    b.beginPath(); b.moveTo(ms.x + ms.r + 260, ms.y - 340); b.lineTo(ms.x + ms.r * 0.5, ms.y - ms.r * 0.4); b.stroke();
+    b.fillStyle = '#4a4c4f';
+    b.beginPath(); b.arc(ms.x + ms.r * 0.5, ms.y - ms.r * 0.4, 12, 0, Math.PI * 2); b.fill();
+    // a dozer parked on the berm; warning posts around it
+    b.fillStyle = '#c9a12e';
+    b.fillRect(ms.x + ms.r * 0.7, ms.y + ms.r * 0.55, 44, 26);
+    b.fillStyle = '#3a3d35';
+    b.fillRect(ms.x + ms.r * 0.7 - 6, ms.y + ms.r * 0.55 + 20, 56, 10);
+    const prng2 = makePrng(717);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const px = ms.x + Math.cos(a) * (ms.r + 40), py = ms.y + Math.sin(a) * (ms.r + 40) * 0.9;
+      b.fillStyle = '#e8e2d0'; b.fillRect(px, py, 3, 10);
+      b.fillStyle = '#d96a2b'; b.fillRect(px + 3, py, 8, 4 + prng2() * 2);
+    }
+    // drowned snags at the rim
     b.strokeStyle = '#3d3226';
     b.lineWidth = 4;
-    for (let i = 0; i < 4; i++) {
-      const a = mrng() * Math.PI * 2, r1 = ms.r * (0.3 + mrng() * 0.5);
-      const sx2 = ms.x + Math.cos(a) * r1, sy2 = ms.y + Math.sin(a) * r1 * 0.82;
-      b.beginPath(); b.moveTo(sx2, sy2); b.lineTo(sx2 + 10 - mrng() * 20, sy2 - 24 - mrng() * 14); b.stroke();
+    for (let i = 0; i < 5; i++) {
+      const a = prng2() * Math.PI * 2, r1 = ms.r * (0.3 + prng2() * 0.5);
+      const sx2 = ms.x + Math.cos(a) * r1, sy2 = ms.y + Math.sin(a) * r1 * 0.85;
+      b.beginPath(); b.moveTo(sx2, sy2); b.lineTo(sx2 + 10 - prng2() * 20, sy2 - 26 - prng2() * 14); b.stroke();
     }
   }
 
