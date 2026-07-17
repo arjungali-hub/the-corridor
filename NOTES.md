@@ -114,3 +114,10 @@ taught once: first time Aspen is within 260 of the highway in play with the
 pack following ('The road. F holds the pack. Cross when it is quiet, then F
 calls them through.'), flag saved with the rest of S.tut. Harness: mid-road
 displacement at lope, lesson survives save/load.
+
+review fix 4: the seasonal squeeze. respawnMult(H): eastern herds (anchor
+east of the highway, cattle exempt) respawn x1 spring/summer, x2.5 autumn,
+not at all in winter; the west holds x1 all year. One-time autumn line 'The
+hunting thins. The east is emptying.' replaces the routine kill message for
+that kill (it was being clobbered otherwise). Harness: autumn 2.5x math,
+winter east no-refill, winter west refill.

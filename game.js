@@ -934,6 +934,15 @@ function carCollisions() {
 
 // ── prey and the hunt ────────────────────────────────────────────────────────
 
+// The seasonal squeeze: east of the highway the land empties as the year
+// turns — respawns slow in autumn and stop in winter. The west holds steady;
+// the cattle are fed by the rancher, which is the point of them.
+function respawnMult(H) {
+  if (H.cattle || H.anchor.x <= OBSTACLES.highway.x1) return 1;
+  const si = seasonIndex();
+  return si === 2 ? 2.5 : si === 3 ? 0 : 1;
+}
+
 function preyUpdate(dt) {
   for (let i = S.elkRespawn.length - 1; i >= 0; i--) {
     if (day() >= S.elkRespawn[i].day) {
@@ -1086,7 +1095,14 @@ function preyUpdate(dt) {
     if (caught) {
       const H = HERDS[elk.herd];
       S.elk.splice(i, 1);
-      if (H.count > 0) S.elkRespawn.push({ day: day() + H.respawnDays, herd: elk.herd });
+      let thinned = false;
+      if (H.count > 0) {
+        const m = respawnMult(H);
+        if (m > 0) {
+          S.elkRespawn.push({ day: day() + Math.round(H.respawnDays * m), herd: elk.herd });
+          if (m > 1 && !S.tut.eastThins) { S.tut.eastThins = true; thinned = true; }
+        }
+      }
       const sedge = S.pack.find(w => w.id === 'sedge');
       const sedgeIn = sedge && sedge.state !== 'dead' && sedge.state !== 'gone'
         && dist(sedge.x, sedge.y, elk.x, elk.y) < 500;
@@ -1096,6 +1112,9 @@ function preyUpdate(dt) {
       if (H.cattle) {
         S.conflict = Math.min(1, S.conflict + 0.3);
         say('A calf. Easy meat. The house will know.');
+      } else if (thinned) {
+        // the seasonal beat outranks the routine kill line
+        say('The hunting thins. The east is emptying.');
       } else if (S.mode !== 'prologue') {
         // the prologue's scripted hunt speaks through its own caption
         say(sedgeIn ? 'A kill. Sedge ran it down with her.' : 'A kill. The pack eats.');
