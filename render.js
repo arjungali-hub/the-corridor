@@ -1924,6 +1924,11 @@ function drawIntro() {
   ctx.globalAlpha = 0.55 + 0.45 * Math.sin(Date.now() / 420);
   ctx.fillText('press any key', cx, cy + 90);
   ctx.globalAlpha = 1;
+  if (hasResumableSave()) {
+    ctx.font = `14px ${FONT}`;
+    ctx.fillStyle = '#b8ac8d';
+    ctx.fillText('R — return to the year', cx, cy + 122);
+  }
 }
 
 // ── the ending: the satellite dissolve ───────────────────────────────────────

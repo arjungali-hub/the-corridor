@@ -133,3 +133,10 @@ S.time (~75 real seconds per visual day, same curve, past-era branch kept);
 S.time already ticks through task freezes, so the light never stalls and
 never strobes. Night tint, headlights, and the porch-sighting gate inherit
 it. Harness: midday light at calendar midnight, smooth motion.
+
+review fix 7: resume. hasResumableSave() peeks localStorage (v2) without
+loading; the intro screen shows 'R — return to the year' when it's true.
+In intro-mode keys: r loads the save (fallback: fresh), any other key runs
+clearSave() + beginFromIntro() — the clearSave moved out of boot, so the
+save survives until the player chooses. Never auto-loads. Harness: reboot →
+r restores day/pack/edges; non-r key starts day 1 and clears the save.

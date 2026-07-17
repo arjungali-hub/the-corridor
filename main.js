@@ -25,7 +25,13 @@ window.addEventListener('keydown', (ev) => {
   const k = ev.key.toLowerCase();
   if (k === ' ' || k.startsWith('arrow')) ev.preventDefault();
 
-  if (S && S.mode === 'intro') { beginFromIntro(); return; }
+  if (S && S.mode === 'intro') {
+    // R reclaims a year in progress; any other key lets it go and starts fresh
+    if (k === 'r' && hasResumableSave()) { if (!loadGame()) { clearSave(); beginFromIntro(); } return; }
+    clearSave();
+    beginFromIntro();
+    return;
+  }
 
   if (k === 'r') { requestNewYear(); return; }
   if (k === 'h' && S && S.tut && S.tut.taughtHelp
@@ -59,9 +65,9 @@ window.addEventListener('blur', () => {
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
-// A reload is a clean slate: the whole game starts over, prologue included.
-// (Saves are never loaded at boot; the year lives and dies with the tab.)
-clearSave();
+// A reload is a clean slate by default: the whole game starts over, prologue
+// included. A save is never loaded at boot — but a year in progress can be
+// reclaimed from the intro screen with R; any other key clears it.
 newGame();
 
 let lastT = 0;

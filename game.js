@@ -2536,6 +2536,15 @@ function clearSave() {
   if (storageOk()) try { localStorage.removeItem(SAVE_KEY); } catch (_) {}
 }
 
+// peek only: is there a year worth returning to? (never loads anything)
+function hasResumableSave() {
+  if (!storageOk()) return false;
+  try {
+    const d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    return !!d && d.v === 2;
+  } catch (_) { return false; }
+}
+
 // ── the frame update ─────────────────────────────────────────────────────────
 
 function update(dt) {
