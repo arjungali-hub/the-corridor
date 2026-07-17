@@ -1280,7 +1280,9 @@ function drawInkEdge(e, m) {
   if (e.torn) return;
 
   if (S.ghostEdges.has(e.id)) {
-    ctx.globalAlpha = 0.3 * m;
+    // the far side of a tear brightens when the old wolf stands beside her:
+    // Bram walked these edges before the rip
+    ctx.globalAlpha = (bramRemembers() ? 0.55 : 0.3) * m;
     strokePolyline(ctx, edgePolyline(e), 2.4 / sc, C_INK_LIGHT, [10 / sc, 8 / sc]);
     ctx.globalAlpha = 1;
     return;

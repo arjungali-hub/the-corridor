@@ -369,6 +369,15 @@ function moveAspen(dt) {
 
 function isKnownEdge(e) { return !e.torn && e.state !== 'unknown'; }
 
+// Bram is the pack's stale memory: beside him, the far side of a tear shows
+// clearer on the raised map — he walked those edges, before
+function bramRemembers() {
+  if (!S.ghostEdges.size) return false;
+  const b = S.pack.find(w => w.id === 'bram');
+  return !!b && b.state !== 'dead' && b.state !== 'gone'
+    && dist(b.x, b.y, S.wolf.x, S.wolf.y) < 300;
+}
+
 function recomputeGhosts() {
   S.ghostNodes.clear(); S.ghostEdges.clear();
   const reach = new Set(['den']);
@@ -2603,6 +2612,11 @@ function update(dt) {
     tutorialUpdate(dt);
     calloutUpdate(dt);
     endingCheck();
+
+    if (!S.tut.bramRecall && bramRemembers()) {
+      S.tut.bramRecall = true;
+      say('Bram remembers the far side. From before.');
+    }
 
     // the pack sings each season across
     const si = seasonIndex();

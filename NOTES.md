@@ -140,3 +140,10 @@ In intro-mode keys: r loads the save (fallback: fresh), any other key runs
 clearSave() + beginFromIntro() — the clearSave moved out of boot, so the
 save survives until the player chooses. Never auto-loads. Harness: reboot →
 r restores day/pack/edges; non-r key starts day 1 and clears the save.
+
+review fix 9: Bram's recall. bramRemembers() — ghost edges exist, Bram
+alive and within 300 of Aspen — brightens ghost ink on the raised map to
+0.55·m (from 0.3·m); first time it's true: 'Bram remembers the far side.
+From before.' (S.tut.bramRecall). Pure render + one line, no pathing.
+(Part 8 is deliberately skipped here: absorbed into Part 13's prologue
+map-flow redesign, where the map raises itself at the inherit.)
