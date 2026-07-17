@@ -715,6 +715,18 @@ function packUpdate(dt) {
 
   S.fear = Math.max(0, S.fear - 0.035 * dt);
 
+  // the conducted crossing exists (F stages, cross alone, F calls) — teach
+  // it once, the first time she brings the pack near the asphalt
+  if (S.mode === 'play' && !S.tut.roadLesson && S.tut.fTaught) {
+    const h = OBSTACLES.highway;
+    const dRoad = S.wolf.x < h.x0 ? h.x0 - S.wolf.x : S.wolf.x > h.x1 ? S.wolf.x - h.x1 : 0;
+    if (dRoad < 260 && S.pack.some(w => w.state === 'follow')) {
+      S.tut.roadLesson = true;
+      showPrompt('The road. F holds the pack. Cross when it is quiet, then F calls them through.', ['F'], 8);
+      saveGame();
+    }
+  }
+
   // terror roots the whole pack: past the threshold they freeze where they
   // stand — for a day and more — until the fear has genuinely faded
   if (!S.packFrozen && S.fear > 0.85) {
@@ -797,6 +809,8 @@ function packUpdate(dt) {
     const urgency = clamp((dZone - zr * 0.7) / (zr * 0.6), 0, 1);
     let sp = lerp(120, 240, urgency) * w.mult;
     if (dZone > 700) sp *= 1.8;
+    // a wolf never ambles on asphalt: mid-road, or headed onto it, full lope
+    if (onRoad(w.x, w.y) || onRoad(w.tx, w.ty)) sp = Math.max(sp, 240 * w.mult);
     const step = Math.min(d, sp * dt);
     tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, packBlockedAt);
     const want = Math.atan2(w.ty - w.y, w.tx - w.x);

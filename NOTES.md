@@ -107,3 +107,10 @@ are through…' when she's there alone. startEnding snapshots S.endSurvivors
 (arrived = who was actually within the radius; failed = alive count), and
 survivorCount() returns the snapshot. Harness: early-arrival, stranded-
 packmate, snapshot-exclusion, gathered-pack scenarios.
+
+review fix 3: the road. Pack wolves at or headed onto asphalt move at full
+lope (240·mult floor) — no ambling mid-road. The conducted crossing is
+taught once: first time Aspen is within 260 of the highway in play with the
+pack following ('The road. F holds the pack. Cross when it is quiet, then F
+calls them through.'), flag saved with the rest of S.tut. Harness: mid-road
+displacement at lope, lesson survives save/load.
