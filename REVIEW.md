@@ -41,7 +41,8 @@ Status legend: [ ] open · [x] done · [~] partially done (note inline).
       a valid v2 save exists; `r` loads it, any other key starts fresh (move
       boot `clearSave()` into that path). Never auto-load. Harness: reboot →
       r restores day/edges/pack; non-r clears.
-- [~] **Part 8 — Beat 9 scaffold** (absorbed into Part 13's redesign). After the inherit, sticky 'Her map is
+- [x] **Part 8 — Beat 9 scaffold** — absorbed into Part 13: the map now
+      raises itself at the inherit and the rip callout labels Mud Spring. After the inherit, sticky 'Her map is
       yours now.' + SPACE until the map is raised once; then clear and queue
       the `rip` callout (Mud Spring labelled in place). Leaving the den
       unchanged.
@@ -71,7 +72,7 @@ Status legend: [ ] open · [x] done · [~] partially done (note inline).
 
 ## Part 13 — Playtest additions (Arjun, 2026-07-17)
 
-- [ ] **Prologue map-flow redesign (the big one).** The inherit is the FIRST
+- [x] **Prologue map-flow redesign (the big one).** The inherit is the FIRST
       moment the map can be opened on command. Beat 3's map moment becomes a
       forced view (she shows you; no SPACE teaching); beat 7's winter-range
       map stays a forced view of *Willow's* map; SPACE stays locked until
@@ -81,10 +82,10 @@ Status legend: [ ] open · [x] done · [~] partially done (note inline).
       emotional buildup before the hold (longer stillness, a caption or
       two). After the map is lowered, Act I starts promptly — no long dead
       wander out of the den radius.
-- [ ] **Spring opens away from every den site** (e.g. at Aspen Stand), with
+- [x] **Spring opens away from every den site** (at Aspen Stand), with
       a prompt to open the map; all three hollows are shown on it.
-- [ ] **A chosen den becomes a real graph node** ("home") with unknown
-      edges to the 2–3 nearest nodes, walkable and inkable after selection
+- [x] **A chosen den becomes a real graph node** ("home") with unknown
+      edges to the 3 nearest nodes, walkable and inkable after selection
       (strip dynamic nodes/edges at newGame; recreate from denId on load).
 - [x] Den choice: needs only ~1.2 s standing within 120 u (was 2.5 s / 60).
 - [x] Old den naming: always "The Old Den" until chosen as home, then
