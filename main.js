@@ -27,8 +27,9 @@ window.addEventListener('keydown', (ev) => {
 
   if (S && S.mode === 'intro') { beginFromIntro(); return; }
 
-  if (k === 'n') { requestNewYear(); return; }
-  if (k === 'h' && S && (S.mode === 'play' || S.mode === 'prologue')) { S.showHelp = !S.showHelp; return; }
+  if (k === 'r') { requestNewYear(); return; }
+  if (k === 'h' && S && S.tut && S.tut.taughtHelp
+      && (S.mode === 'play' || S.mode === 'prologue')) { S.showHelp = !S.showHelp; return; }
   if (k === 'f' && S && (S.mode === 'play' || S.mode === 'prologue')) { togglePackStay(); return; }
   if (k === ' ' && !ev.repeat) toggleMap();  // press to open, press to close
 

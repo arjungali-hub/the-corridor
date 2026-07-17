@@ -123,13 +123,14 @@ function newGame() {
     hud: { pack: false, food: false, fear: false, day: false, pups: false },
     tut: {
       step: 0, t: 0, moved: 0,
-      sawMap: false, scentHold: 0, usedHold: false,
+      sawMap: false, scentHold: 0, usedHold: false, fTaught: false,
       fearSeen: false, violetSeen: false, ownInkSeen: false, redSeen: false,
       tearPrompt: false, goalSet: false, taughtHelp: false, denPrompt: false,
       routeTaught: false,
       lastStarveDay: 0,
     },
-    prompt: null,
+    prompt: null, promptQueue: [], promptGap: 0,
+    guide: null,               // a soft chevron toward somewhere she must find
     callouts: [],
     calloutActive: null,
     showHelp: false,
@@ -288,6 +289,11 @@ function wolfBlockedAt(x, y, margin) {
   const m = margin || 0;
   if (x < WOLF_R - m || y < WOLF_R - m || x > WORLD.w - WOLF_R + m || y > WORLD.h - WOLF_R + m) return true;
   if (bridgeWallAt(x, y, WOLF_R)) return true;
+  // in the prologue the road cannot be stepped onto until Willow shows how
+  if (S.mode === 'prologue' && !S.tut._b5go) {
+    const h = OBSTACLES.highway;
+    if (x > h.x0 - 8 - WOLF_R && x < h.x1 + 8 + WOLF_R) return true;
+  }
   if (S.era === 'past') return false;
   for (const key of ['construction', 'subdivision', 'gravelPit']) {
     const c = OBSTACLES[key];
@@ -422,13 +428,17 @@ function traversalUpdate() {
   }
   // arriving where she meant to go clears the way she had in mind
   if (S.routeTo) {
-    const t = NbyId.get(S.routeTo);
-    if (dist(S.wolf.x, S.wolf.y, t.x, t.y) < NODE_VISIT_R) {
+    const t = routeTargetPos();
+    if (!t || dist(S.wolf.x, S.wolf.y, t.x, t.y) < NODE_VISIT_R) {
       S.routeTo = null;
       S.routePath = null;
     } else {
       S.routeT += 1 / 60;
-      if (S.routeT > 2) { S.routeT = 0; S.routePath = computeRoute(S.routeTo); }
+      if (S.routeT > 2) {
+        S.routeT = 0;
+        S.routePath = computeRoute(S.routeTo.startsWith('site:')
+          ? nearestKnownNodeTo(t.x, t.y) : S.routeTo);
+      }
     }
   }
 }
@@ -453,7 +463,9 @@ function tearCheck() {
       say('The land is not what she remembered.');
       // a tear is a plan that no longer exists
       if (S.routeTo) {
-        const p = computeRoute(S.routeTo);
+        const tp = routeTargetPos();
+        const p = tp ? computeRoute(S.routeTo.startsWith('site:')
+          ? nearestKnownNodeTo(tp.x, tp.y) : S.routeTo) : null;
         if (!p && S.routePath) say('The way she had in mind is gone.');
         S.routePath = p;
       }
@@ -577,6 +589,27 @@ function computeRoute(targetId) {
   return path;
 }
 
+function nearestKnownNodeTo(x, y) {
+  let best = null, bd = Infinity;
+  for (const n of NODES) {
+    if (!nodeKnownG(n.id)) continue;
+    const d = dist(x, y, n.x, n.y);
+    if (d < bd) { bd = d; best = n.id; }
+  }
+  return best;
+}
+
+// Where the current route is actually headed (a node, or a den hollow).
+function routeTargetPos() {
+  if (!S.routeTo) return null;
+  if (S.routeTo.startsWith('site:')) {
+    const site = DEN_SITES.find(s => s.id === S.routeTo.slice(5));
+    return site ? { x: site.x, y: site.y } : null;
+  }
+  const n = NbyId.get(S.routeTo);
+  return n ? { x: n.x, y: n.y } : null;
+}
+
 function mapClick(wx, wy) {
   if (S.senseBlend < 0.8) return;
   const reach = 34 / S.cam.scale;
@@ -585,12 +618,19 @@ function mapClick(wx, wy) {
   for (const n of NODES) {
     if (swallowed.has(n.id) || !nodeKnownG(n.id)) continue;
     const d = dist(wx, wy, n.x, n.y);
-    if (d < reach && d < bd) { bd = d; target = n; }
+    if (d < reach && d < bd) { bd = d; target = { id: n.id, node: n.id }; }
+  }
+  // before a den is chosen, the hollows are places you can plan toward
+  if (!S.denId && S.tut.denPrompt) {
+    for (const site of DEN_SITES) {
+      const d = dist(wx, wy, site.x, site.y);
+      if (d < reach && d < bd) { bd = d; target = { id: 'site:' + site.id, node: nearestKnownNodeTo(site.x, site.y) }; }
+    }
   }
   if (!target) return;
   if (S.routeTo === target.id) { S.routeTo = null; S.routePath = null; return; }
   S.routeTo = target.id;
-  S.routePath = computeRoute(target.id);
+  S.routePath = target.node ? computeRoute(target.node) : null;
   if (!S.routePath) say('The map holds no way there.');
 }
 
@@ -734,14 +774,27 @@ function packUpdate(dt) {
 // SPACE toggles the map: press to raise it, press again to lower it.
 // In beat 9, the held key at her mother's side is the inherit gesture —
 // there, and only there, the press is not the map.
+function mapAllowed() {
+  if (S.tut.sawMap) return true;
+  if (S.mode === 'prologue') return S.beat === 3 && !!S.tut._b3go;
+  return S.tut.step >= 4;
+}
+
 function toggleMap() {
   if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
+  if (!mapAllowed()) return;   // no map before the map is given
   if (S.mode === 'prologue' && S.beat === 9 && !S.inherited
       && S.willow && dist(S.wolf.x, S.wolf.y, S.willow.x, S.willow.y) < 70) return;
   S.mapOpen = !S.mapOpen;
 }
 
 function togglePackStay() {
+  // in the prologue, F is only the bond gesture — the pack verb comes later
+  if (S.mode === 'prologue') {
+    if (S.beat === 6) S.tut._bond = true;
+    return;
+  }
+  if (!S.tut.fTaught) return;   // no verb before it is given
   const anyFollowing = S.pack.some(w => w.state === 'follow' || w.state === 'balk');
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') continue;
@@ -952,12 +1005,17 @@ function preyUpdate(dt) {
       S.elk.push(nd);
     }
   }
-  if (S.scentDropT > 0.9) {
+  if (S.scentDropT > 0.8) {
     S.scentDropT = 0;
-    for (const elk of S.elk) S.scent.push({ x: elk.x, y: elk.y, t: S.time });
+    // violet is sampled once, when the scent is laid — never per frame
+    for (const elk of S.elk) {
+      S.scent.push({ x: elk.x, y: elk.y, t: S.time, v: violetAt(elk.x, elk.y) });
+    }
     if (S.scent.length > 900) S.scent.splice(0, S.scent.length - 900);
   }
 
+  // no kill exists until the hunt has been taught
+  if (S.mode === 'prologue' && S.beat < 4) return;
   for (let i = S.elk.length - 1; i >= 0; i--) {
     const elk = S.elk[i];
     if (elk.stamina > 25) continue;
@@ -1429,13 +1487,37 @@ function objectiveText() {
 
 // ── the long tutorial (in-game path; the prologue teaches the early verbs) ───
 
+// One voice at a time: a prompt that fires while another is showing waits
+// its turn in a small queue rather than talking over it.
 function showPrompt(text, keys, dur) {
-  S.prompt = { text, keys: keys || [], dur, t: 0, sticky: false };
+  const p = { text, keys: keys || [], dur, t: 0, sticky: false };
+  if (S.prompt || S.promptQueue.length) {
+    if ((!S.prompt || S.prompt.text !== text) && !S.promptQueue.some(q => q.text === text)) {
+      S.promptQueue.push(p);
+    }
+  } else {
+    S.prompt = p;
+  }
 }
 function stickyPrompt(text, keys) {
+  if (S.prompt && !S.prompt.sticky) S.promptQueue.unshift(S.prompt);
   S.prompt = { text, keys: keys || [], dur: Infinity, t: 0, sticky: true };
 }
 function clearPrompt() { S.prompt = null; }
+
+function promptTick(dt) {
+  if (S.prompt) {
+    S.prompt.t += dt;
+    if (!S.prompt.sticky && S.prompt.t > S.prompt.dur + 0.8) S.prompt = null;
+  } else if (S.promptQueue.length) {
+    S.promptGap += dt;
+    if (S.promptGap > 0.5) {
+      S.promptGap = 0;
+      S.prompt = S.promptQueue.shift();
+      S.prompt.t = 0;
+    }
+  }
+}
 
 function queueCallout(id) {
   if (!S.callouts.includes(id)) S.callouts.push(id);
@@ -1541,7 +1623,7 @@ function tutorialUpdate(dt) {
       }
       break;
     case 9:
-      if (T.t > 6) tutStep(10);
+      if (T.t > 6) { T.fTaught = true; tutStep(10); }
       break;
     case 10:
       if (T.usedHold) {
@@ -1594,11 +1676,6 @@ function tutorialUpdate(dt) {
     T.lastStarveDay = day();
     showPrompt('They starve. Hunt, or lose them.', [], 5);
   }
-
-  if (S.prompt) {
-    S.prompt.t += dt;
-    if (!S.prompt.sticky && S.prompt.t > S.prompt.dur + 0.8) S.prompt = null;
-  }
 }
 
 // ── THE PROLOGUE — nine beats, per the bible, in 2D ─────────────────────────
@@ -1618,8 +1695,16 @@ function startPrologue() {
   // her map does not exist yet: the prologue draws it before your eyes
   for (const e of S.edges) { e.state = 'unknown'; e.torn = false; }
   recomputeGhosts();
-  // no traffic, no herds where they will not matter; one calm morning
+  // no traffic; one calm morning
   S.cars.length = 0;
+  // something to smell from the first breath: last night's passages, laid
+  // as a readable freshness gradient arcing past the den
+  let sx = DEN.x - 420, sy = DEN.y + 260, sa = -0.5;
+  for (let k = 0; k < 26; k++) {
+    sa += (Math.random() - 0.5) * 0.5;
+    sx += Math.cos(sa) * 55; sy += Math.sin(sa) * 55;
+    S.scent.push({ x: sx, y: sy, t: S.time - (26 - k) * 9, v: 0 });
+  }
   setCaption('THE CORRIDOR', 4.5, 'one year, one map');
 }
 
@@ -1642,7 +1727,7 @@ function applyPostPrologue() {
   recomputeGhosts();
   // the prologue already taught move / scent / map / hunt / F
   S.tut.step = 6; S.tut.t = 0;
-  S.tut.sawMap = true; S.tut.scentHold = 1; S.tut.usedHold = true;
+  S.tut.sawMap = true; S.tut.scentHold = 1; S.tut.usedHold = true; S.tut.fTaught = true;
   S.hud.pack = true;
   S.clock.min = 8 * 60; S.lastDay = 1;
   S.wolf.x = DEN.x; S.wolf.y = DEN.y;
@@ -1713,17 +1798,18 @@ function prologueUpdate(dt) {
   packUpdate(dt);
   moveCars(dt);
   carCollisions();
-  if (S.prologueElk) preyUpdate(dt);
+  preyUpdate(dt);   // the world's prey lives (and lays scent) from beat 1
   calloutUpdate(dt);
 
-  if (S.prompt) {
-    S.prompt.t += dt;
-    if (!S.prompt.sticky && S.prompt.t > S.prompt.dur + 0.8) S.prompt = null;
-  }
   if (S.caption) {
     S.caption.t += dt;
     if (S.caption.t > S.caption.dur + 1.2) S.caption = null;
   }
+
+  // the soft chevron: where the prologue wants her to look
+  S.guide = null;
+  if (S.beat === 2 && dist(S.wolf.x, S.wolf.y, OVERLOOK.x, OVERLOOK.y) > 260) S.guide = OVERLOOK;
+  if (S.beat === 9 && dist(S.wolf.x, S.wolf.y, DEN.x, DEN.y) > 300) S.guide = { x: DEN.x, y: DEN.y };
 
   const w = S.willow;
   const T = S.tut;
@@ -1737,7 +1823,7 @@ function prologueUpdate(dt) {
         stickyPrompt('The world speaks in scent. Hold E.', ['E']);
       }
       if (T._b1scent && input.scent) T.scentHold += dt;
-      if (T.scentHold > 0.6) {
+      if (T.scentHold > 2.5) {   // long enough to actually read the gold
         clearPrompt();
         S.beat = 2; S.beatT = 0;
         setCaption('Three springs old.', 3.5);
@@ -1777,8 +1863,12 @@ function prologueUpdate(dt) {
         queueCallout('willow-ink');
         showPrompt('SPACE again lowers the map. Follow her.', [], 6);
       }
+      // the lesson isn't over until the map is down and stays down
+      if (T.sawMap) {
+        T._mapClosedT = S.senseBlend < 0.15 ? (T._mapClosedT || 0) + dt : 0;
+      }
       if (w && !w.path.length && dist(w.x, w.y, NbyId.get('oldFord').x, NbyId.get('oldFord').y) < 60
-          && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 260 && T.sawMap) {
+          && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 260 && T.sawMap && (T._mapClosedT || 0) > 3) {
         S.beat = 4; S.beatT = 0;
         // an easy hunt on open, unbroken ground
         S.prologueElk = true;
@@ -1790,7 +1880,7 @@ function prologueUpdate(dt) {
           frail: 0.55,   // winter-thin: the first hunt is meant to be won
         });
         setCaption('An elk, winter-thin.', 3.5);
-        showPrompt('She will turn it. Run it down.', [], 6);
+        showPrompt('Run it down.', [], 6);
       }
       break;
 
@@ -1863,6 +1953,8 @@ function prologueUpdate(dt) {
         if (S.beatT > 14) { /* the moment passed unnoticed; move on */ }
         else if (S.bondT > 0.05) break;   // let the circling finish first
         S.beat = 7; S.beatT = 0;
+        S.tut.fTaught = true;   // only now does the verb exist
+        showPrompt('F — the pack holds its ground, or follows. Hers to ask. Now yours.', ['F'], 6);
         willowSetPath([
           nodePt('farBench', 'sageFlat-farBench'),
           nodePt('highMeadow', 'farBench-highMeadow'),
@@ -1896,8 +1988,13 @@ function prologueUpdate(dt) {
         playHorn();
         S.wolf.x = OVERLOOK.x; S.wolf.y = OVERLOOK.y;
         S.trail = [{ x: S.wolf.x, y: S.wolf.y }];
+        S.zoneAnchor = null;   // the zone comes with her through the cut
         let i = 0;
-        for (const p of S.pack) { i++; p.x = S.wolf.x - 26 * i; p.y = S.wolf.y + (i % 2 ? 18 : -18); }
+        for (const p of S.pack) {
+          i++;
+          p.x = S.wolf.x - 26 * i; p.y = S.wolf.y + (i % 2 ? 18 : -18);
+          p.state = 'follow'; p.tx = undefined;
+        }
         S.cars.length = 0;
         S.vistaT = 3.6; S.inputLockT = 3.6;
         S.ghostPulse = 3.6;
@@ -1984,7 +2081,7 @@ function requestNewYear() {
     if (S.wantPrologue) startPrologue(); else { applyPostPrologue(); S.mode = 'play'; }
   } else {
     S.confirmNewYearT = 2.5;
-    showPrompt('Press N again to abandon this year.', ['N'], 2.5);
+    showPrompt('Press R again to restart the game (skips the prologue).', ['R'], 2.5);
   }
 }
 
@@ -2309,6 +2406,7 @@ function update(dt) {
   if (S.mode === 'ending') { S.endT += dt; return; }
 
   S.time += dt;
+  promptTick(dt);
   S.forcedSenseT = Math.max(0, S.forcedSenseT - dt);
   S.flickerT = Math.max(0, S.flickerT - dt);
   S.msgT = Math.max(0, S.msgT - dt);

@@ -103,6 +103,7 @@ function rr(c, x, y, w, h, r) {
 // ── the pre-rendered world (rebuilt on season or era change) ─────────────────
 
 let baseLayer = null, baseKey = '';
+const BASE_SCALE = 0.5;   // half-resolution terrain: painterly, and 4× cheaper
 
 function buildBaseLayer() {
   const si = S.era === 'past' ? 0 : seasonIndex();
@@ -110,11 +111,12 @@ function buildBaseLayer() {
   baseKey = S.era + '|' + si + '|' + burned;
   if (!baseLayer) {
     baseLayer = document.createElement('canvas');
-    baseLayer.width = WORLD.w + 2 * APRON;
-    baseLayer.height = WORLD.h + 2 * APRON;
+    baseLayer.width = (WORLD.w + 2 * APRON) * BASE_SCALE;
+    baseLayer.height = (WORLD.h + 2 * APRON) * BASE_SCALE;
   }
   const b = baseLayer.getContext('2d');
-  b.setTransform(1, 0, 0, 1, APRON, APRON);   // world coords; apron is negative space
+  // world coords at half scale; the apron is negative space
+  b.setTransform(BASE_SCALE, 0, 0, BASE_SCALE, APRON * BASE_SCALE, APRON * BASE_SCALE);
   const past = S.era === 'past';
   const AX = -APRON, AW = WORLD.w + 2 * APRON, AH = WORLD.h + 2 * APRON;
 
@@ -759,13 +761,17 @@ function drawLightAndAir() {
     ctx.fillStyle = `rgba(255,180,90,${S.era === 'past' ? 0.10 : 0.14})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  // vignette
-  const vg = ctx.createRadialGradient(
-    canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.45,
-    canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.75);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(10,14,8,0.26)');
-  ctx.fillStyle = vg;
+  // vignette, cached per canvas size
+  if (!drawLightAndAir._vg || drawLightAndAir._key !== canvas.width + 'x' + canvas.height) {
+    drawLightAndAir._key = canvas.width + 'x' + canvas.height;
+    const vg = ctx.createRadialGradient(
+      canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.45,
+      canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.75);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(10,14,8,0.26)');
+    drawLightAndAir._vg = vg;
+  }
+  ctx.fillStyle = drawLightAndAir._vg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -812,7 +818,8 @@ function drawWeather() {
 // ── the world ────────────────────────────────────────────────────────────────
 
 function drawWorld() {
-  const key = S.era + '|' + (S.era === 'past' ? 0 : seasonIndex());
+  const key = S.era + '|' + (S.era === 'past' ? 0 : seasonIndex()) + '|'
+    + (S.era !== 'past' && S.fire && S.fire.state === 'done');
   if (!baseLayer || baseKey !== key) buildBaseLayer();
 
   resetTransform();
@@ -820,7 +827,18 @@ function drawWorld() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   applyCamera();
-  ctx.drawImage(baseLayer, -APRON, -APRON);
+  // blit only the visible slice of the terrain (from the half-res layer)
+  const vw = canvas.width / S.cam.scale, vh = canvas.height / S.cam.scale;
+  const wx0 = Math.max(-APRON, S.cam.x - vw / 2 - 60);
+  const wy0 = Math.max(-APRON, S.cam.y - vh / 2 - 60);
+  const wx1 = Math.min(WORLD.w + APRON, S.cam.x + vw / 2 + 60);
+  const wy1 = Math.min(WORLD.h + APRON, S.cam.y + vh / 2 + 60);
+  if (wx1 > wx0 && wy1 > wy0) {
+    ctx.drawImage(baseLayer,
+      (wx0 + APRON) * BASE_SCALE, (wy0 + APRON) * BASE_SCALE,
+      (wx1 - wx0) * BASE_SCALE, (wy1 - wy0) * BASE_SCALE,
+      wx0, wy0, wx1 - wx0, wy1 - wy0);
+  }
 
   // living water glints
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
@@ -844,8 +862,13 @@ function drawWorld() {
       strokePolyline(ctx, [[A.x, A.y], [B.x, B.y]], 7, 'rgba(78,122,140,0.75)', [26, 22]);
     }
     ctx.lineDashOffset = 0;
-    if (S.routeTo) {
-      const t = NbyId.get(S.routeTo);
+    const t = routeTargetPos();
+    if (t) {
+      // the last leg, off the known ink and out to the destination itself
+      const last = NbyId.get(S.routePath[S.routePath.length - 1]);
+      if (dist(last.x, last.y, t.x, t.y) > 40) {
+        strokePolyline(ctx, [[last.x, last.y], [t.x, t.y]], 5, 'rgba(78,122,140,0.55)', [10, 14]);
+      }
       const pulse = 0.5 + 0.5 * Math.sin(S.time * 3);
       ctx.globalAlpha = 0.5 + 0.35 * pulse;
       ctx.strokeStyle = 'rgba(78,122,140,0.9)';
@@ -938,6 +961,29 @@ function drawWorld() {
     S.wolf.moving, S.wolf.gait, isInjured());
 
   drawPrologueWorldBits();
+
+  // the soft chevron: where to look, when the land won't say
+  if (S.guide) {
+    const a = Math.atan2(S.guide.y - S.wolf.y, S.guide.x - S.wolf.x);
+    const gx = S.wolf.x + Math.cos(a) * 130, gy = S.wolf.y + Math.sin(a) * 130;
+    const pulse = 0.55 + 0.45 * Math.sin(S.time * 3);
+    ctx.save();
+    ctx.translate(gx, gy);
+    ctx.rotate(a);
+    ctx.globalAlpha = 0.5 + 0.3 * pulse;
+    ctx.strokeStyle = 'rgba(255,214,140,0.95)';
+    ctx.lineWidth = 5;
+    ctx.lineCap = 'round';
+    for (const off of [0, -16]) {
+      ctx.beginPath();
+      ctx.moveTo(off - 10, -14);
+      ctx.lineTo(off + 6, 0);
+      ctx.lineTo(off - 10, 14);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
 
   // landmark names, when close — the land teaches its own geography
   resetTransform();
@@ -1101,18 +1147,24 @@ function drawScent() {
     }
   }
 
-  // gold: prey trails with freshness falloff — blotted where violet sits
-  for (const p of S.scent) {
+  // gold: prey trails with freshness falloff — blotted where violet sits.
+  // Drawn from a pre-rendered glow sprite (no per-point gradients), culled
+  // to the view, capped, newest first.
+  const vw2 = canvas.width / S.cam.scale, vh2 = canvas.height / S.cam.scale;
+  const gx0 = S.cam.x - vw2 / 2 - 40, gy0 = S.cam.y - vh2 / 2 - 40;
+  const gx1 = S.cam.x + vw2 / 2 + 40, gy1 = S.cam.y + vh2 / 2 + 40;
+  let drawn = 0;
+  for (let i = S.scent.length - 1; i >= 0 && drawn < 320; i--) {
+    const p = S.scent[i];
     const age = S.time - p.t;
-    if (age > 200) continue;   // long trails: a story readable hours later
-    if (violetAt(p.x, p.y) > 0.45) continue;
-    const a = 0.7 * (1 - age / 200);
-    const g = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, 16);
-    g.addColorStop(0, `rgba(240,195,90,${a})`);
-    g.addColorStop(1, 'rgba(240,195,90,0)');
-    ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(p.x, p.y, 16, 0, Math.PI * 2); ctx.fill();
+    if (age > 260) break;      // long trails: a story readable hours later
+    if (p.x < gx0 || p.x > gx1 || p.y < gy0 || p.y > gy1) continue;
+    if (p.v > 0.45) continue;  // violet, cached when the scent was laid
+    ctx.globalAlpha = 0.7 * (1 - age / 260);
+    ctx.drawImage(goldSprite(), p.x - 16, p.y - 16, 32, 32);
+    drawn++;
   }
+  ctx.globalAlpha = 1;
 
   // red: rival marks, raked
   if (S.era !== 'past') {
@@ -1151,6 +1203,21 @@ function drawScent() {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   drawCallout('scent');
+}
+
+// the gold glow, rendered once and stamped thereafter
+let _goldSprite = null;
+function goldSprite() {
+  if (_goldSprite) return _goldSprite;
+  _goldSprite = document.createElement('canvas');
+  _goldSprite.width = 32; _goldSprite.height = 32;
+  const c = _goldSprite.getContext('2d');
+  const g = c.createRadialGradient(16, 16, 1, 16, 16, 16);
+  g.addColorStop(0, 'rgba(240,195,90,1)');
+  g.addColorStop(1, 'rgba(240,195,90,0)');
+  c.fillStyle = g;
+  c.fillRect(0, 0, 32, 32);
+  return _goldSprite;
 }
 
 // ── the mental map ───────────────────────────────────────────────────────────
@@ -1337,28 +1404,40 @@ function nodeKnown(n) {
   return S.edges.some(e => e.state === 'inherited' && !e.torn && (e.a === n.id || e.b === n.id));
 }
 
-function drawMap() {
-  const m = smooth(S.senseBlend);
-
-  resetTransform();
-  ctx.globalAlpha = 0.95 * m;
-  ctx.fillStyle = C_PARCHMENT;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // aged corners
-  const cg = ctx.createRadialGradient(
+// parchment (fill + aged corners + speckle) cached per canvas size
+let _parchment = null, _parchKey = '';
+function parchmentLayer() {
+  const key = canvas.width + 'x' + canvas.height;
+  if (_parchment && _parchKey === key) return _parchment;
+  _parchKey = key;
+  _parchment = document.createElement('canvas');
+  _parchment.width = canvas.width; _parchment.height = canvas.height;
+  const c = _parchment.getContext('2d');
+  c.fillStyle = C_PARCHMENT;
+  c.fillRect(0, 0, canvas.width, canvas.height);
+  const cg = c.createRadialGradient(
     canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.35,
     canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.8);
   cg.addColorStop(0, 'rgba(120,90,40,0)');
   cg.addColorStop(1, 'rgba(120,90,40,0.22)');
-  ctx.fillStyle = cg;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  c.fillStyle = cg;
+  c.fillRect(0, 0, canvas.width, canvas.height);
   const rng = makePrng(42);
   for (let i = 0; i < 420; i++) {
-    ctx.fillStyle = `rgba(90,55,20,${rng() * 0.05})`;
-    ctx.beginPath();
-    ctx.arc(rng() * canvas.width, rng() * canvas.height, rng() * 1.6 + 0.4, 0, Math.PI * 2);
-    ctx.fill();
+    c.fillStyle = `rgba(90,55,20,${rng() * 0.05})`;
+    c.beginPath();
+    c.arc(rng() * canvas.width, rng() * canvas.height, rng() * 1.6 + 0.4, 0, Math.PI * 2);
+    c.fill();
   }
+  return _parchment;
+}
+
+function drawMap() {
+  const m = smooth(S.senseBlend);
+
+  resetTransform();
+  ctx.globalAlpha = m >= 0.98 ? 1 : 0.95 * m;
+  ctx.drawImage(parchmentLayer(), 0, 0);
   ctx.globalAlpha = 1;
 
   applyCamera();
@@ -1371,9 +1450,10 @@ function drawMap() {
   for (const f of TERRAIN.forests) {
     ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.8, 0, Math.PI * 2); ctx.fill();
   }
-  // contour whispers on the western heights
-  ctx.strokeStyle = 'rgba(120,110,80,0.5)';
-  ctx.lineWidth = 1.4 / sc;
+  // contour whispers on the western heights — terrain, not routes, so they
+  // stay barely-there
+  ctx.strokeStyle = 'rgba(120,110,80,0.26)';
+  ctx.lineWidth = 1 / sc;
   for (const [cx, cy] of [[320, 1120], [1900, 1000]]) {
     for (const r of [90, 150, 210]) {
       ctx.beginPath(); ctx.arc(cx, cy, r, 0.4, 2.2); ctx.stroke();
@@ -1441,25 +1521,29 @@ function drawMap() {
     ctx.fillText('home', p.x, p.y + 14);
     ctx.globalAlpha = 1;
   }
-  // seen but unchosen hollows
-  if (!S.denId) {
-    for (const id of S.seenDens) {
-      const site = DEN_SITES.find(s => s.id === id);
-      if (!site || site.id === 'oldDen') continue;
+  // the hollows, once the choice is named: all three, plannable, clickable
+  if (!S.denId && S.tut.denPrompt) {
+    for (const site of DEN_SITES) {
       const p = screenPos(site.x, site.y);
-      ctx.globalAlpha = 0.8 * m;
+      ctx.globalAlpha = 0.85 * m;
       ctx.strokeStyle = C_NODE;
       ctx.setLineDash([4, 3]);
-      ctx.beginPath(); ctx.arc(p.x, p.y, 8, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
+      if (m > 0.7) {
+        ctx.font = `italic 10px ${FONT}`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillStyle = `rgba(74,58,38,${m * 0.9})`;
+        ctx.fillText(site.name, p.x, p.y + 12);
+      }
       ctx.globalAlpha = 1;
     }
   }
 
   // the destination she has chosen
-  if (S.routeTo) {
-    const t = NbyId.get(S.routeTo);
-    const p = screenPos(t.x, t.y);
+  const rt = routeTargetPos();
+  if (rt) {
+    const p = screenPos(rt.x, rt.y);
     const pulse = 0.5 + 0.5 * Math.sin(S.time * 3);
     ctx.globalAlpha = m * (0.5 + 0.4 * pulse);
     ctx.strokeStyle = C_TRAIL;
@@ -1784,9 +1868,9 @@ function drawHelp() {
   rows.push(['W A S D', 'walk']);
   if (S.tut.sawMap) rows.push(['SPACE', 'the map — press to open, press to close']);
   if (S.tut.scentHold > 0.6) rows.push(['E (hold)', 'smell the wind']);
-  if (S.tut.usedHold) rows.push(['F', 'the pack holds, or follows']);
-  rows.push(['N  N', 'abandon the year']);
-  rows.push(['H', 'close this']);
+  if (S.tut.fTaught) rows.push(['F', 'the pack holds, or follows']);
+  rows.push(['R  R', 'restart the game (skips prologue)']);
+  rows.push(['H', 'open or close this']);
   const h = 90 + rows.length * 40;
   const x = canvas.width / 2 - w / 2, y = canvas.height / 2 - h / 2;
   ctx.fillStyle = C_PARCHMENT;
@@ -1949,7 +2033,7 @@ function drawEnding() {
     ctx.fillStyle = C_PARCHMENT;
     ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now() / 400);
     ctx.textAlign = 'center';
-    ctx.fillText('press N to begin again', canvas.width / 2, canvas.height - 40);
+    ctx.fillText('press R to begin again', canvas.width / 2, canvas.height - 40);
     ctx.globalAlpha = 1;
   }
 }
@@ -1961,7 +2045,9 @@ function draw() {
   if (S.mode === 'intro') { drawIntro(); return; }
   if (S.mode === 'ending') { drawEnding(); return; }
 
-  drawWorld();
+  // under a fully-raised map the world is invisible — don't pay for it
+  if (S.senseBlend < 0.98) drawWorld();
+  else { resetTransform(); ctx.fillStyle = '#22261f'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
   if (input.scent && S.senseBlend < 0.2) drawScent();
   if (S.senseBlend > 0.01) drawMap();
   drawFlicker();

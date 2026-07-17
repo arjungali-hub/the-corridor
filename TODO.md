@@ -178,6 +178,49 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [x] **Beat 6 play-fight**: Aspen and Willow circle each other, tails
       high, for the bond moment (input locked 1.8 s, yip, warm glow).
 
+## Playtest feedback (Arjun, 2026-07-16)
+
+- [x] **PERFORMANCE — main focus.** Everything is SUPER laggy. Fix: blit
+      only the visible slice of the base layer (9-arg drawImage), render the
+      base layer at half resolution, cache the parchment + vignette,
+      pre-render the scent-glow sprite (no per-point gradients), cache
+      violet at scent-drop time, cull/cap scent points, skip world render
+      under a fully-raised map.
+- [x] Beat 1: there must be something to SMELL — seed prey scent trails
+      near the den (freshness gradient visible) and let prey drop scent all
+      through the prologue, not just in the hunt beat.
+- [x] Beat 1 gives barely enough time with scent view — require a longer
+      hold, don't rush on.
+- [x] Beat 2 never says where to go — add a guiding arrow toward the
+      overlook (and toward the den in beat 9).
+- [x] Beat 3 advances the moment the map opens — instead wait for the map
+      to be closed and *stay* closed a few seconds.
+- [x] Kills impossible until the hunt is taught (beat 4); gold trails
+      exist from the start and should be even longer.
+- [x] Beat 4 text: just "Run it down." — Willow doesn't actually turn it.
+- [x] Beat 5: the road is physically impossible to step onto until the
+      truck has passed and Willow crosses.
+- [x] The map is not openable until beat 3 teaches it (and, on the skip
+      path, until the tutorial's map step).
+- [x] Beat 8 bug: after the cut the wolves run off — the zone anchor
+      doesn't move with the teleport. Clear the anchor + set follow on the
+      cut.
+- [x] Replace N-twice with **R twice = "restart the game (skips
+      prologue)"**; ending screen says R too.
+- [x] Den sites appear on the map (all three, once the choice is named)
+      and are **clickable route targets** before a den is chosen.
+- [x] Prompts collide when triggered together — queue them; a new
+      non-sticky prompt waits for the current one to finish.
+- [x] F does nothing until taught; taught right after "lean into her"
+      resolves (never before); in the prologue F is only the bond gesture.
+- [x] H does nothing until taught; its help row reads "open or close
+      this".
+- [x] Explain (or fix) blue ink turning faded light brown mid-path
+      (answer: edge boundary — Aspen's teal meets Willow's unverified ghost
+      amber past a tear; two different edges).
+- [x] Explain the red-marked arcs near High Meadow (answer: contour
+      lines = high ground; soften them so they read as terrain, not marks).
+
 ## Still open (future sessions)
 
 - [ ] Beat-8 matte-quality art for the cut; drought parameter; construction

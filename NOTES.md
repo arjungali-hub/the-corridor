@@ -84,3 +84,16 @@ the new one-shot sound set, Beat 6 play-fight. 105-check harness passes
 **Next session's first action:** play a full year in the browser — the
 rancher/standoff/silence numbers (radii, conflict increments, alarm rate)
 are harness-correct but tuned blind.
+
+## 2026-07-16 (playtest feedback batch)
+
+Performance pass (half-res base layer + visible-slice blits, cached
+parchment/vignette, sprite-stamped scent glows with cached violet + culling,
+world skipped under a raised map). Prologue: seeded scent trails at beat 1
+(longer hold), guide chevrons (overlook, den), map gated until taught,
+close-and-hold-closed before the hunt, "Run it down.", road sealed until the
+truck passes, cut clears the zone anchor. R-twice restart (replaces N),
+F/H gated until taught, prompt queue (one voice at a time), den hollows on
+the map + clickable routes, contours softened. 108-check harness green x3.
+
+**Next:** browser feel pass on the rancher/standoff/silence numbers.
