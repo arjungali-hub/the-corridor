@@ -440,7 +440,10 @@ function traversalUpdate() {
   }
   for (const n of NODES) {
     if (!S.visited.has(n.id) && dist(S.wolf.x, S.wolf.y, n.x, n.y) < NODE_VISIT_R) {
+      const wasKnown = nodeKnownG(n.id);
       S.visited.add(n.id);
+      // new territory names itself as she arrives
+      if (!wasKnown && S.mode === 'play') say(`${n.name}. She will remember it.`);
     }
   }
   // arriving where she meant to go clears the way she had in mind
@@ -628,6 +631,7 @@ function routeTargetPos() {
 }
 
 function mapClick(wx, wy) {
+  if (S.mode !== 'play') return;   // no route-planning over Willow's shoulder
   if (S.senseBlend < 0.8) return;
   const reach = 34 / S.cam.scale;
   const swallowed = swallowedNodeIds();
@@ -816,6 +820,7 @@ function mapAllowed() {
 
 function toggleMap() {
   if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
+  if (S.forcedSenseT > 0) return;  // a forced lesson can't be latched open
   if (!mapAllowed()) return;   // no map before the map is given
   if (S.mode === 'prologue' && S.beat === 9 && !S.inherited
       && S.willow && dist(S.wolf.x, S.wolf.y, S.willow.x, S.willow.y) < 70) return;
@@ -823,10 +828,12 @@ function toggleMap() {
 }
 
 function togglePackStay() {
-  // in the prologue, F is only the bond gesture — the pack verb comes later
+  // in the prologue, F is the bond gesture in beat 6, and from beat 7 —
+  // once taught — the real verb, tested under Willow's eye
   if (S.mode === 'prologue') {
-    if (S.beat === 6) S.tut._bond = true;
-    return;
+    if (S.beat === 6) { S.tut._bond = true; return; }
+    if (!(S.beat >= 7 && S.tut.fTaught)) return;
+    S.tut._fTested = true;
   }
   if (!S.tut.fTaught) return;   // no verb before it is given
   const anyFollowing = S.pack.some(w => w.state === 'follow' || w.state === 'balk');
@@ -1075,7 +1082,8 @@ function preyUpdate(dt) {
       if (H.cattle) {
         S.conflict = Math.min(1, S.conflict + 0.3);
         say('A calf. Easy meat. The house will know.');
-      } else {
+      } else if (S.mode !== 'prologue') {
+        // the prologue's scripted hunt speaks through its own caption
         say(sedgeIn ? 'A kill. Sedge ran it down with her.' : 'A kill. The pack eats.');
       }
       saveGame();
@@ -1118,13 +1126,12 @@ function denUpdate(dt) {
     }
     let near = null;
     for (const site of DEN_SITES) {
-      if (dist(S.wolf.x, S.wolf.y, site.x, site.y) < 60) near = site;
+      if (dist(S.wolf.x, S.wolf.y, site.x, site.y) < 120) near = site;
     }
-    // a den is a deliberate bet: staying only counts once the choice has
-    // been named, and never while she is lost in the map
+    // a den is a deliberate bet — but a quick one: pause close by, briefly
     if (near && !S.wolf.moving && S.senseBlend < 0.2 && S.tut.denPrompt) {
       S.denStandT += dt;
-      if (S.denStandT > 2.5) chooseDen(near);
+      if (S.denStandT > 1.2) chooseDen(near);
     } else {
       S.denStandT = 0;
     }
@@ -1141,6 +1148,10 @@ function chooseDen(site) {
   if (!S.seenDens.includes(site.id)) S.seenDens.push(site.id);
   S.history.push({ type: 'den', day: day(), site: site.id });
   say(`${site.name} is home now.`);
+  // home chosen: the last two verbs are given, one at a time
+  showPrompt('R twice restarts the game (if you ever want to).', ['R'], 5);
+  showPrompt('What she knows how to do: H.', ['H'], 5);
+  S.tut.taughtHelp = true;
   saveGame();
 }
 
@@ -1481,7 +1492,14 @@ function issueTask() {
   const mk = (kind, text, extra) => { S.task = { kind, text, t: 0, ...(extra || {}) }; };
 
   const torn = TEAR_GROUPS.find(g => g.key !== 'mudspring' && groupTorn(g) && !S.bridged.has(g.key));
-  if (torn) { mk('patch', 'find a way around the tear', { key: torn.key }); return; }
+  if (torn) {
+    const TEAR_NAMES = {
+      blackriver: 'the Black River', machines: 'the machines',
+      drycreek: 'the drowned Bend', gravelpit: 'the pit',
+    };
+    mk('patch', `find a way around ${TEAR_NAMES[torn.key] || 'the tear'}`, { key: torn.key });
+    return;
+  }
   if (S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food < 40) {
     mk('pups', 'the pups are hungry — carry food home', {}); return;
   }
@@ -1691,7 +1709,7 @@ function tutorialUpdate(dt) {
     case 11:
       if (!T.taughtHelp && T.t > 6) {
         T.taughtHelp = true;
-        showPrompt('Everything she has learned so far: H.', ['H'], 5);
+        showPrompt('What she knows how to do: H.', ['H'], 5);
         tutStep(12);
       }
       break;
@@ -2011,19 +2029,25 @@ function prologueUpdate(dt) {
         else if (S.bondT > 0.05) break;   // let the circling finish first
         S.beat = 7; S.beatT = 0;
         S.tut.fTaught = true;   // only now does the verb exist
-        showPrompt('F — the pack holds its ground, or follows. Hers to ask. Now yours.', ['F'], 6);
+        // Willow waits while the new verb is tried
+        stickyPrompt('F — the pack holds its ground, or follows. Try it.', ['F']);
+      }
+      break;
+
+    // Beat 7 — F is tested under her eye; then she walks the last miles
+    case 7:
+      if (!T._fTested && S.beatT > 20) T._fTested = true;   // never a softlock
+      if (T._fTested && !T._b7go) {
+        T._b7go = true;
+        clearPrompt();
+        showPrompt('Follow. The winter range is close now.', [], 5);
         willowSetPath([
           nodePt('farBench', 'sageFlat-farBench'),
           nodePt('highMeadow', 'farBench-highMeadow'),
           nodePt('winterRange', 'highMeadow-winterRange'),
         ]);
-        showPrompt('Follow. The winter range is close now.', [], 5);
       }
-      break;
-
-    // Beat 7 — winter range reached: the map, complete and warm
-    case 7:
-      if (w && !w.path.length
+      if (w && T._b7go && !w.path.length
           && dist(S.wolf.x, S.wolf.y, NbyId.get('winterRange').x, NbyId.get('winterRange').y) < 150) {
         S.beat = 8; S.beatT = 0;
         // nine years of her, compressed: the whole inherited map inks in

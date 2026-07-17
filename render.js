@@ -1536,7 +1536,8 @@ function drawMap() {
       ctx.font = `italic 11px ${FONT}`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillStyle = `rgba(74,58,38,${m})`;
-      ctx.fillText(n.name, p.x, p.y + 14);
+      const label = n.id === 'den' && S.denId === 'oldDen' ? 'The Den' : n.name;
+      ctx.fillText(label, p.x, p.y + 14);
     }
     ctx.globalAlpha = 1;
   }
@@ -1556,6 +1557,7 @@ function drawMap() {
   // the hollows, once the choice is named: all three, plannable, clickable
   if (!S.denId && S.tut.denPrompt) {
     for (const site of DEN_SITES) {
+      if (site.id === 'oldDen') continue;   // the old den already has its node
       const p = screenPos(site.x, site.y);
       ctx.globalAlpha = 0.85 * m;
       ctx.strokeStyle = C_NODE;

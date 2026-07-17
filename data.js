@@ -6,7 +6,7 @@ const WORLD = { w: 5200, h: 3600 };
 
 // Landmarks. Names are Aspen's names for places, not human ones.
 const NODES = [
-  { id: 'den',         x: 2600, y: 1800, name: 'The Den', den: true },
+  { id: 'den',         x: 2600, y: 1800, name: 'The Old Den', den: true },
 
   // Migration route, west to the winter range — crosses the Black River (highway)
   { id: 'aspenStand',  x: 2100, y: 1560, name: 'Aspen Stand' },
@@ -44,6 +44,7 @@ const NODES = [
   { id: 'longMarsh',   x: 3700, y: 3300, name: 'Long Marsh' },
   { id: 'saltLick',    x: 4150, y: 2760, name: 'Salt Lick' },
   { id: 'lowFlats',    x: 800,  y: 3150, name: 'Low Flats' },
+  { id: 'sandbar',     x: 2800, y: 3320, name: 'Sand Bar' },
 
   // A small spur Willow's map still shows — already torn when the game opens
   { id: 'mudSpring',   x: 2860, y: 1590, name: 'Mud Spring' },
@@ -87,7 +88,8 @@ const EDGES = [
   { id: 'stonyBench-farBench',    a: 'stonyBench',   b: 'farBench',     state: 'unknown', tearGroup: null },
   { id: 'cutbank-reeds',          a: 'cutbank',      b: 'reeds',        state: 'unknown', tearGroup: null },
   { id: 'reeds-springs',          a: 'reeds',        b: 'springs',      state: 'unknown', tearGroup: null },
-  { id: 'springs-gravelBar',      a: 'springs',      b: 'gravelBar',    state: 'unknown', tearGroup: null },
+  { id: 'springs-sandbar',        a: 'springs',      b: 'sandbar',      state: 'unknown', tearGroup: null },
+  { id: 'sandbar-gravelBar',      a: 'sandbar',      b: 'gravelBar',    state: 'unknown', tearGroup: null },
   { id: 'birchDraw-brokenOak',    a: 'birchDraw',    b: 'brokenOak',    state: 'unknown', tearGroup: null },
   { id: 'brokenOak-dustyRise',    a: 'brokenOak',    b: 'dustyRise',    state: 'unknown', tearGroup: null },
 
@@ -146,7 +148,7 @@ const OBSTACLES = {
   subdivision: { x0: 4280, y0: 2760, x1: 4840, y1: 3240 },
   // Where they diverted the creek, a bermed dredge impoundment drowned the
   // Bend — the human truth behind the drycreek tear. Nothing walks through.
-  mudSink: { x: 2700, y: 2800, r: 260 },
+  mudSink: { x: 2700, y: 2800, r: 340 },
   // A gravel pit, opened in the saddle between the elk meadow and the ridge:
   // the hunting loop's own wound.
   gravelPit: { x0: 2080, y0: 800, x1: 2320, y1: 1040 },
