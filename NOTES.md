@@ -127,3 +127,9 @@ whenever food is 0 (it used to stop once Sedge left); at 180 real seconds
 on empty in winter, startEnding('failed') — the existing failed line
 already reads right for it. Other seasons keep their current costs only.
 Harness: autumn 180s+ no ending, winter ends.
+
+review fix 6: daylight decoupled from the calendar. daylight() now runs on
+S.time (~75 real seconds per visual day, same curve, past-era branch kept);
+S.time already ticks through task freezes, so the light never stalls and
+never strobes. Night tint, headlights, and the porch-sighting gate inherit
+it. Harness: midday light at calendar midnight, smooth motion.

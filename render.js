@@ -768,7 +768,10 @@ function drawCar(car) {
 
 function daylight() {
   if (S.era === 'past') return 1;    // the prologue is one golden morning
-  const m = S.clock.min % 1440;
+  // light runs on its own slow cycle (~75 real seconds per visual day),
+  // not the 5-second calendar — and it keeps moving while a task holds
+  // the days still
+  const m = (S.time * (1440 / 75)) % 1440;
   if (m < 270) return 0.1;
   if (m < 420) return 0.1 + (m - 270) / 150 * 0.9;
   if (m < 1080) return 1;
