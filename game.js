@@ -1128,18 +1128,18 @@ function preyUpdate(dt) {
 
 function hungerUpdate(dt) {
   S.food = Math.max(0, S.food - FOOD_PER_SEC * dt);
+  if (S.food <= 0) S.starveT += dt; else S.starveT = 0;
+
+  // in winter, an empty larder is the end of the year, not a setback
+  if (S.starveT > 180 && seasonIndex() === 3) { startEnding('failed'); return; }
+
   const sedge = S.pack.find(w => w.id === 'sedge');
   if (!sedge || sedge.state === 'dead' || sedge.state === 'gone') return;
-  if (S.food <= 0) {
-    S.starveT += dt;
-    if (S.starveT > 120) {
-      sedge.state = 'gone';
-      S.history.push({ type: 'loss', day: day(), who: 'sedge', dispersed: true });
-      say('Sedge is gone. Hunger took her somewhere the map does not go.');
-      saveGame();
-    }
-  } else {
-    S.starveT = 0;
+  if (S.starveT > 120) {
+    sedge.state = 'gone';
+    S.history.push({ type: 'loss', day: day(), who: 'sedge', dispersed: true });
+    say('Sedge is gone. Hunger took her somewhere the map does not go.');
+    saveGame();
   }
 }
 

@@ -121,3 +121,9 @@ not at all in winter; the west holds x1 all year. One-time autumn line 'The
 hunting thins. The east is emptying.' replaces the routine kill message for
 that kill (it was being clobbered otherwise). Harness: autumn 2.5x math,
 winter east no-refill, winter west refill.
+
+review fix 5: winter starvation ends the year. starveT now accumulates
+whenever food is 0 (it used to stop once Sedge left); at 180 real seconds
+on empty in winter, startEnding('failed') — the existing failed line
+already reads right for it. Other seasons keep their current costs only.
+Harness: autumn 180s+ no ending, winter ends.
