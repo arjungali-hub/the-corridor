@@ -1410,27 +1410,6 @@ function drawRip(g, m) {
   ctx.globalAlpha = 1;
 }
 
-function drawPatchSquare(x, y, seed, m) {
-  const rng = makePrng(seed);
-  const s = 120 + rng() * 26;
-  const sc = S.cam.scale;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate((rng() - 0.5) * 0.45);
-  ctx.globalAlpha = m;
-  ctx.fillStyle = 'rgba(60,50,30,0.18)';
-  ctx.fillRect(-s / 2 + 5, -s / 2 + 6, s, s);
-  ctx.fillStyle = C_PATCH;
-  ctx.fillRect(-s / 2, -s / 2, s, s);
-  ctx.strokeStyle = C_STITCH;
-  ctx.lineWidth = 1.6 / sc;
-  ctx.setLineDash([12 / sc, 9 / sc]);
-  ctx.strokeRect(-s / 2 + 8, -s / 2 + 8, s - 16, s - 16);
-  ctx.setLineDash([]);
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
 function nodeKnown(n) {
   if (S.visited.has(n.id)) return true;
   return S.edges.some(e => e.state === 'inherited' && !e.torn && (e.a === n.id || e.b === n.id));
@@ -1505,13 +1484,7 @@ function drawMap() {
 
   for (const e of S.edges) drawInkEdge(e, m);
   for (const g of TEAR_GROUPS) if (groupTorn(g)) drawRip(g, m);
-  for (const g of TEAR_GROUPS) {
-    if (!groupTorn(g) || !S.bridged.has(g.key)) continue;
-    for (const nid of [g.chain[0], g.chain[g.chain.length - 1]]) {
-      const n = NbyId.get(nid);
-      drawPatchSquare(n.x, n.y, hashStr(g.key + ':' + nid), m);
-    }
-  }
+  // (no patch squares: the new ink around a rip is its own record)
 
   // nodes, in screen space so rings stay a constant size
   resetTransform();
