@@ -155,3 +155,12 @@ injuredT > 0; all four wound sites (car, rifle, standoff, dogs) set it.
 Save schema keeps v2 and reads old saves' missing field as healed.
 Harness: day frozen by an open task, wound still heals (and: the rifle
 really does refresh a wound if she stands in the yard — moved the test).
+
+review fix 11: small fixes. (1) master GainNode — every voice routes
+through it; M toggles mute ('Quiet.' / 'The land has its sounds again.'),
+'M — quiet' in help. (4) past-era truck strike: 'The truck clips her.
+Willow is already there, pressing her to the grass.' (5) fire day rolled
+at newGame: 115 + rand·45, stored on S.fire.day (old saves fall back to
+130). (6) first pack-initiated calf kill (Aspen >500 away): 'The pack took
+a calf on its own. The house will not know the difference.' (2,7,8 were
+done earlier; 3 superseded by the flat map radius.)

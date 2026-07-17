@@ -1881,6 +1881,7 @@ function drawHelp() {
   if (S.tut.sawMap) rows.push(['SPACE', 'the map — press to open, press to close']);
   if (S.tut.scentHold > 0.6) rows.push(['E (hold)', 'smell the wind']);
   if (S.tut.fTaught) rows.push(['F', 'the pack holds, or follows']);
+  rows.push(['M', 'quiet']);
   rows.push(['R  R', 'restart the game (skips prologue)']);
   rows.push(['H', 'open or close this']);
   const h = 90 + rows.length * 40;

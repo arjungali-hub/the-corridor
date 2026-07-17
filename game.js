@@ -151,7 +151,8 @@ function newGame() {
     alarm: 0,                                    // the silence zone's rising light
     standoff: null, standoffCd: 0,               // rivals: {t, rivals:[{x,y,...}]}
     lichenJoined: false,
-    fire: { state: 'none', t: 0 },
+    // the fire picks its own summer day, once per year
+    fire: { state: 'none', t: 0, day: 115 + Math.floor(Math.random() * 45) },
     lastSeason: 0, bondT: 0, bondC: null,
 
     pack: PACK_DEF.map((d, i) => ({
@@ -920,7 +921,9 @@ function carCollisions() {
           S.food = Math.max(0, S.food - 8);
           if (S.mode === 'play') S.injuredT = INJURY_TIME;
           playImpact();
-          say('The Black River strikes. She drags herself back, limping.');
+          say(S.era === 'past'
+            ? 'The truck clips her. Willow is already there, pressing her to the grass.'
+            : 'The Black River strikes. She drags herself back, limping.');
         } else {
           const w = S.pack.find(p => p.id === id);
           if (S.mode !== 'play') continue;  // the prologue does not kill family
@@ -1120,7 +1123,13 @@ function preyUpdate(dt) {
       S.history.push({ type: 'hunt', day: day() });
       if (H.cattle) {
         S.conflict = Math.min(1, S.conflict + 0.3);
-        say('A calf. Easy meat. The house will know.');
+        // her pack's hunger writes his ledger even when she is elsewhere
+        if (!S.tut.packCalf && dist(S.wolf.x, S.wolf.y, elk.x, elk.y) > 500) {
+          S.tut.packCalf = true;
+          say('The pack took a calf on its own. The house will not know the difference.');
+        } else {
+          say('A calf. Easy meat. The house will know.');
+        }
       } else if (thinned) {
         // the seasonal beat outranks the routine kill line
         say('The hunting thins. The east is emptying.');
@@ -1482,7 +1491,7 @@ function lichenUpdate() {
 
 function fireUpdate(dt) {
   const f = S.fire;
-  if (f.state === 'none' && seasonIndex() === 1 && day() >= 130) {
+  if (f.state === 'none' && seasonIndex() === 1 && day() >= (f.day || 130)) {
     f.state = 'burning';
     f.t = 0;
     setCaption('Dry lightning, east.', 4, 'the world runs west together');
@@ -2240,11 +2249,25 @@ function beginFromIntro() {
 // ── audio ────────────────────────────────────────────────────────────────────
 
 let audioCtx = null;
+let masterGain = null;   // every voice routes through here; M closes the valve
+let muted = false;
 function getAudioCtx() {
   const AC = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext);
   if (!AC) return null;
-  if (!audioCtx) audioCtx = new AC();
+  if (!audioCtx) {
+    audioCtx = new AC();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = muted ? 0 : 1;
+    masterGain.connect(audioCtx.destination);
+  }
   return audioCtx;
+}
+
+function toggleMute() {
+  muted = !muted;
+  if (!masterGain) getAudioCtx();
+  if (masterGain) masterGain.gain.value = muted ? 0 : 1;
+  if (S) say(muted ? 'Quiet.' : 'The land has its sounds again.');
 }
 
 // The sound of the map being wrong. Played by tears, and by nothing else.
@@ -2261,7 +2284,7 @@ function playTearSting() {
     g.gain.setValueAtTime(0.001, now + p.at);
     g.gain.linearRampToValueAtTime(p.peak, now + p.at + 0.03);
     g.gain.exponentialRampToValueAtTime(0.001, now + p.at + p.len);
-    o.connect(g); g.connect(ac.destination);
+    o.connect(g); g.connect(masterGain);
     o.start(now + p.at); o.stop(now + p.at + p.len + 0.05);
   }
 }
@@ -2276,7 +2299,7 @@ function playPatchChime() {
     g.gain.setValueAtTime(0.001, now + n.at);
     g.gain.linearRampToValueAtTime(0.14, now + n.at + 0.04);
     g.gain.exponentialRampToValueAtTime(0.001, now + n.at + 0.7);
-    o.connect(g); g.connect(ac.destination);
+    o.connect(g); g.connect(masterGain);
     o.start(now + n.at); o.stop(now + n.at + 0.8);
   }
 }
@@ -2291,7 +2314,7 @@ function playWhoosh() {
   g.gain.setValueAtTime(0.001, now);
   g.gain.linearRampToValueAtTime(0.12, now + 0.06);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
-  o.connect(g); g.connect(ac.destination);
+  o.connect(g); g.connect(masterGain);
   o.start(now); o.stop(now + 0.45);
 }
 
@@ -2305,7 +2328,7 @@ function playImpact() {
   o1.frequency.exponentialRampToValueAtTime(32, now + 0.28);
   g1.gain.setValueAtTime(0.4, now);
   g1.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-  o1.connect(g1); g1.connect(ac.destination);
+  o1.connect(g1); g1.connect(masterGain);
   o1.start(now); o1.stop(now + 0.55);
   const o2 = ac.createOscillator(), g2 = ac.createGain();
   o2.type = 'square';
@@ -2313,7 +2336,7 @@ function playImpact() {
   o2.frequency.exponentialRampToValueAtTime(180, now + 0.12);
   g2.gain.setValueAtTime(0.18, now);
   g2.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-  o2.connect(g2); g2.connect(ac.destination);
+  o2.connect(g2); g2.connect(masterGain);
   o2.start(now); o2.stop(now + 0.2);
 }
 
@@ -2329,7 +2352,7 @@ function playBark() {
     g.gain.setValueAtTime(0.001, now + i * 0.14);
     g.gain.linearRampToValueAtTime(0.16, now + i * 0.14 + 0.015);
     g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.14 + 0.11);
-    o.connect(g); g.connect(ac.destination);
+    o.connect(g); g.connect(masterGain);
     o.start(now + i * 0.14); o.stop(now + i * 0.14 + 0.13);
   }
 }
@@ -2344,7 +2367,7 @@ function playShot() {
   o1.frequency.exponentialRampToValueAtTime(180, now + 0.06);
   g1.gain.setValueAtTime(0.34, now);
   g1.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
-  o1.connect(g1); g1.connect(ac.destination);
+  o1.connect(g1); g1.connect(masterGain);
   o1.start(now); o1.stop(now + 0.14);
   const o2 = ac.createOscillator(), g2 = ac.createGain();
   o2.type = 'sawtooth';
@@ -2352,7 +2375,7 @@ function playShot() {
   o2.frequency.exponentialRampToValueAtTime(36, now + 0.3);
   g2.gain.setValueAtTime(0.22, now + 0.02);
   g2.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
-  o2.connect(g2); g2.connect(ac.destination);
+  o2.connect(g2); g2.connect(masterGain);
   o2.start(now + 0.02); o2.stop(now + 0.5);
 }
 
@@ -2366,7 +2389,7 @@ function playGrowl() {
   g.gain.linearRampToValueAtTime(0.16, now + 0.1);
   g.gain.setValueAtTime(0.16, now + 0.5);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.9);
-  o.connect(g); g.connect(ac.destination);
+  o.connect(g); g.connect(masterGain);
   o.start(now); o.stop(now + 0.95);
 }
 
@@ -2384,7 +2407,7 @@ function playHowl() {
     g.gain.linearRampToValueAtTime(0.1, now + at + 0.3);
     g.gain.setValueAtTime(0.1, now + at + 1.2);
     g.gain.exponentialRampToValueAtTime(0.001, now + at + 2.2);
-    o.connect(g); g.connect(ac.destination);
+    o.connect(g); g.connect(masterGain);
     o.start(now + at); o.stop(now + at + 2.3);
   }
 }
@@ -2400,7 +2423,7 @@ function playYip() {
   g.gain.setValueAtTime(0.001, now);
   g.gain.linearRampToValueAtTime(0.14, now + 0.02);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
-  o.connect(g); g.connect(ac.destination);
+  o.connect(g); g.connect(masterGain);
   o.start(now); o.stop(now + 0.18);
 }
 
@@ -2414,7 +2437,7 @@ function playRumble() {
   g.gain.linearRampToValueAtTime(0.18, now + 0.6);
   g.gain.setValueAtTime(0.18, now + 2.2);
   g.gain.exponentialRampToValueAtTime(0.001, now + 3.5);
-  o.connect(g); g.connect(ac.destination);
+  o.connect(g); g.connect(masterGain);
   o.start(now); o.stop(now + 3.6);
 }
 
@@ -2427,7 +2450,7 @@ function playTaskChime() {
   g.gain.setValueAtTime(0.001, now);
   g.gain.linearRampToValueAtTime(0.12, now + 0.03);
   g.gain.exponentialRampToValueAtTime(0.001, now + 0.5);
-  o.connect(g); g.connect(ac.destination);
+  o.connect(g); g.connect(masterGain);
   o.start(now); o.stop(now + 0.55);
 }
 
@@ -2442,7 +2465,7 @@ function playHorn() {
     g.gain.linearRampToValueAtTime(0.16, now + 0.05);
     g.gain.setValueAtTime(0.16, now + 0.6);
     g.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
-    o.connect(g); g.connect(ac.destination);
+    o.connect(g); g.connect(masterGain);
     o.start(now); o.stop(now + 1.15);
   }
 }
