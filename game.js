@@ -2125,22 +2125,46 @@ function prologueUpdate(dt) {
 
 // ── the year's end ───────────────────────────────────────────────────────────
 
+// The year ends when the PACK is through, not when Aspen tags the node.
+const GATHER_R = 400;
+
+function packGathered() {
+  const wr = NbyId.get('winterRange');
+  return alivePack().every(w => dist(w.x, w.y, wr.x, wr.y) < GATHER_R);
+}
+
 function endingCheck() {
   const wr = NbyId.get('winterRange');
-  if (day() >= WINTER_START && dist(S.wolf.x, S.wolf.y, wr.x, wr.y) < 90) {
-    startEnding('arrived');
-  } else if (day() > YEAR_DAYS) {
-    startEnding('failed');
+  const atRange = dist(S.wolf.x, S.wolf.y, wr.x, wr.y) < 90;
+  if (atRange) {
+    if (day() < WINTER_START) {
+      if (!S.tut.earlyRange) { S.tut.earlyRange = true; say('Not yet. The season has not turned.'); }
+    } else if (packGathered()) {
+      startEnding('arrived');
+      return;
+    } else if (!S.tut.rangeWait) {
+      S.tut.rangeWait = true;
+      say('Not all of them are through. She waits at the edge of the range.');
+    }
   }
+  if (day() > YEAR_DAYS) startEnding('failed');
 }
 
 function survivorCount() {
+  if (S.endSurvivors != null) return S.endSurvivors;
   let n = 1 + alivePack().length;
   if (S.pups && !S.pups.traveling) n += Math.max(0, S.pups.count);
   return n;
 }
 
 function startEnding(kind) {
+  if (kind === 'arrived') {
+    // A wolf alive but stranded east walked the year; it did not come through.
+    const wr = NbyId.get('winterRange');
+    S.endSurvivors = 1 + alivePack().filter(w => dist(w.x, w.y, wr.x, wr.y) < GATHER_R).length;
+  } else {
+    S.endSurvivors = survivorCount();
+  }
   S.mode = 'ending';
   S.endKind = kind;
   S.endT = 0;

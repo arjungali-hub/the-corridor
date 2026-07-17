@@ -97,3 +97,13 @@ F/H gated until taught, prompt queue (one voice at a time), den hollows on
 the map + clickable routes, contours softened. 108-check harness green x3.
 
 **Next:** browser feel pass on the rancher/standoff/silence numbers.
+
+## Review fixes (2026-07-17)
+
+review fix 2: the ending is the pack's arrival. 'arrived' now needs Aspen at
+the range AND every living packmate within 400 (GATHER_R); one-time waits:
+'Not yet. The season has not turned.' before WINTER_START, 'Not all of them
+are through…' when she's there alone. startEnding snapshots S.endSurvivors
+(arrived = who was actually within the radius; failed = alive count), and
+survivorCount() returns the snapshot. Harness: early-arrival, stranded-
+packmate, snapshot-exclusion, gathered-pack scenarios.
