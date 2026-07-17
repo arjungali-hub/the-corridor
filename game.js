@@ -19,7 +19,7 @@ const SPEED_ROUGH   = 258;   // off-route — matches Sedge's pace
 const SPEED_ROUTE   = 290;   // along a known, untorn route
 const SPEED_SNOW    = 210;   // off-route in winter
 const INJURY_SPEED  = 0.7;   // while hurt
-const INJURY_DAYS   = 15;    // ≈ 75 real seconds — same real recovery as before the 6× clock
+const INJURY_TIME   = 75;    // real seconds to heal — ticks even while a task holds the calendar
 const MIN_PER_SEC   = 288;   // game minutes per real second (1 day ≈ 5 s; a year ≈ 30 min)
 const SOLID_AT      = 3;     // full traversals to lift dotted → solid
 // Ink decay alone rides the fast calendar at 2× its old real-time pace:
@@ -98,7 +98,7 @@ function newGame() {
     lastDay: 1,
 
     wolf: { x: DEN.x, y: DEN.y, heading: -Math.PI / 2, moving: false, gait: 0 },
-    injuredUntilDay: 0,
+    injuredT: 0,
     roadEntrySide: null,
     wolfWasOnRoad: false,
     roadGraceT: 0,       // while > 0, driven prey may follow her across
@@ -255,7 +255,7 @@ function pickGrazeTarget(elk) {
 function day() { return Math.floor(S.clock.min / 1440) + 1; }
 function seasonIndex() { return clamp(Math.floor((day() - 1) / 90), 0, 3); }
 function seasonName() { return SEASONS[seasonIndex()]; }
-function isInjured() { return day() < S.injuredUntilDay; }
+function isInjured() { return S.injuredT > 0; }
 
 function say(text) { S.msg = text; S.msgT = 7; }
 function setCaption(text, dur, sub) { S.caption = { text, sub: sub || '', t: 0, dur: dur || 4 }; }
@@ -918,7 +918,7 @@ function carCollisions() {
           ref.x = side === 'west' ? h.x0 - 30 : h.x1 + 30;
           S.fear = 1; S.flickerT = 0.6; S.shake = 14;
           S.food = Math.max(0, S.food - 8);
-          if (S.mode === 'play') S.injuredUntilDay = day() + INJURY_DAYS;
+          if (S.mode === 'play') S.injuredT = INJURY_TIME;
           playImpact();
           say('The Black River strikes. She drags herself back, limping.');
         } else {
@@ -1285,7 +1285,7 @@ function rancherUpdate(dt) {
         if (target.aspen) {
           S.food = Math.max(0, S.food - 15);
           S.fear = Math.min(1, S.fear + 0.35);
-          S.injuredUntilDay = day() + INJURY_DAYS;
+          S.injuredT = INJURY_TIME;
           say('Teeth find her. Meat lost, blood drawn — the dogs know their work.');
         } else {
           S.food = Math.max(0, S.food - 10);
@@ -1332,7 +1332,7 @@ function rancherUpdate(dt) {
     S.shake = 10;
     S.flickerT = 0.3;
     if (S.conflict > 0.85 && Math.random() < 0.3) {
-      S.injuredUntilDay = day() + INJURY_DAYS;
+      S.injuredT = INJURY_TIME;
       say('CRACK. Fire along her flank. Run.');
     } else {
       say('CRACK. The air splits beside her.');
@@ -1432,7 +1432,7 @@ function standoffUpdate(dt) {
   } else if (adultsNear < 2 && so.t > 6) {
     S.standoff = null;
     S.standoffCd = 90;
-    S.injuredUntilDay = day() + INJURY_DAYS;
+    S.injuredT = INJURY_TIME;
     S.fear = Math.min(1, S.fear + 0.6);
     S.shake = 8;
     // shoved back toward home ground
@@ -2459,7 +2459,7 @@ function saveGame() {
       v: 2,
       clockMin: S.clock.min,
       wolf: { x: S.wolf.x, y: S.wolf.y },
-      injuredUntilDay: S.injuredUntilDay,
+      injuredT: S.injuredT,
       edges: S.edges.map(e => ({
         id: e.id, state: e.state, torn: e.torn, passCount: e.passCount,
         lastUsedDay: e.lastUsedDay, inkLo: e.inkLo, inkHi: e.inkHi,
@@ -2499,7 +2499,7 @@ function loadGame() {
   S.era = 'present';
   S.clock.min = d.clockMin; S.lastDay = day();
   S.wolf.x = d.wolf.x; S.wolf.y = d.wolf.y;
-  S.injuredUntilDay = d.injuredUntilDay || 0;
+  S.injuredT = d.injuredT || 0;   // pre-fix saves carried injuredUntilDay; read as healed
   S.trail = [{ x: S.wolf.x, y: S.wolf.y }];
   S.cam.x = S.wolf.x; S.cam.y = S.wolf.y;
   for (const se of d.edges) {
@@ -2566,6 +2566,8 @@ function update(dt) {
   S.forcedSenseT = Math.max(0, S.forcedSenseT - dt);
   S.flickerT = Math.max(0, S.flickerT - dt);
   S.msgT = Math.max(0, S.msgT - dt);
+  // a wound heals in real time, task freeze or no — the calendar has no say
+  S.injuredT = Math.max(0, S.injuredT - dt);
   S.shake = Math.max(0, S.shake - 30 * dt);
   S.inputLockT = Math.max(0, S.inputLockT - dt);
   S.confirmNewYearT = Math.max(0, S.confirmNewYearT - dt);

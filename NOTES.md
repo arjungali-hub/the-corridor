@@ -147,3 +147,11 @@ alive and within 300 of Aspen — brightens ghost ink on the raised map to
 From before.' (S.tut.bramRecall). Pure render + one line, no pathing.
 (Part 8 is deliberately skipped here: absorbed into Part 13's prologue
 map-flow redesign, where the map raises itself at the inherit.)
+
+review fix 10: injury joins the real-time rule. injuredUntilDay is gone;
+S.injuredT (INJURY_TIME 75 real seconds) decrements with the other global
+timers, so a task freeze no longer stretches a wound. isInjured() =
+injuredT > 0; all four wound sites (car, rifle, standoff, dogs) set it.
+Save schema keeps v2 and reads old saves' missing field as healed.
+Harness: day frozen by an open task, wound still heals (and: the rifle
+really does refresh a wound if she stands in the yard — moved the test).
