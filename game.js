@@ -103,7 +103,8 @@ function newGame() {
     roadEntrySide: null,
     wolfWasOnRoad: false,
     roadGraceT: 0,       // while > 0, driven prey may follow her across
-    packFrozen: false,   // terror: the pack roots itself until fear fades
+    packFrozen: false,   // terror: the pack flees to safety, then roots there
+    fearSource: null,    // where the last terror came from — what they flee
 
     edges: EDGES.map(d => ({
       id: d.id, a: d.a, b: d.b, tearGroup: d.tearGroup,
@@ -304,9 +305,10 @@ function blockedAt(x, y, r, canPassGap, margin) {
     // the overpass, once open, is ground: anything may cross above the cars
     const o = OBSTACLES.overpass;
     const inOverpass = overpassOpen() && y > o.y0 + r && y < o.y1 - r;
-    // prey never sets foot on the road — unless Aspen is on it, or was
-    // moments ago, and the chase spills across behind her
-    const driven = S.roadGraceT > 0;
+    // prey never sets foot on the road — unless Aspen is on it (or just
+    // was, and the chase spills across), or the fire is driving everything
+    // west in a truce of panic
+    const driven = S.roadGraceT > 0 || (S.fire && S.fire.state === 'burning');
     if (!inGap && !inOverpass && !driven) return true;
   }
   if (bridgeWallAt(x, y, r)) return true;
@@ -719,6 +721,34 @@ function trailPoint(distBack) {
 // wolves may go where Aspen cannot.
 
 const ZONE_R = 150;
+const FREEZE_TIME = 70;   // real seconds a frightened wolf stays rooted (10x the old spell)
+
+// safe ground: straight away from the threat, never onto asphalt or into walls
+function safePointFrom(w, src) {
+  const dx = w.x - src.x, dy = w.y - src.y;
+  const d = Math.hypot(dx, dy) || 1;
+  const R = 520;
+  let a = Math.atan2(dy, dx);
+  let tx = src.x + Math.cos(a) * R, ty = src.y + Math.sin(a) * R;
+  for (let t = 1; t <= 12 && (packBlockedAt(tx, ty) || onRoad(tx, ty)); t++) {
+    a += t * 0.5 * (t % 2 ? 1 : -1);
+    tx = src.x + Math.cos(a) * R; ty = src.y + Math.sin(a) * R;
+  }
+  return { x: tx, y: ty };
+}
+
+// one stride of the run-then-root behavior: lope to safety, then stand
+function fleeStep(w, dt) {
+  if (!w.fleeTo) { w.moving = false; return; }
+  const d = dist(w.x, w.y, w.fleeTo.x, w.fleeTo.y);
+  if (d < 22) { w.fleeTo = null; w.moving = false; return; }
+  const sp = 250 * w.mult;
+  tryMove(w, (w.fleeTo.x - w.x) / d * sp * dt, (w.fleeTo.y - w.y) / d * sp * dt,
+    (x, y) => packBlockedAt(x, y) || onRoad(x, y));
+  w.heading = Math.atan2(w.fleeTo.y - w.y, w.fleeTo.x - w.x);
+  w.gait += sp * dt;
+  w.moving = true;
+}
 
 function zoneCenter() {
   const anyFollowing = S.pack.some(w => w.state === 'follow' || w.state === 'balk');
@@ -765,15 +795,26 @@ function packUpdate(dt) {
     }
   }
 
-  // terror roots the whole pack: past the threshold they freeze where they
-  // stand — for a day and more — until the fear has genuinely faded
+  // terror is not a statue: past the threshold every wolf RUNS — away from
+  // what frightened it, to ground that reads as safe — and roots there.
+  // The spell holds long after the teeth are gone.
   if (!S.packFrozen && S.fear > 0.85) {
     S.packFrozen = true;
-    if (S.mode === 'play') say('The pack freezes. Nothing will move them until the terror fades.');
+    const src = S.fearSource || { x: S.wolf.x, y: S.wolf.y };
+    for (const w of S.pack) {
+      if (w.state === 'dead' || w.state === 'gone') continue;
+      w.fleeTo = safePointFrom(w, src);
+      w.frozenT = FREEZE_TIME;
+    }
+    if (S.mode === 'play') say('The pack scatters for safe ground — and roots there. Nothing will move them for a long while.');
   }
-  if (S.packFrozen && S.fear < 0.6) S.packFrozen = false;
+  if (S.packFrozen && S.fear < 0.6 && !S.pack.some(w => (w.frozenT || 0) > 0)) S.packFrozen = false;
   if (S.packFrozen) {
-    for (const w of S.pack) w.moving = false;
+    for (const w of S.pack) {
+      if (w.state === 'dead' || w.state === 'gone') { w.moving = false; continue; }
+      w.frozenT = Math.max(0, (w.frozenT || 0) - dt);
+      fleeStep(w, dt);
+    }
     return;
   }
 
@@ -781,12 +822,27 @@ function packUpdate(dt) {
   const zr = zoneRadius(c);
   const huntLimit = Math.max(320, zr * 2);   // how far a hunt may pull them
 
+  const snow = seasonIndex() === 3 && S.era !== 'past' ? 0.85 : 1;
+
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') { w.moving = false; continue; }
 
-    // fear is not a toggle: `balked` persists until fear truly fades
-    if (w.balked && S.fear < 0.35) { w.balked = false; if (w.state === 'balk') w.state = 'follow'; }
-    if (w.balked) { w.state = 'balk'; w.moving = false; continue; }
+    // wounds heal on their own slow clock; a hurt wolf lags
+    w.injuredT = Math.max(0, (w.injuredT || 0) - dt);
+    const lag = (w.injuredT > 0 ? 0.65 : 1) * snow;
+
+    // fear is not a toggle: a balked wolf runs off the road line, roots at
+    // safe ground, and stays rooted until the fear AND the long spell pass
+    if (w.balked && S.fear < 0.35 && (w.frozenT || 0) <= 0) {
+      w.balked = false;
+      if (w.state === 'balk') w.state = 'follow';
+    }
+    if (w.balked) {
+      w.state = 'balk';
+      w.frozenT = Math.max(0, (w.frozenT || 0) - dt);
+      fleeStep(w, dt);
+      continue;
+    }
 
     const dZone = dist(w.x, w.y, c.x, c.y);
 
@@ -804,7 +860,7 @@ function packUpdate(dt) {
       if (prey && mayHunt) {
         w.hunting = true;
         const d = pd || 1;
-        const sp = 250 * w.mult;
+        const sp = 250 * w.mult * lag;
         tryMove(w, (prey.x - w.x) / d * sp * dt, (prey.y - w.y) / d * sp * dt,
           (x, y) => packBlockedAt(x, y) || onRoad(x, y));
         w.heading = Math.atan2(prey.y - w.y, prey.x - w.x);
@@ -840,17 +896,27 @@ function packUpdate(dt) {
         && S.fear > FEAR_BALK && S.mode === 'play') {
       w.state = 'balk';
       w.balked = true;
+      w.frozenT = FREEZE_TIME;
+      // it bolts back from the asphalt line before it roots
+      const hm = OBSTACLES.highway;
+      w.fleeTo = safePointFrom(w, { x: (hm.x0 + hm.x1) / 2, y: w.y });
       w.moving = false;
       continue;
     }
     // speed eases between amble and lope; heading turns, never snaps
     const urgency = clamp((dZone - zr * 0.7) / (zr * 0.6), 0, 1);
-    let sp = lerp(120, 240, urgency) * w.mult;
+    let sp = lerp(120, 240, urgency) * w.mult * lag;
     if (dZone > 700) sp *= 1.8;
     // a wolf never ambles on asphalt: mid-road, or headed onto it, full lope
-    if (onRoad(w.x, w.y) || onRoad(w.tx, w.ty)) sp = Math.max(sp, 240 * w.mult);
+    if (onRoad(w.x, w.y) || onRoad(w.tx, w.ty)) sp = Math.max(sp, 240 * w.mult * lag);
     const step = Math.min(d, sp * dt);
-    tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, packBlockedAt);
+    // and it NEVER takes asphalt Aspen is not on — unless she is already
+    // across, calling it through (opposite sides = a conducted crossing)
+    const hMid = (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2;
+    const sealed = !onRoad(S.wolf.x, S.wolf.y) && !onRoad(w.x, w.y)
+      && ((S.wolf.x - hMid > 0) === (w.x - hMid > 0));
+    tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step,
+      (x, y) => packBlockedAt(x, y) || (sealed && onRoad(x, y)));
     const want = Math.atan2(w.ty - w.y, w.tx - w.x);
     let dh = want - (w.heading || 0);
     while (dh > Math.PI) dh -= Math.PI * 2;
@@ -944,6 +1010,7 @@ function carCollisions() {
             || (ref.x < (h.x0 + h.x1) / 2 ? 'west' : 'east');
           ref.x = side === 'west' ? h.x0 - 30 : h.x1 + 30;
           S.fear = 1; S.flickerT = 0.6; S.shake = 14;
+          S.fearSource = { x: (h.x0 + h.x1) / 2, y: ref.y };
           S.food = Math.max(0, S.food - 8);
           if (S.mode === 'play') S.injuredT = INJURY_TIME;
           playImpact();
@@ -955,6 +1022,7 @@ function carCollisions() {
           if (S.mode !== 'play') continue;  // the prologue does not kill family
           w.state = 'dead';
           S.fear = 1; S.flickerT = 0.6; S.shake = 14;
+          S.fearSource = { x: (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2, y: w.y };
           playImpact();
           S.history.push({ type: 'loss', day: day(), who: id });
           say(`${w.name} does not come back from the road.`);
@@ -1050,7 +1118,8 @@ function preyUpdate(dt) {
       }
       const m = Math.hypot(ax, ay) || 1;
       wantSp = (elk.stamina > 25 ? H.speed : H.speed * 0.56)
-        * (0.92 + 0.16 * elk.skittish) * (elk.frail || 1);
+        * (0.92 + 0.16 * elk.skittish) * (elk.frail || 1)
+        * (seasonIndex() === 3 && S.era !== 'past' ? 0.8 : 1);   // snow drags at everyone
       wantX = ax / m * wantSp; wantY = ay / m * wantSp;
     } else {
       elk.stamina = Math.min(100, elk.stamina + 8 * dt);
@@ -1171,7 +1240,9 @@ function preyUpdate(dt) {
 // ── hunger and Sedge's restlessness ──────────────────────────────────────────
 
 function hungerUpdate(dt) {
-  S.food = Math.max(0, S.food - FOOD_PER_SEC * dt);
+  // fewer mouths, slower drain: a full pack of four eats at the old rate
+  const mouths = Math.min(1.15, (1 + alivePack().length) / 5);
+  S.food = Math.max(0, S.food - FOOD_PER_SEC * mouths * dt);
   if (S.food <= 0) S.starveT += dt; else S.starveT = 0;
 
   // in winter, an empty larder is the end of the year, not a setback
@@ -1356,8 +1427,11 @@ function rancherUpdate(dt) {
         } else {
           S.food = Math.max(0, S.food - 10);
           S.fear = Math.min(1, S.fear + 0.3);
+          // a packmate carries a dog bite longer than Aspen carries hers
+          target.ref.injuredT = INJURY_TIME * 2;
           say(`The dogs run ${target.ref.name} off the meat. The pack pays for this ground.`);
         }
+        S.fearSource = { x: dog.x, y: dog.y };
       }
     } else {
       tx = RANCH.dogHome.x + Math.sin(S.time * 0.4 + dog.biteCd) * 50;
@@ -1400,6 +1474,7 @@ function rancherUpdate(dt) {
     if (S.conflict > 0.85 && Math.random() < 0.3) {
       S.injuredT = INJURY_TIME;
       say('CRACK. Fire along her flank. Run.');
+      S.fearSource = { x: RANCH.house.x, y: RANCH.house.y };
     } else {
       say('CRACK. The air splits beside her.');
     }
@@ -1521,9 +1596,16 @@ function standoffUpdate(dt) {
 function lichenUpdate() {
   if (S.lichenJoined || day() < 100) return;
   S.lichenJoined = true;
+  // she arrives from the north — but never inside a pit, a berm, or the road
+  let lx = S.wolf.x, ly = S.wolf.y - 300;
+  for (let t = 0; t < 24 && (packBlockedAt(lx, ly) || onRoad(lx, ly)); t++) {
+    const a = Math.random() * Math.PI * 2;
+    lx = S.wolf.x + Math.cos(a) * (220 + Math.random() * 220);
+    ly = S.wolf.y + Math.sin(a) * (220 + Math.random() * 220);
+  }
   S.pack.push({
     id: 'lichen', name: 'Lichen', mult: 1.05, yearling: false,
-    x: S.wolf.x, y: S.wolf.y - 300, state: 'follow', gait: 0, moving: false,
+    x: lx, y: ly, state: 'follow', gait: 0, moving: false,
   });
   for (const eid of ['northRidge-blackPines', 'blackPines-birchDraw', 'northRidge-ridgeSaddle']) {
     const e = S.edges.find(x => x.id === eid);
@@ -1554,6 +1636,7 @@ function fireUpdate(dt) {
     setCaption('Dry lightning, east.', 4, 'the world runs west together');
     playRumble();
     S.fear = Math.min(1, S.fear + 0.3);
+    S.fearSource = { x: S.wolf.x + 900, y: S.wolf.y };
   }
   if (f.state === 'burning') {
     f.t += dt;
@@ -1660,7 +1743,10 @@ function objectiveText() {
   const si = seasonIndex();
   if (si === 0) {
     if (!S.denId) return 'a den must be chosen';
-    if (!S.pups) return 'the pups are coming';
+    if (!S.pups) {
+      // the birth is only news when it is close
+      return day() >= PUPS_BORN_DAY - 10 ? 'the pups are coming' : 'walk her lines into your own ink';
+    }
     return 'keep the pups fed';
   }
   if (si === 1) return (S.pups && S.pups.count > 0) ? 'keep the pups fed — the land is drying' : 'the land is drying';
@@ -2653,6 +2739,7 @@ function saveGame() {
       pack: S.pack.map(w => ({
         id: w.id, name: w.name, mult: w.mult, yearling: w.yearling,
         pup: !!w.pup, x: w.x, y: w.y, state: w.state,
+        injuredT: w.injuredT || 0,
       })),
       fear: S.fear, food: S.food,
       yearlingKnows: [...S.yearlingKnows],
@@ -2696,6 +2783,7 @@ function loadGame() {
     const w = S.pack.find(x => x.id === sw.id);
     if (w) {
       w.x = sw.x; w.y = sw.y; w.state = sw.state === 'balk' ? 'follow' : sw.state;
+      w.injuredT = sw.injuredT || 0;
     } else {
       // pups, Lichen — anyone who joined along the way
       S.pack.push({ ...sw, state: sw.state === 'balk' ? 'follow' : sw.state, gait: 0, moving: false });

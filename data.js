@@ -195,7 +195,7 @@ const HERDS = [
   { anchor: { x: 4050, y: 2400 }, count: 4, leash: 350, respawnDays: 5, food: 26, size: 11, speed: 296, antlers: false },
   // The rancher's cattle, grazing outside the wire. Slow, rich, and watched:
   // taking one is arithmetic he will do.
-  { anchor: { x: 4250, y: 650 },  count: 4, leash: 260, respawnDays: 20, food: 60, size: 18, speed: 190, antlers: false, cattle: true },
+  { anchor: { x: 4120, y: 830 },  count: 4, leash: 260, respawnDays: 20, food: 60, size: 18, speed: 190, antlers: false, cattle: true },
 ];
 
 // The rancher's homestead, behind the fence. He is weather, not a character.

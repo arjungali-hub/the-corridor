@@ -1898,7 +1898,7 @@ function drawHUD() {
   if (S.hud.food) { drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f'); by += 16; }
   if (S.hud.fear) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }
   if (S.hud.pups && S.pups && !S.pups.traveling && S.pups.count > 0) {
-    drawBar(20, by, 140, `PUPS ×${S.pups.count}`, S.pups.food / 100, '#8d6f4a'); by += 16;
+    drawBar(20, by, 140, `PUP FOOD ×${S.pups.count}`, S.pups.food / 100, '#8d6f4a'); by += 16;
   }
   if (isInjured()) {
     ctx.font = `italic 12px ${FONT}`;
@@ -1913,9 +1913,11 @@ function drawHUD() {
     if (!onMap) { ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 5; }
     let ry = 18;
     for (const w of S.pack) {
-      const glyph = { follow: '', stay: ' · holds', balk: ' · balks!', dead: ' · lost to the road', gone: ' · gone' }[w.state];
-      ctx.fillStyle = (w.state === 'dead' || w.state === 'gone')
-        ? (onMap ? 'rgba(120,60,45,0.8)' : 'rgba(230,150,130,0.8)') : inkText;
+      let glyph = { follow: '', stay: ' · holds', balk: ' · freezes', dead: ' · lost to the road', gone: ' · gone' }[w.state];
+      const alive = w.state !== 'dead' && w.state !== 'gone';
+      if (alive && (S.packFrozen || (w.frozenT || 0) > 0)) glyph = ' · freezes';
+      if (alive && (w.injuredT || 0) > 0) glyph += ' · hurt';
+      ctx.fillStyle = alive ? inkText : (onMap ? 'rgba(120,60,45,0.8)' : 'rgba(230,150,130,0.8)');
       ctx.fillText(w.name + glyph, canvas.width - 20, ry);
       ry += 18;
     }
@@ -2004,7 +2006,7 @@ function drawIntro() {
   if (hasResumableSave()) {
     ctx.font = `14px ${FONT}`;
     ctx.fillStyle = '#b8ac8d';
-    ctx.fillText('R — return to the year', cx, cy + 122);
+    ctx.fillText('R — resume the year from where you left off', cx, cy + 152);
   }
 }
 
