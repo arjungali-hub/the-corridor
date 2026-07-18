@@ -805,6 +805,11 @@ function fleeStep(w, dt) {
 }
 
 function zoneCenter() {
+  // in the prologue the pack is her MOTHER's: they hold Willow's zone until
+  // the inheritance passes the lead to Aspen
+  if (S.mode === 'prologue' && S.willow && S.willow.alive && !S.inherited) {
+    return { x: S.willow.x, y: S.willow.y };
+  }
   const anyFollowing = S.pack.some(w => w.state === 'follow' || w.state === 'balk');
   if (!anyFollowing && S.zoneAnchor) return S.zoneAnchor;
   return { x: S.wolf.x, y: S.wolf.y };
@@ -2218,9 +2223,31 @@ function prologueUpdate(dt) {
     // Beat 1 — waking in the den: movement and scent, in the calmest place
     case 1:
       if (S.beatT > 5 && !S.prompt && T.moved < 120) stickyPrompt('Walk.', ['W', 'A', 'S', 'D']);
-      if (T.moved >= 120 && !T._b1scent) {
-        T._b1scent = true;
-        stickyPrompt('The world speaks in scent. Hold E.', ['E']);
+      // before the world, the family: the pack is named as it wakes
+      if (T.moved >= 120 && !T._b1pack) {
+        T._b1pack = true;
+        T._b1packT = 0;
+        clearPrompt();
+        setCaption('The pack wakes with her.', 3.2);
+      }
+      if (T._b1pack && !T._b1scent) {
+        T._b1packT += dt;
+        if (T._b1packT > 3.6 && !T._b1n1) {
+          T._b1n1 = true;
+          setCaption('Bram, grey at the muzzle.', 3.4, 'he knew this valley before the road had a name');
+        }
+        if (T._b1packT > 7.4 && !T._b1n2) {
+          T._b1n2 = true;
+          setCaption('Sedge, restless.', 3.4, 'first to the kill, first to worry');
+        }
+        if (T._b1packT > 11.2 && !T._b1n3) {
+          T._b1n3 = true;
+          setCaption('Alder and Fen, the yearlings.', 3.4, 'all legs and questions');
+        }
+        if (T._b1packT > 15) {
+          T._b1scent = true;
+          stickyPrompt('The world speaks in scent. Hold E.', ['E']);
+        }
       }
       if (T._b1scent && input.scent) T.scentHold += dt;
       if (T.scentHold > 2.5) {   // long enough to actually read the gold
