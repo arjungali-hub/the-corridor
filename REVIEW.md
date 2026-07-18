@@ -66,9 +66,10 @@ Status legend: [ ] open · [x] done · [~] partially done (note inline).
              know the difference.'
       7. [x] Prologue beat-4 kill: generic 'A kill…' say suppressed.
       8. [x] SPACE ignored while `forcedSenseT > 0` (no stuck-open map).
-- [ ] **Part 12 — Play-test watch list** (no code unless it plays badly):
-      fire jam at the road; the stacked northeast corner; Salt Lick detour
-      grazing the Silence Zone; pup-feeding cadence vs western trips.
+- [x] **Part 12 — Play-test watch list** (executed 2026-07-18 per Arjun):
+      fire-driven prey may cross the road (the jam breaks in panic-truce);
+      cattle anchor moved to (4120, 830), off the dog/fence stack; Salt
+      Lick–silence overlap kept as deliberate; pup cadence left as tuned.
 
 ## Part 13 — Playtest additions (Arjun, 2026-07-17)
 
@@ -109,44 +110,44 @@ Status legend: [ ] open · [x] done · [~] partially done (note inline).
 
 ## Part 14 — Playtest batch (Arjun, 2026-07-18)
 
-- [ ] Intro resume line: 'R — resume the year from where you left off',
+- [x] Intro resume line: 'R — resume the year from where you left off',
       placed a little further down the screen.
-- [ ] Patching around a tear must work for ANY walked route around the
+- [x] Patching around a tear must work for ANY walked route around the
       obstacle, from any direction (the red-path screenshot around the
       pit): trail-based freeform bridging in addition to edge-ink BFS.
-- [ ] Being anywhere around a human-made object causes its tear (footprint
+- [x] Being anywhere around a human-made object causes its tear (footprint
       proximity, not only the derived trigger circles).
-- [ ] Part 12 executed: fire-driven prey may cross the road (the jam
+- [x] Part 12 executed: fire-driven prey may cross the road (the jam
       breaks); NE corner spacing widened (cattle anchor shifted off the
       dog/fence stack); Salt Lick–silence overlap kept (deliberate); pup
       cadence left as tuned.
-- [ ] Fear redesign: frightened wolves RUN to safe ground away from the
+- [x] Fear redesign: frightened wolves RUN to safe ground away from the
       threat and THEN freeze (dogs can no longer chew a rooted pack);
       applies to road encounters too; label reads 'freezes' (never
       'balks'); the frozen spell lasts ~10× longer.
-- [ ] Lichen must never spawn inside blocked ground (she appeared in the
+- [x] Lichen must never spawn inside blocked ground (she appeared in the
       pit).
-- [ ] Pup HUD bar labelled 'pup food'. 'The pups are coming' goal line
+- [x] Pup HUD bar labelled 'pup food'. 'The pups are coming' goal line
       only within ~10 days of the birth; a different line before that.
-- [ ] Dog bites injure packmates too, for longer than Aspen (slow, real
+- [x] Dog bites injure packmates too, for longer than Aspen (slow, real
       time), visible in their gait/speed.
-- [ ] Winter snow slows all animals (prey and pack), not just Aspen.
-- [ ] Weather, a few days per spell: sun (normal), cloud (visible radius
+- [x] Winter snow slows all animals (prey and pack), not just Aspen.
+- [x] Weather, a few days per spell: sun (normal), cloud (visible radius
       shrinks), rain (scent washes out faster + the world darkens).
-- [ ] Food drains slower when the pack is smaller.
-- [ ] Ambience follows location: traffic hum near the road, water near the
+- [x] Food drains slower when the pack is smaller.
+- [x] Ambience follows location: traffic hum near the road, water near the
       creek, birds in the woods in the green seasons.
-- [ ] Sparse music at the emotional beats (the inheritance, the pups'
+- [x] Sparse music at the emotional beats (the inheritance, the pups'
       birth, the year's end) — short motifs, nothing looped.
-- [ ] A packmate must NEVER step onto asphalt unless Aspen herself is on
+- [x] A packmate must NEVER step onto asphalt unless Aspen herself is on
       it (Fen died following a zone slot onto the road while Aspen stood
       beside it).
-- [ ] Prologue beat 1 introduces the pack by name before the scent lesson.
-- [ ] In the prologue the pack's zone follows WILLOW while she lives;
+- [x] Prologue beat 1 introduces the pack by name before the scent lesson.
+- [x] In the prologue the pack's zone follows WILLOW while she lives;
       leadership passes to Aspen at the inheritance.
-- [ ] The patch task marks its tear on the raised map (emphasis pulse);
+- [x] The patch task marks its tear on the raised map (emphasis pulse);
       the scout task names the compass direction of the unknown ground.
-- [ ] More task variety: a carry-it-home delivery task and a lost-packmate
+- [x] More task variety: a carry-it-home delivery task and a lost-packmate
       search task (with direction words), alongside hunt/patch/pups.
 
 When all parts are done: NOTES.md session entry, full harness, one complete

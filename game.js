@@ -155,6 +155,7 @@ function newGame() {
     lichenJoined: false,
     // the fire picks its own summer day, once per year
     fire: { state: 'none', t: 0, day: 115 + Math.floor(Math.random() * 45) },
+    weather: null,     // spells of sky: sun | cloud | rain, a few days each
     lastSeason: 0, bondT: 0, bondC: null,
 
     pack: PACK_DEF.map((d, i) => ({
@@ -636,9 +637,30 @@ function applyDecay() {
   if (changed) recomputeGhosts();
 }
 
-// The map's visible radius: a little over half the land's width, always.
+// ── weather: spells of sky, a few days each ─────────────────────────────────
+// Sun is the land's default. Cloud pulls the map's horizon in. Rain washes
+// the scent stories out of the grass and darkens the light.
+function weatherUpdate(dt) {
+  if (S.era === 'past') { S.weather = { kind: 'sun', t: 0, dur: 30 }; return; }
+  if (!S.weather) S.weather = { kind: 'sun', t: 0, dur: 20 + Math.random() * 15 };
+  const w = S.weather;
+  w.t += dt;
+  if (w.t >= w.dur) {
+    const r = Math.random();
+    w.kind = r < 0.5 ? 'sun' : r < 0.78 ? 'cloud' : 'rain';
+    w.t = 0;
+    w.dur = 15 + Math.random() * 15;   // three to six days of it
+  }
+  if (w.kind === 'rain') {
+    // the grass forgets faster in the wet
+    for (const p of S.scent) p.t -= dt * 2;
+  }
+}
+
+// The map's visible radius: a little over half the land's width — less
+// under a grey ceiling.
 function senseRadius() {
-  return WORLD.w * 0.53;
+  return WORLD.w * 0.53 * (S.weather && S.weather.kind === 'cloud' ? 0.72 : 1);
 }
 
 // The raised map frames the whole territory, whatever the screen size.
@@ -1401,6 +1423,7 @@ function pupUpdate(dt) {
     S.pups = { count: 2, food: 80, starveT: 0, traveling: false, lost: 0 };
     S.hud.pups = true;
     say('Pups. Two of them, blind and certain of you.');
+    playMotif('pups');
     showPrompt('Carry food home in your belly — stand at the den, full, and they eat.', [], 8);
     saveGame();
   }
@@ -2475,7 +2498,7 @@ function prologueUpdate(dt) {
             S.inherited = true;
             w.alive = false;           // her breathing loop simply stops
             S.inheritBloom = 1;        // her warmth blooms around Aspen
-            // no sting, no music — the bible is explicit
+            playMotif('inherit');      // five soft notes — the only ceremony
             S.tut.sawMap = true;       // the map is hers now
             clearPrompt();
             S.mapOpen = true;          // and it rises on its own
@@ -2546,6 +2569,7 @@ function startEnding(kind) {
   S.mode = 'ending';
   S.endKind = kind;
   S.endT = 0;
+  if (kind === 'arrived') playMotif('arrived');
   clearSave();
 }
 
@@ -2622,15 +2646,53 @@ function ensureAmbience() {
   const g = ac.createGain(); g.gain.value = 0;
   src.connect(filt); filt.connect(g); g.connect(masterGain);
   src.start();
-  amb = { gain: g, clankT: 6 };
+  // the road's low hum, faded in only when she stands near the asphalt
+  const hum = ac.createOscillator(), hg = ac.createGain();
+  hum.type = 'sawtooth'; hum.frequency.value = 52;
+  hg.gain.value = 0;
+  hum.connect(hg); hg.connect(masterGain); hum.start();
+  amb = { gain: g, filt, hum: hg, clankT: 6, birdT: 5, locT: 0, nearCreek: false };
 }
 
 function ambienceUpdate(dt) {
   ensureAmbience();
   if (!amb) return;
   const live = S.mode === 'play' || S.mode === 'prologue';
-  const target = !live ? 0 : S.era === 'past' ? 0.028 : SEASON_WIND[seasonIndex()];
+
+  // where she stands colors the quiet, sampled a couple of times a second
+  amb.locT -= dt;
+  if (amb.locT <= 0) {
+    amb.locT = 0.6;
+    let dCreek = 1e9;
+    const cf = TERRAIN.creekFlow;
+    for (let i = 0; i < cf.length; i += 2) {
+      const px = cf[i].x !== undefined ? cf[i].x : cf[i][0];
+      const py = cf[i].y !== undefined ? cf[i].y : cf[i][1];
+      dCreek = Math.min(dCreek, dist(S.wolf.x, S.wolf.y, px, py));
+    }
+    amb.nearCreek = dCreek < 260;
+  }
+
+  // wind bed: season sets the weight; water brightens and lifts it
+  const target = !live ? 0
+    : (S.era === 'past' ? 0.028 : SEASON_WIND[seasonIndex()]) * (amb.nearCreek ? 1.5 : 1);
   amb.gain.gain.value += (target - amb.gain.gain.value) * Math.min(1, dt * 0.5);
+  amb.filt.frequency.value += ((amb.nearCreek ? 900 : 420) - amb.filt.frequency.value) * Math.min(1, dt * 1.5);
+
+  // traffic: a low hum that grows as she nears the asphalt
+  const h = OBSTACLES.highway;
+  const dRoad = S.wolf.x < h.x0 ? h.x0 - S.wolf.x : S.wolf.x > h.x1 ? S.wolf.x - h.x1 : 0;
+  const humT = (live && S.era !== 'past') ? 0.05 * clamp(1 - dRoad / 500, 0, 1) : 0;
+  amb.hum.gain.value += (humT - amb.hum.gain.value) * Math.min(1, dt * 0.8);
+
+  // birdsong in the green woods, by day
+  amb.birdT -= dt;
+  if (amb.birdT <= 0) {
+    amb.birdT = 4 + Math.random() * 6;
+    const inWood = TERRAIN.forests.some(f => dist(S.wolf.x, S.wolf.y, f.x, f.y) < f.r + 120);
+    if (live && inWood && seasonIndex() <= 1 && S.era !== 'past'
+        && typeof daylight === 'function' && daylight() > 0.5) playChirp();
+  }
 
   if (S.mode === 'play' && S.era !== 'past' && !overpassOpen()) {
     amb.clankT -= dt;
@@ -2641,6 +2703,48 @@ function ambienceUpdate(dt) {
       playClank((0.04 + prog * 0.1) * (0.3 + east * 0.7));
     }
   }
+}
+
+function playChirp() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const base = 2400 + Math.random() * 600;
+  for (let i = 0; i < 3; i++) {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(base * (1 + i * 0.06), now + i * 0.09);
+    o.frequency.exponentialRampToValueAtTime(base * 0.8, now + i * 0.09 + 0.07);
+    g.gain.setValueAtTime(0.001, now + i * 0.09);
+    g.gain.linearRampToValueAtTime(0.035, now + i * 0.09 + 0.015);
+    g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.09 + 0.08);
+    o.connect(g); g.connect(masterGain);
+    o.start(now + i * 0.09); o.stop(now + i * 0.09 + 0.1);
+  }
+}
+
+// ── the sparse score: short motifs at the beats that earn them ──────────────
+const MOTIFS = {
+  inherit: { notes: [392, 440, 523.25, 440, 392], step: 0.9, vol: 0.05 },
+  pups:    { notes: [523.25, 587.33, 659.25], step: 0.55, vol: 0.045 },
+  arrived: { notes: [329.63, 392, 440, 523.25, 587.33], step: 0.8, vol: 0.055 },
+};
+
+function playMotif(name) {
+  const ac = getAudioCtx(); if (!ac) return;
+  const mo = MOTIFS[name]; if (!mo) return;
+  const now = ac.currentTime;
+  mo.notes.forEach((f, i) => {
+    for (const mult of [1, 1.5]) {           // each note carries a quiet fifth
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = 'triangle'; o.frequency.value = f * mult;
+      const at = now + i * mo.step, v = mo.vol * (mult === 1 ? 1 : 0.35);
+      g.gain.setValueAtTime(0.001, at);
+      g.gain.linearRampToValueAtTime(v, at + 0.15);
+      g.gain.exponentialRampToValueAtTime(0.001, at + mo.step * 1.8);
+      o.connect(g); g.connect(masterGain);
+      o.start(at); o.stop(at + mo.step * 2);
+    }
+  });
 }
 
 // A distant machine: a dull thump, sometimes with the back-up beep behind it.
@@ -2898,6 +3002,7 @@ function saveGame() {
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
       pups: S.pups,
       task: S.task, taskCooldown: S.taskCooldown,
+      weather: S.weather,
       conflict: S.conflict, gift: S.gift, alarm: S.alarm,
       lichenJoined: S.lichenJoined, fire: S.fire, standoffCd: S.standoffCd,
       hud: S.hud, tut: S.tut, callouts: S.callouts,
@@ -2948,6 +3053,7 @@ function loadGame() {
   S.pups = d.pups;
   S.task = d.task || null;
   S.taskCooldown = typeof d.taskCooldown === 'number' ? d.taskCooldown : 30;
+  S.weather = d.weather || null;
   S.conflict = d.conflict || 0;
   S.gift = d.gift || { given: false, taken: false };
   S.alarm = d.alarm || 0;
@@ -2989,6 +3095,7 @@ function update(dt) {
   S.time += dt;
   promptTick(dt);
   ambienceUpdate(dt);
+  weatherUpdate(dt);
   S.forcedSenseT = Math.max(0, S.forcedSenseT - dt);
   S.flickerT = Math.max(0, S.flickerT - dt);
   S.msgT = Math.max(0, S.msgT - dt);

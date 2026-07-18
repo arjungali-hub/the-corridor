@@ -846,6 +846,24 @@ function drawLightAndAir() {
     ctx.fillStyle = `rgba(214,190,120,${dr * 0.08})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
+  // weather: a grey ceiling, or rain
+  if (S.weather && S.era !== 'past') {
+    if (S.weather.kind === 'cloud') {
+      ctx.fillStyle = 'rgba(120,126,130,0.10)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    } else if (S.weather.kind === 'rain') {
+      ctx.fillStyle = 'rgba(40,52,66,0.12)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.strokeStyle = 'rgba(200,215,225,0.20)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < 60; i++) {
+        const x = Math.random() * canvas.width, y = Math.random() * canvas.height;
+        ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 11);
+      }
+      ctx.stroke();
+    }
+  }
   // vignette, cached per canvas size
   if (!drawLightAndAir._vg || drawLightAndAir._key !== canvas.width + 'x' + canvas.height) {
     drawLightAndAir._key = canvas.width + 'x' + canvas.height;

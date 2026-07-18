@@ -231,3 +231,27 @@ in the base layer; inPowerlineCut() keeps prey from grazing under the hum.
 TODO.md's gap list is now fully closed — every bible feature has a
 build. Next: Arjun's browser pass on the Part-12 watch list (fire jam,
 NE corner, Salt Lick/silence, pup cadence) and general feel.
+
+## Part 14 batch (2026-07-18, Arjun's playtest)
+
+14a: fear runs before it roots (safePointFrom + fleeStep; FREEZE_TIME 70s,
+10x; 'freezes' label); road sealed to the pack unless Aspen is on it or
+already across; packmate dog wounds (2x, 'hurt'); Lichen spawn rescue;
+fire-jam relief; cattle off the NE stack; winter snow slows everyone;
+food drains by mouths; PUP FOOD bar; pups-are-coming within 10 days only;
+resume line reworded and lowered.
+14b: tears fire anywhere within 150 of the human-made footprint; a way
+around is ANY walked trail between the rip's ends that skirts the
+obstacle and the asphalt (freeform bridging, either direction); the
+active patch-task tear pulses on the map; scout tasks name compass
+directions; new findwolf ('missing', self-resolving) and cache-carry
+(+18 food) tasks.
+14c: beat 1 names Bram, Sedge, Alder and Fen before the scent lesson;
+zoneCenter follows Willow until the inheritance.
+14d: weather spells (sun / cloud shrinks senseRadius to 0.72 / rain ages
+scent 3x and darkens, saved in v2); location ambience (road hum, creek
+brightening the wind bed, birdsong in green woods by day); sparse motifs
+at the inherit, the pups' birth, and the pack's arrival — music exists
+now, only where it is earned.
+
+Harness green x4 through the batch. Next: Arjun plays a full year.
