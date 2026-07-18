@@ -214,3 +214,12 @@ the culvert bridge, deck drawn over the traffic with parapets and shrubs.
 Three told moments, once each: the opening ('The machines finished
 something in the north…'), Aspen's discovery ('Earth over the roar…'),
 and the first deer seen crossing ('The land is learning the bridge.').
+
+gap feature: ambience beds + the construction progress bar. One looping
+filtered-noise wind bed, weight per season (winter heaviest, prologue a
+hush), eased toward its target; and the machines in the east — a distant
+thump (sometimes with the back-up beep) every 7-13s, louder as the year
+advances and the farther east she stands, silenced forever the day the
+overpass opens: that is what they were building. All through masterGain
+(M mutes everything). Music decision recorded: no melodic score — the
+land is the whole soundtrack, per the bible's austerity.

@@ -2352,6 +2352,77 @@ function toggleMute() {
   if (S) say(muted ? 'Quiet.' : 'The land has its sounds again.');
 }
 
+// ── ambience: the land's wind, and the construction's progress ──────────────
+// One looping filtered-noise bed whose weight follows the season, plus the
+// machines in the east: a distant clank every few quiet seconds, growing
+// through the year — an audible progress bar — until the overpass opens
+// and they fall silent. (No music. The land is the score.)
+
+let amb = null;
+const SEASON_WIND = [0.045, 0.03, 0.05, 0.08];   // spring summer autumn winter
+
+function ensureAmbience() {
+  if (amb) return;
+  const ac = getAudioCtx();
+  if (!ac || !ac.createBuffer || !ac.createBufferSource || !ac.createBiquadFilter) return;
+  const len = Math.floor(ac.sampleRate * 2);
+  const buf = ac.createBuffer(1, len, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  let v = 0;
+  for (let i = 0; i < len; i++) { v = v * 0.98 + (Math.random() * 2 - 1) * 0.05; data[i] = v; }
+  const src = ac.createBufferSource();
+  src.buffer = buf; src.loop = true;
+  const filt = ac.createBiquadFilter();
+  filt.type = 'lowpass'; filt.frequency.value = 420;
+  const g = ac.createGain(); g.gain.value = 0;
+  src.connect(filt); filt.connect(g); g.connect(masterGain);
+  src.start();
+  amb = { gain: g, clankT: 6 };
+}
+
+function ambienceUpdate(dt) {
+  ensureAmbience();
+  if (!amb) return;
+  const live = S.mode === 'play' || S.mode === 'prologue';
+  const target = !live ? 0 : S.era === 'past' ? 0.028 : SEASON_WIND[seasonIndex()];
+  amb.gain.gain.value += (target - amb.gain.gain.value) * Math.min(1, dt * 0.5);
+
+  if (S.mode === 'play' && S.era !== 'past' && !overpassOpen()) {
+    amb.clankT -= dt;
+    if (amb.clankT <= 0) {
+      amb.clankT = 7 + Math.random() * 6;
+      const prog = clamp(day() / OVERPASS_OPEN_DAY, 0, 1);          // the year works
+      const east = clamp((S.wolf.x - 1600) / 2400, 0, 1);           // and it is east
+      playClank((0.04 + prog * 0.1) * (0.3 + east * 0.7));
+    }
+  }
+}
+
+// A distant machine: a dull thump, sometimes with the back-up beep behind it.
+function playClank(vol) {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(74, now);
+  o.frequency.exponentialRampToValueAtTime(38, now + 0.22);
+  g.gain.setValueAtTime(vol, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  o.connect(g); g.connect(masterGain);
+  o.start(now); o.stop(now + 0.35);
+  if (Math.random() < 0.3) {
+    for (let i = 0; i < 2; i++) {
+      const o2 = ac.createOscillator(), g2 = ac.createGain();
+      o2.type = 'square'; o2.frequency.value = 880;
+      g2.gain.setValueAtTime(0.001, now + 0.5 + i * 0.5);
+      g2.gain.linearRampToValueAtTime(vol * 0.25, now + 0.52 + i * 0.5);
+      g2.gain.exponentialRampToValueAtTime(0.001, now + 0.72 + i * 0.5);
+      o2.connect(g2); g2.connect(masterGain);
+      o2.start(now + 0.5 + i * 0.5); o2.stop(now + 0.75 + i * 0.5);
+    }
+  }
+}
+
 // The sound of the map being wrong. Played by tears, and by nothing else.
 function playTearSting() {
   const ac = getAudioCtx(); if (!ac) return;
@@ -2669,6 +2740,7 @@ function update(dt) {
 
   S.time += dt;
   promptTick(dt);
+  ambienceUpdate(dt);
   S.forcedSenseT = Math.max(0, S.forcedSenseT - dt);
   S.flickerT = Math.max(0, S.flickerT - dt);
   S.msgT = Math.max(0, S.msgT - dt);
