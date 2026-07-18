@@ -2057,6 +2057,183 @@ function drawEnding() {
   }
 }
 
+// ── the vista mattes ─────────────────────────────────────────────────────────
+// Two held paintings of the same land: the overlook in the past ('The
+// valley. Whole.') and the cut ('Three winters later.'). The ridgelines are
+// seeded identically so the land reads as the same land — only what people
+// did to it changes.
+
+let _matte = null, _matteKey = '';
+
+function ridgeY(base, amp, x, w, p1, p2, p3) {
+  return base
+    + Math.sin(x / w * Math.PI * 2 * 1.7 + p1) * amp
+    + Math.sin(x / w * Math.PI * 2 * 3.9 + p2) * amp * 0.45
+    + Math.sin(x / w * Math.PI * 2 * 8.3 + p3) * amp * 0.16;
+}
+
+function buildVistaMatte(era, w, h) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const b = c.getContext('2d');
+  const past = era === 'past';
+  const rng = makePrng(47);   // one seed: one land, both winters
+
+  // sky
+  const sky = b.createLinearGradient(0, 0, 0, h * 0.62);
+  if (past) {
+    sky.addColorStop(0, '#8fb3cd');
+    sky.addColorStop(0.55, '#d9d7b2');
+    sky.addColorStop(1, '#f0debc');
+  } else {
+    sky.addColorStop(0, '#5d6a7c');
+    sky.addColorStop(0.55, '#9aa0a2');
+    sky.addColorStop(1, '#c6bfae');
+  }
+  b.fillStyle = sky;
+  b.fillRect(0, 0, w, h);
+
+  // the sun, low in the east — gold once, a smeared coin later
+  const sx = w * 0.76, sy = h * (past ? 0.30 : 0.34);
+  const sun = b.createRadialGradient(sx, sy, 4, sx, sy, past ? h * 0.34 : h * 0.2);
+  sun.addColorStop(0, past ? 'rgba(255,238,190,0.95)' : 'rgba(235,228,210,0.55)');
+  sun.addColorStop(1, 'rgba(255,238,190,0)');
+  b.fillStyle = sun;
+  b.fillRect(0, 0, w, h * 0.7);
+
+  // birds, only in the whole valley
+  if (past) {
+    b.strokeStyle = 'rgba(60,60,55,0.55)'; b.lineWidth = 1.4;
+    for (let i = 0; i < 5; i++) {
+      const bx = w * (0.2 + rng() * 0.45), by = h * (0.12 + rng() * 0.14), s = 4 + rng() * 4;
+      b.beginPath(); b.moveTo(bx - s, by); b.quadraticCurveTo(bx - s * 0.4, by - s * 0.55, bx, by);
+      b.quadraticCurveTo(bx + s * 0.4, by - s * 0.55, bx + s, by); b.stroke();
+    }
+  } else { for (let i = 0; i < 5; i++) { rng(); rng(); rng(); } }   // keep the seed in step
+
+  // ridge phases: rolled once, shared by both eras
+  const phases = [];
+  for (let i = 0; i < 6; i++) phases.push([rng() * 6.3, rng() * 6.3, rng() * 6.3]);
+
+  const farC  = past ? [176, 188, 172] : [166, 170, 168];
+  const nearC = past ? [56, 72, 48]    : [56, 62, 54];
+  for (let i = 0; i < 6; i++) {
+    const t = i / 5;
+    const base = h * (0.40 + 0.085 * i);
+    const amp = 14 + i * 7;
+    const col = `rgb(${Math.round(farC[0] + (nearC[0] - farC[0]) * t)},${
+      Math.round(farC[1] + (nearC[1] - farC[1]) * t)},${
+      Math.round(farC[2] + (nearC[2] - farC[2]) * t)})`;
+
+    // haze band behind each nearer ridge
+    b.fillStyle = past ? `rgba(240,225,190,${0.05 + t * 0.05})` : `rgba(205,205,200,${0.08 + t * 0.06})`;
+    b.fillRect(0, base - amp * 2, w, amp * 3);
+
+    b.fillStyle = col;
+    b.beginPath();
+    b.moveTo(0, h);
+    for (let x = 0; x <= w; x += 6) {
+      b.lineTo(x, ridgeY(base, amp, x, w, phases[i][0], phases[i][1], phases[i][2]));
+    }
+    b.lineTo(w, h);
+    b.closePath();
+    b.fill();
+
+    // conifers along the crest of the nearer ridges
+    if (i >= 2) {
+      b.strokeStyle = col; b.lineWidth = 2;
+      const n = 40 + i * 30;
+      for (let k = 0; k < n; k++) {
+        const x = rng() * w;
+        const y = ridgeY(base, amp, x, w, phases[i][0], phases[i][1], phases[i][2]);
+        const tall = (2 + rng() * 3) * (1 + t);
+        b.beginPath(); b.moveTo(x, y + 1); b.lineTo(x, y - tall); b.stroke();
+      }
+    }
+
+    // what three winters built, hung on the middle ridges
+    if (!past && i === 3) {
+      // the highway: a pale scar tracing the ridge, with lights strung on it
+      b.strokeStyle = 'rgba(200,196,184,0.85)'; b.lineWidth = 3.2;
+      b.beginPath();
+      for (let x = 0; x <= w; x += 8) {
+        const y = ridgeY(base, amp, x, w, phases[i][0], phases[i][1], phases[i][2]) + 6;
+        x === 0 ? b.moveTo(x, y) : b.lineTo(x, y);
+      }
+      b.stroke();
+      for (let k = 0; k < 7; k++) {
+        const x = w * (0.08 + k * 0.14);
+        const y = ridgeY(base, amp, x, w, phases[i][0], phases[i][1], phases[i][2]) + 6;
+        b.fillStyle = k % 2 ? 'rgba(255,244,200,0.9)' : 'rgba(255,120,90,0.8)';
+        b.fillRect(x, y - 1, 2, 2);
+        // power poles pacing it
+        b.strokeStyle = 'rgba(50,50,48,0.7)'; b.lineWidth = 1;
+        b.beginPath(); b.moveTo(x + 20, y); b.lineTo(x + 20, y - 8);
+        b.moveTo(x + 16, y - 7); b.lineTo(x + 24, y - 7); b.stroke();
+      }
+    }
+    if (!past && i === 4) {
+      // construction in the east: blocks, a crane, one red beacon
+      const cx = w * 0.72;
+      const cy = ridgeY(base, amp, cx, w, phases[i][0], phases[i][1], phases[i][2]);
+      b.fillStyle = 'rgba(70,72,70,0.95)';
+      b.fillRect(cx - 26, cy - 10, 22, 10);
+      b.fillRect(cx + 2, cy - 7, 16, 7);
+      b.strokeStyle = 'rgba(60,60,58,0.95)'; b.lineWidth = 1.6;
+      b.beginPath();
+      b.moveTo(cx + 30, cy); b.lineTo(cx + 30, cy - 26);
+      b.lineTo(cx + 52, cy - 22); b.moveTo(cx + 30, cy - 26); b.lineTo(cx + 22, cy - 22);
+      b.stroke();
+      b.fillStyle = 'rgba(255,70,60,0.9)';
+      b.fillRect(cx + 29, cy - 28, 2, 2);
+      // the subdivision, right of center: gables and lit windows
+      for (let k = 0; k < 6; k++) {
+        const hx = w * (0.56 + k * 0.024), hy = cy + 6 + (k % 2) * 3;
+        b.fillStyle = 'rgba(64,66,64,0.95)';
+        b.beginPath(); b.moveTo(hx - 5, hy); b.lineTo(hx, hy - 6); b.lineTo(hx + 5, hy); b.closePath(); b.fill();
+        b.fillRect(hx - 4, hy, 8, 4);
+        b.fillStyle = 'rgba(255,236,180,0.85)';
+        b.fillRect(hx - 1, hy + 1, 2, 2);
+      }
+    }
+  }
+
+  // the creek, catching the light on the valley floor
+  b.strokeStyle = past ? 'rgba(220,235,235,0.5)' : 'rgba(205,215,215,0.35)';
+  b.lineWidth = 3;
+  b.beginPath();
+  let cy2 = h * 0.78;
+  b.moveTo(w * 0.18, cy2);
+  for (let x = w * 0.18; x < w * 0.95; x += 30) {
+    cy2 += (rng() - 0.35) * 16;
+    b.lineTo(x, cy2);
+  }
+  b.stroke();
+
+  // matte grain
+  b.globalAlpha = 0.05;
+  for (let i = 0; i < 900; i++) {
+    b.fillStyle = rng() > 0.5 ? '#000' : '#fff';
+    b.fillRect(rng() * w, rng() * h, 1, 1);
+  }
+  b.globalAlpha = 1;
+  return c;
+}
+
+function drawVistaMatte() {
+  const key = S.era + '|' + canvas.width + 'x' + canvas.height;
+  if (!_matte || _matteKey !== key) {
+    _matteKey = key;
+    _matte = buildVistaMatte(S.era, canvas.width, canvas.height);
+  }
+  const total = S.vistaTMax || 3.4;
+  const a = Math.min(1, (total - S.vistaT) * 2.2) * Math.min(1, S.vistaT * 1.1);
+  resetTransform();
+  ctx.globalAlpha = Math.max(0, a);
+  ctx.drawImage(_matte, 0, 0);
+  ctx.globalAlpha = 1;
+}
+
 // ── dispatcher ───────────────────────────────────────────────────────────────
 
 function draw() {
@@ -2069,6 +2246,7 @@ function draw() {
   else { resetTransform(); ctx.fillStyle = '#22261f'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
   if (input.scent && S.senseBlend < 0.2) drawScent();
   if (S.senseBlend > 0.01) drawMap();
+  if (S.vistaT > 0 && S.mode === 'prologue') drawVistaMatte();
   drawFlicker();
   if (S.mode === 'play') drawHUD();
   drawPrompt();

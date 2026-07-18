@@ -196,3 +196,12 @@ Also: fire-day check pinned in the harness (the roll is random now).
 Harness green x4 including new checks: forced beat-3 view, SPACE refusal,
 stillness-then-ask, auto-raise, rip labelled, prompt Act I, spring away
 from hollows, den-node creation/inking/save-load.
+
+gap feature: beat-2/beat-8 vista mattes. drawVistaMatte() paints two held
+full-screen mattes from one seed — the same six ridgelines both times.
+Past: golden morning, birds, unbroken conifers, the creek. Present: cold
+sky, the highway scar with strung lights and power poles pacing it, the
+construction blocks + crane + red beacon in the east, the subdivision's
+lit gables. Cached per era + canvas size; alpha follows vistaT in/out
+(S.vistaTMax stamped at both set sites). Drawn only while a prologue
+vista holds.

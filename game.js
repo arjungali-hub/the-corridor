@@ -180,7 +180,7 @@ function newGame() {
     beat: 0, beatT: 0,
     willow: null,      // { x, y, heading, gait, moving, alive, lying, path: [] }
     caption: null,     // { text, sub, t, dur }
-    inputLockT: 0, vistaT: 0,
+    inputLockT: 0, vistaT: 0, vistaTMax: 0,
     inheritHold: 0, inherited: false, inheritBloom: 0,
     ghostPulse: 0, bondGlow: 0,
     prologueElk: false, truckSent: false,
@@ -1997,7 +1997,7 @@ function prologueUpdate(dt) {
     case 2:
       if (dist(S.wolf.x, S.wolf.y, OVERLOOK.x, OVERLOOK.y) < 130) {
         S.beat = 3; S.beatT = 0;
-        S.vistaT = 3.4; S.inputLockT = 3.4;
+        S.vistaT = 3.4; S.vistaTMax = 3.4; S.inputLockT = 3.4;
         setCaption('The valley. Whole.', 3.4);
         // Willow appears and the map begins
         S.willow = {
@@ -2168,7 +2168,7 @@ function prologueUpdate(dt) {
           p.state = 'follow'; p.tx = undefined;
         }
         S.cars.length = 0;
-        S.vistaT = 3.6; S.inputLockT = 3.6;
+        S.vistaT = 3.6; S.vistaTMax = 3.6; S.inputLockT = 3.6;
         S.ghostPulse = 3.6;
         S.shake = 6;
         // the world that changed while she grew
