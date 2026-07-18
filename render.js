@@ -937,6 +937,29 @@ function drawWorld() {
     drawCar(car);
     ctx.restore();
   }
+
+  // the overpass, once open: an earth band over the asphalt — drawn after
+  // the cars so the traffic passes beneath it
+  if (overpassOpen()) {
+    const h = OBSTACLES.highway, o = OBSTACLES.overpass;
+    const x0 = h.x0 - 26, x1 = h.x1 + 26;
+    ctx.fillStyle = 'rgba(30,30,26,0.35)';
+    ctx.fillRect(x0 - 6, o.y0 + 4, x1 - x0 + 12, o.y1 - o.y0);
+    const g = ctx.createLinearGradient(0, o.y0, 0, o.y1);
+    g.addColorStop(0, '#5d6647'); g.addColorStop(0.5, '#6b7350'); g.addColorStop(1, '#575f43');
+    ctx.fillStyle = g;
+    ctx.fillRect(x0, o.y0, x1 - x0, o.y1 - o.y0);
+    ctx.fillStyle = '#8b8578';
+    ctx.fillRect(x0, o.y0 - 4, x1 - x0, 5);
+    ctx.fillRect(x0, o.y1 - 1, x1 - x0, 5);
+    const rng = makePrng(83);
+    for (let i = 0; i < 26; i++) {
+      const sx = x0 + 8 + rng() * (x1 - x0 - 16);
+      const sy = o.y0 + 10 + rng() * (o.y1 - o.y0 - 20);
+      ctx.fillStyle = `rgba(${Math.round(52 + rng() * 24)},${Math.round(66 + rng() * 22)},${Math.round(38 + rng() * 14)},0.85)`;
+      ctx.beginPath(); ctx.arc(sx, sy, 3 + rng() * 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
   for (const e of S.elk) drawPrey(e);
 
   // pups at the den, tumbling

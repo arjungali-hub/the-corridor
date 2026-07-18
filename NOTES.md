@@ -205,3 +205,12 @@ construction blocks + crane + red beacon in the east, the subdivision's
 lit gables. Cached per era + canvas size; alpha follows vistaT in/out
 (S.vistaTMax stamped at both set sites). Drawn only while a prologue
 vista holds.
+
+gap feature: the overpass adoption arc. OBSTACLES.overpass (y 620-760 on
+the north stretch) opens at day 170 — what the construction was building.
+From then: its band of road is earth (onRoad false — no cars, no balk, no
+strikes), prey may cross there (blockedAt gap), edges sealed at grade like
+the culvert bridge, deck drawn over the traffic with parapets and shrubs.
+Three told moments, once each: the opening ('The machines finished
+something in the north…'), Aspen's discovery ('Earth over the roar…'),
+and the first deer seen crossing ('The land is learning the bridge.').

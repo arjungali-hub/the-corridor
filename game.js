@@ -264,15 +264,28 @@ function setCaption(text, dur, sub) { S.caption = { text, sub: sub || '', t: 0, 
 
 // ── movement & collision ─────────────────────────────────────────────────────
 
+// The overpass opens when the machines finish it: from then on its band of
+// the road is earth, not asphalt — no cars, no fear, and prey may cross.
+const OVERPASS_OPEN_DAY = 170;
+function overpassOpen() {
+  return S && S.era !== 'past' && day() >= OVERPASS_OPEN_DAY;
+}
+
 // The bridge at Water-Under-Stone crosses OVER the road: its deck (the gap
 // band) never connects to the asphalt at grade. Thin walls seal the deck's
 // north and south edges wherever they meet the road, so road→bridge and
-// bridge→road are both impossible mid-span.
+// bridge→road are both impossible mid-span. The overpass deck is sealed
+// the same way once it stands.
 function bridgeWallAt(x, y, r) {
   if (S.era === 'past') return false;
   const h = OBSTACLES.highway;
   if (x <= h.x0 - 8 - r || x >= h.x1 + 8 + r) return false;
-  return Math.abs(y - h.gapY0) < 8 + r || Math.abs(y - h.gapY1) < 8 + r;
+  if (Math.abs(y - h.gapY0) < 8 + r || Math.abs(y - h.gapY1) < 8 + r) return true;
+  if (overpassOpen()) {
+    const o = OBSTACLES.overpass;
+    if (Math.abs(y - o.y0) < 8 + r || Math.abs(y - o.y1) < 8 + r) return true;
+  }
+  return false;
 }
 
 function blockedAt(x, y, r, canPassGap, margin) {
@@ -281,10 +294,13 @@ function blockedAt(x, y, r, canPassGap, margin) {
   const h = OBSTACLES.highway;
   if (x > h.x0 - r && x < h.x1 + r) {
     const inGap = canPassGap && y > h.gapY0 + r && y < h.gapY1 - r;
+    // the overpass, once open, is ground: anything may cross above the cars
+    const o = OBSTACLES.overpass;
+    const inOverpass = overpassOpen() && y > o.y0 + r && y < o.y1 - r;
     // prey never sets foot on the road — unless Aspen is on it, or was
     // moments ago, and the chase spills across behind her
     const driven = S.roadGraceT > 0;
-    if (!inGap && !driven) return true;
+    if (!inGap && !inOverpass && !driven) return true;
   }
   if (bridgeWallAt(x, y, r)) return true;
   if (S.era === 'past') return false;  // none of it has been built yet
@@ -334,7 +350,11 @@ function tryMove(who, dx, dy, blockFn) {
 
 function onRoad(x, y) {
   const h = OBSTACLES.highway;
-  return x > h.x0 - 8 && x < h.x1 + 8 && !(y > h.gapY0 && y < h.gapY1);
+  if (x <= h.x0 - 8 || x >= h.x1 + 8) return false;
+  if (y > h.gapY0 && y < h.gapY1) return false;
+  const o = OBSTACLES.overpass;
+  if (overpassOpen() && y > o.y0 && y < o.y1) return false;   // earth up here
+  return true;
 }
 
 function onKnownRoute() {
@@ -2704,6 +2724,24 @@ function update(dt) {
     if (!S.tut.bramRecall && bramRemembers()) {
       S.tut.bramRecall = true;
       say('Bram remembers the far side. From before.');
+    }
+
+    // the overpass arc: it opens, she finds it, the land adopts it
+    if (overpassOpen()) {
+      const h = OBSTACLES.highway, o = OBSTACLES.overpass;
+      if (!S.tut.overpassOpen) {
+        S.tut.overpassOpen = true;
+        say('The machines finished something in the north: earth banked over the asphalt.');
+      }
+      const onDeck = (x, y) => x > h.x0 - 8 && x < h.x1 + 8 && y > o.y0 && y < o.y1;
+      if (!S.tut.overpassWalked && onDeck(S.wolf.x, S.wolf.y)) {
+        S.tut.overpassWalked = true;
+        say('Earth over the roar. A way across that does not gamble.');
+      }
+      if (!S.tut.overpassAdopted && S.elk.some(e => onDeck(e.x, e.y))) {
+        S.tut.overpassAdopted = true;
+        say('A deer crosses above the traffic. The land is learning the bridge.');
+      }
     }
 
     // the pack sings each season across

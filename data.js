@@ -142,6 +142,10 @@ const OBSTACLES = {
   // The Black River That Roars. Wolves may enter (and be hit); the culvert
   // gap passes under it safely. Prey never crosses at all.
   highway: { x0: 890, x1: 950, gapY0: 2380, gapY1: 2540 },
+  // What the machines were building all year: a wildlife overpass on the
+  // north stretch. Earth over the asphalt from OVERPASS_OPEN_DAY on —
+  // anything may cross above the traffic there.
+  overpass: { y0: 620, y1: 760 },
   // Groundwork for something Aspen has no word for.
   construction: { x0: 3640, y0: 1440, x1: 4040, y1: 1960 },
   // Rooflines, southeast. Impassable fenced ground.
