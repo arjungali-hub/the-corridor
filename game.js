@@ -241,6 +241,12 @@ function spawnPrey(herdIdx) {
   S.elk.push(elk);
 }
 
+// the powerline cut is open ground under a hum — nothing grazes there
+function inPowerlineCut(x, y) {
+  if (S.era === 'past') return false;
+  return distSeg(x, y, POWERLINE.x0, POWERLINE.y0, POWERLINE.x1, POWERLINE.y1).d < 60;
+}
+
 function pickGrazeTarget(elk) {
   const H = HERDS[elk.herd];
   for (let tries = 0; tries < 10; tries++) {
@@ -248,6 +254,7 @@ function pickGrazeTarget(elk) {
     const r = 60 + Math.random() * Math.max(60, H.leash - 80);
     const tx = H.anchor.x + Math.cos(a) * r, ty = H.anchor.y + Math.sin(a) * r;
     if (blockedAt(tx, ty, 14, false, APRON)) continue;  // never aim into a wall
+    if (inPowerlineCut(tx, ty)) continue;               // nor under the wires
     elk.tx = tx; elk.ty = ty;
     break;
   }

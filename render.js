@@ -477,6 +477,50 @@ function buildBaseLayer() {
       b.fillStyle = '#e5e0d2'; b.fillRect(fe.x0 - 20, fe.y0 + 26, 30, 18);
     }
 
+    // the powerline cut: forest cleared pole to pole, slash left where it fell
+    {
+      const pl = POWERLINE;
+      const plen = Math.hypot(pl.x1 - pl.x0, pl.y1 - pl.y0);
+      const pux = (pl.x1 - pl.x0) / plen, puy = (pl.y1 - pl.y0) / plen;
+      b.strokeStyle = 'rgba(178,168,132,0.45)';   // the pale strip itself
+      b.lineWidth = 104;
+      b.beginPath(); b.moveTo(pl.x0, pl.y0); b.lineTo(pl.x1, pl.y1); b.stroke();
+      const prng3 = makePrng(29);
+      b.strokeStyle = 'rgba(96,82,58,0.5)';       // slash piles
+      b.lineWidth = 3;
+      for (let s = 12; s < plen; s += 26) {
+        const off = (prng3() - 0.5) * 88;
+        const sx = pl.x0 + pux * s - puy * off, sy = pl.y0 + puy * s + pux * off;
+        const a2 = prng3() * Math.PI;
+        b.beginPath(); b.moveTo(sx - Math.cos(a2) * 9, sy - Math.sin(a2) * 9);
+        b.lineTo(sx + Math.cos(a2) * 9, sy + Math.sin(a2) * 9); b.stroke();
+      }
+      for (let s = 60; s < plen; s += 210) {      // pylons, marching
+        const px = pl.x0 + pux * s, py = pl.y0 + puy * s;
+        b.fillStyle = 'rgba(20,20,20,0.3)';
+        b.fillRect(px - 12, py + 4, 26, 8);
+        b.strokeStyle = '#4c4f52'; b.lineWidth = 2.6;
+        b.beginPath();
+        b.moveTo(px - 11, py + 8); b.lineTo(px - 3, py - 30);
+        b.moveTo(px + 11, py + 8); b.lineTo(px + 3, py - 30);
+        b.moveTo(px - 14, py - 20); b.lineTo(px + 14, py - 20);
+        b.moveTo(px - 10, py - 28); b.lineTo(px + 10, py - 28);
+        b.stroke();
+      }
+      b.strokeStyle = 'rgba(40,42,46,0.5)';       // the wires between them
+      b.lineWidth = 1.2;
+      for (const drop of [-26, -24]) {
+        b.beginPath();
+        for (let s = 60; s + 210 < plen + 210; s += 210) {
+          const ax = pl.x0 + pux * s, ay = pl.y0 + puy * s + drop;
+          const bx2 = pl.x0 + pux * Math.min(s + 210, plen), by2 = pl.y0 + puy * Math.min(s + 210, plen) + drop;
+          b.moveTo(ax, ay);
+          b.quadraticCurveTo((ax + bx2) / 2, (ay + by2) / 2 + 12, bx2, by2);
+        }
+        b.stroke();
+      }
+    }
+
     // the homestead: house, porch, barn, corral
     const rh = RANCH.house;
     b.fillStyle = 'rgba(30,30,30,0.3)';
@@ -794,6 +838,12 @@ function drawLightAndAir() {
   }
   if (S.era === 'past' || S.vistaT > 0) {
     ctx.fillStyle = `rgba(255,180,90,${S.era === 'past' ? 0.10 : 0.14})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+  }
+  // the drought: summer bakes toward straw until the lightning comes
+  if (S.era !== 'past' && S.fire && S.fire.state === 'none' && seasonIndex() === 1) {
+    const dr = clamp((day() - 91) / Math.max(1, (S.fire.day || 130) - 91), 0, 1);
+    ctx.fillStyle = `rgba(214,190,120,${dr * 0.08})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   // vignette, cached per canvas size

@@ -247,9 +247,22 @@ resume from the ⏳ items, in order. Verify with the headless harness
 
 ## Still open (future sessions)
 
-- [ ] Beat-8 matte-quality art for the cut; drought parameter; construction
-      as an audible eastward progress bar; overpass adoption arc; music
-      decision; per-season ambience beds; a powerline cut obstacle.
+- [x] Beat-8 matte-quality art for the cut — two seeded mattes of the same
+      ridgelines, past and present (drawVistaMatte, beats 2 and 8).
+- [x] Drought parameter — summer bakes toward straw until the fire's own
+      rolled day (tint in drawLightAndAir).
+- [x] Construction as an audible eastward progress bar — distant clanks,
+      louder east and later, silenced the day the overpass opens.
+- [x] Overpass adoption arc — OBSTACLES.overpass opens day 170: earth over
+      the asphalt, prey may cross, three told moments (opening, her
+      discovery, the first deer seen using it).
+- [x] Music decision — none. The land is the score: seasonal wind beds,
+      event stings, the howl at each season's turn. (Deliberate, final.)
+- [x] Per-season ambience beds — looping filtered-noise wind, weight per
+      season, hushed in the prologue, all through the master gain.
+- [x] Powerline cut — a cleared strip with pylons, wires, and slash from
+      the construction ground to the subdivision; prey refuse to graze in
+      it (pickGrazeTarget).
 
 ## Verification ritual
 

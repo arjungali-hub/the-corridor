@@ -208,6 +208,11 @@ const RANCH = {
 // Candidate den sites — spring's bet. Each is a distance argument: near the
 // hunts, near the water, or the known middle ground. No hidden modifiers;
 // geography is the consequence.
+// The powerline cut: a strip of forest cleared pole to pole, feeding the
+// subdivision from the construction ground. Open, silent, humming — prey
+// will not graze in it.
+const POWERLINE = { x0: 4000, y0: 1900, x1: 4400, y1: 2800 };
+
 const DEN_SITES = [
   { id: 'oldDen',   x: 2600, y: 1800, name: 'The Old Den' },
   { id: 'ridgeDen', x: 2120, y: 1140, name: 'Ridge Hollow' },

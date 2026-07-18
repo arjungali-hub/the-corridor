@@ -223,3 +223,11 @@ advances and the farther east she stands, silenced forever the day the
 overpass opens: that is what they were building. All through masterGain
 (M mutes everything). Music decision recorded: no melodic score — the
 land is the whole soundtrack, per the bible's austerity.
+
+gap features: drought + the powerline cut. Summer tints toward straw as
+day approaches the fire's rolled date. POWERLINE (construction ground →
+subdivision): pale cleared strip, slash piles, pylons with sagging wires
+in the base layer; inPowerlineCut() keeps prey from grazing under the hum.
+TODO.md's gap list is now fully closed — every bible feature has a
+build. Next: Arjun's browser pass on the Part-12 watch list (fire jam,
+NE corner, Salt Lick/silence, pup cadence) and general feel.
