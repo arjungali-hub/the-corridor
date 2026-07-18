@@ -503,10 +503,22 @@ function traversalUpdate() {
   }
 }
 
+// Anywhere around the human-made thing is close enough to see what it did:
+// distance to the footprint itself, not only the derived trigger circle.
+function nearFootprint(g, margin) {
+  if (!g.footprint) return false;
+  const o = OBSTACLES[g.footprint];
+  if (o.r !== undefined) return dist(S.wolf.x, S.wolf.y, o.x, o.y) < o.r + margin;
+  const dx = Math.max(o.x0 - S.wolf.x, 0, S.wolf.x - o.x1);
+  const dy = Math.max(o.y0 - S.wolf.y, 0, S.wolf.y - o.y1);
+  return Math.hypot(dx, dy) < margin;
+}
+
 function tearCheck() {
   for (const g of TEAR_GROUPS) {
     if (groupTorn(g)) continue;
-    if (dist(S.wolf.x, S.wolf.y, g.trigger.x, g.trigger.y) < g.trigger.r) {
+    if (dist(S.wolf.x, S.wolf.y, g.trigger.x, g.trigger.y) < g.trigger.r
+        || nearFootprint(g, 150)) {
       for (const eid of g.edges) S.edges.find(e => e.id === eid).torn = true;
       recomputeGhosts();
       S.flickerT = 0.5;
@@ -551,16 +563,58 @@ function newInkPath(a, b) {
   return false;
 }
 
+function doBridge(g) {
+  S.bridged.add(g.key);
+  playPatchChime();
+  S.history.push({ type: 'bridge', day: day(), group: g.key });
+  say('A new way around. She will remember it.');
+}
+
 function checkBridges() {
   for (const g of TEAR_GROUPS) {
     if (!groupTorn(g) || S.bridged.has(g.key)) continue;
     const a = g.chain[0], b = g.chain[g.chain.length - 1];
     if (a === b) continue;
-    if (newInkPath(a, b)) {
-      S.bridged.add(g.key);
-      playPatchChime();
-      S.history.push({ type: 'bridge', day: day(), group: g.key });
-      say('A new way around. She will remember it.');
+    if (newInkPath(a, b)) doBridge(g);
+  }
+}
+
+// Finding a way around is what it says: ANY walked route from one side of
+// the rip to the other, in either direction, that skirts the obstacle and
+// never gambles on the asphalt — her feet are the ink that matters, whether
+// or not they followed the graph.
+function inFootprint(g, x, y, margin) {
+  if (!g.footprint) return false;
+  const o = OBSTACLES[g.footprint];
+  if (o.r !== undefined) return dist(x, y, o.x, o.y) < o.r + margin;
+  return x > o.x0 - margin && x < o.x1 + margin && y > o.y0 - margin && y < o.y1 + margin;
+}
+
+function trailLegClear(g, i0, i1) {
+  const lo = Math.min(i0, i1), hi = Math.max(i0, i1);
+  for (let k = lo; k <= hi; k++) {
+    const p = S.trail[k];
+    if (inFootprint(g, p.x, p.y, 16) || onRoad(p.x, p.y)) return false;
+  }
+  return true;
+}
+
+function freeformBridgeCheck() {
+  for (const g of TEAR_GROUPS) {
+    if (!groupTorn(g) || S.bridged.has(g.key)) continue;
+    const A = NbyId.get(g.chain[0]), B = NbyId.get(g.chain[g.chain.length - 1]);
+    if (!A || !B || A === B) continue;
+    let ai = -1, bi = -1;
+    for (let i = 0; i < S.trail.length; i++) {
+      const p = S.trail[i];
+      if (dist(p.x, p.y, A.x, A.y) < 170) {
+        if (bi >= 0 && trailLegClear(g, bi, i)) { doBridge(g); break; }
+        ai = i;
+      }
+      if (dist(p.x, p.y, B.x, B.y) < 170) {
+        if (ai >= 0 && trailLegClear(g, ai, i)) { doBridge(g); break; }
+        bi = i;
+      }
     }
   }
 }
@@ -826,6 +880,9 @@ function packUpdate(dt) {
 
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') { w.moving = false; continue; }
+
+    // a lost wolf stands where it wandered until she comes for it
+    if (w.lost) { w.moving = false; continue; }
 
     // wounds heal on their own slow clock; a hurt wolf lags
     w.injuredT = Math.max(0, (w.injuredT || 0) - dt);
@@ -1674,8 +1731,40 @@ function taskDone(t) {
       const e = S.edges.find(x => x.id === t.key);
       return e.torn || e.lastUsedDay >= t.sinceDay || e.state === 'current-solid';
     }
+    case 'findwolf': {
+      const w = S.pack.find(x => x.id === t.key);
+      return !w || w.state === 'dead' || w.state === 'gone' || !w.lost;
+    }
+    case 'cache': return t.done === true;
   }
   return true;
+}
+
+function compassTo(x, y) {
+  const dx = x - S.wolf.x, dy = y - S.wolf.y;
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'east' : 'west') : (dy > 0 ? 'south' : 'north');
+}
+
+// the stranger tasks move through stages as she works them
+function taskProgress(t) {
+  if (t.kind === 'findwolf') {
+    const w = S.pack.find(x => x.id === t.key);
+    if (w && w.lost && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 150) {
+      w.lost = false; w.state = 'follow';
+      say(`${w.name} falls in at her shoulder as if nothing happened.`);
+    }
+  } else if (t.kind === 'cache') {
+    const n = NbyId.get(t.key);
+    if (!t.got && n && dist(S.wolf.x, S.wolf.y, n.x, n.y) < 130) {
+      t.got = true;
+      say('She takes what she can carry. Home, now.');
+    } else if (t.got && !t.done && S.denSite
+        && dist(S.wolf.x, S.wolf.y, S.denSite.x, S.denSite.y) < 100) {
+      t.done = true;
+      S.food = Math.min(100, S.food + 18);
+      say('The carry is home. It will matter.');
+    }
+  }
 }
 
 function issueTask() {
@@ -1699,13 +1788,43 @@ function issueTask() {
     const unseen = DEN_SITES.find(s => !S.seenDens.includes(s.id));
     if (unseen) { mk('den-look', `go and look at ${unseen.name}`, { key: unseen.id }); return; }
   }
+
+  // sometimes the day asks something stranger
+  const roll = Math.random();
+  if (roll < 0.2 && S.denId) {
+    // a packmate has wandered off and must be found
+    const cand = alivePack().filter(w => !w.pup && !w.balked && !w.lost);
+    const spots = NODES.filter(n => !n.dynamic && S.visited.has(n.id)
+      && dist(n.x, n.y, S.wolf.x, S.wolf.y) > 1100);
+    if (cand.length && spots.length) {
+      const w = cand[Math.floor(Math.random() * cand.length)];
+      const n = spots[Math.floor(Math.random() * spots.length)];
+      w.lost = true; w.state = 'stay'; w.x = n.x + 40; w.y = n.y + 30; w.tx = undefined;
+      mk('findwolf', `${w.name} is lost somewhere ${compassTo(n.x, n.y)} — find ${w.name}`, { key: w.id });
+      say(`${w.name} is missing.`);
+      return;
+    }
+  }
+  if (roll >= 0.2 && roll < 0.4 && S.denId && S.denSite) {
+    // a winter-kill worth carrying home
+    const spots = NODES.filter(n => !n.dynamic && S.visited.has(n.id)
+      && dist(n.x, n.y, S.denSite.x, S.denSite.y) > 800);
+    if (spots.length) {
+      const n = spots[Math.floor(Math.random() * spots.length)];
+      mk('cache', `a carcass near ${n.name}, ${compassTo(n.x, n.y)} — carry what she can home`,
+        { key: n.id, got: false, done: false });
+      return;
+    }
+  }
+
   // walk new ground: an unknown edge leading out of somewhere she has stood
   const scouts = S.edges.filter(e => !e.torn && e.state === 'unknown'
     && (S.visited.has(e.a) || S.visited.has(e.b)));
   if (scouts.length) {
     const e = scouts[Math.floor(Math.random() * scouts.length)];
     const far = S.visited.has(e.a) ? e.b : e.a;
-    mk('scout', `walk new ground, toward ${NbyId.get(far).name}`, { key: e.id, far });
+    const fn = NbyId.get(far);
+    mk('scout', `walk new ground, ${compassTo(fn.x, fn.y)}, toward ${fn.name}`, { key: e.id, far });
     return;
   }
   // renew fading ink
@@ -1722,12 +1841,18 @@ function issueTask() {
 function taskUpdate(dt) {
   if (S.task) {
     S.task.t += dt;
+    taskProgress(S.task);
     if (taskDone(S.task)) {
       S.task = null;
       S.taskCooldown = 18 + Math.random() * 22;
       playTaskChime();
       say('Done. The day moves on.');
     } else if (S.task.t > TASK_TIMEOUT) {
+      // a lost wolf finds its own way back when the search is given up
+      if (S.task.kind === 'findwolf') {
+        const w = S.pack.find(x => x.id === S.task.key);
+        if (w && w.lost) { w.lost = false; w.state = 'follow'; }
+      }
       S.task = null;
       S.taskCooldown = 24 + Math.random() * 20;
       say('The moment passes.');
@@ -2739,7 +2864,7 @@ function saveGame() {
       pack: S.pack.map(w => ({
         id: w.id, name: w.name, mult: w.mult, yearling: w.yearling,
         pup: !!w.pup, x: w.x, y: w.y, state: w.state,
-        injuredT: w.injuredT || 0,
+        injuredT: w.injuredT || 0, lost: !!w.lost,
       })),
       fear: S.fear, food: S.food,
       yearlingKnows: [...S.yearlingKnows],
@@ -2784,6 +2909,7 @@ function loadGame() {
     if (w) {
       w.x = sw.x; w.y = sw.y; w.state = sw.state === 'balk' ? 'follow' : sw.state;
       w.injuredT = sw.injuredT || 0;
+      w.lost = !!sw.lost;
     } else {
       // pups, Lichen — anyone who joined along the way
       S.pack.push({ ...sw, state: sw.state === 'balk' ? 'follow' : sw.state, gait: 0, moving: false });
@@ -2872,6 +2998,7 @@ function update(dt) {
 
     traversalUpdate();
     tearCheck();
+    freeformBridgeCheck();
     packUpdate(dt);
     trafficUpdate(dt);
     preyUpdate(dt);

@@ -1561,7 +1561,19 @@ function drawMap() {
   }
 
   for (const e of S.edges) drawInkEdge(e, m);
-  for (const g of TEAR_GROUPS) if (groupTorn(g)) drawRip(g, m);
+  for (const g of TEAR_GROUPS) {
+    if (!groupTorn(g)) continue;
+    drawRip(g, m);
+    // the tear she is working on right now announces itself
+    if (S.task && S.task.kind === 'patch' && S.task.key === g.key) {
+      const pu = 0.3 + 0.25 * Math.sin(S.time * 3);
+      ctx.strokeStyle = `rgba(140,40,30,${pu * m})`;
+      ctx.lineWidth = 3 / sc;
+      ctx.setLineDash([14 / sc, 10 / sc]);
+      ctx.beginPath(); ctx.arc(g.trigger.x, g.trigger.y, g.trigger.r + 60, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
   // (no patch squares: the new ink around a rip is its own record)
 
   // nodes, in screen space so rings stay a constant size
@@ -1916,6 +1928,7 @@ function drawHUD() {
       let glyph = { follow: '', stay: ' · holds', balk: ' · freezes', dead: ' · lost to the road', gone: ' · gone' }[w.state];
       const alive = w.state !== 'dead' && w.state !== 'gone';
       if (alive && (S.packFrozen || (w.frozenT || 0) > 0)) glyph = ' · freezes';
+      if (alive && w.lost) glyph = ' · missing';
       if (alive && (w.injuredT || 0) > 0) glyph += ' · hurt';
       ctx.fillStyle = alive ? inkText : (onMap ? 'rgba(120,60,45,0.8)' : 'rgba(230,150,130,0.8)');
       ctx.fillText(w.name + glyph, canvas.width - 20, ry);
