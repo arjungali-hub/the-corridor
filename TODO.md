@@ -1,8 +1,13 @@
-# The Corridor — user feedback checklist
+# The Corridor — checklist (feedback + code review, combined)
 
 Everything Arjun has asked for, with status. If a session dies mid-work,
-resume from the ⏳ items, in order. Verify with the headless harness
-(portable node in scratchpad; `document`/`window`/`localStorage` stubs).
+resume from the first unchecked item, in order. Verify with the headless
+harness (portable node in scratchpad; `document`/`window`/`localStorage`
+stubs).
+
+This file used to be two documents — `TODO.md` (raw feedback log) and
+`REVIEW.md` (the structured code-review work order) — combined here on
+2026-07-19 now that both are fully closed.
 
 ## Bug fixes (specified precisely by Arjun)
 
@@ -13,11 +18,12 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [x] 2. Car hit could teleport you across the road (cheap crossing
       exploit). Fixed: thrown back to the recorded entry side
       (`roadEntrySide`), plus injury: speed ×0.7 for 2.5 days
-      (`injuredUntilDay`).
+      (`injuredUntilDay`, later replaced by real-time `injuredT` — see
+      Part 10).
 - [x] 3. Coverage min/max let both-ends-touched count as a full traversal.
       Fixed: 8-bucket bitmask (`covBits`), all buckets required per pass.
 - [x] 4. N instantly wiped the save. Fixed: press N twice within 2.5 s
-      (`requestNewYear`).
+      (`requestNewYear`, later R twice — see below).
 - [x] 5. Tear sting was triple-booked. Fixed: car strikes use `playImpact`
       (blunt/mechanical); the sting belongs to tears alone.
 
@@ -62,7 +68,7 @@ resume from the ⏳ items, in order. Verify with the headless harness
       Willow's death + the hold-to-inherit interaction (no sting, no
       music) with the already-torn Mud Spring spur found on the habitual
       map check. Prologue plays on first run; skipped automatically once
-      completed (N skips for testers).
+      completed (N skips for testers). Later redesigned — see Part 13.
 
 ## Movement & world feel (Arjun, 2026-07-14)
 
@@ -94,7 +100,7 @@ resume from the ⏳ items, in order. Verify with the headless harness
       instead of vanishing whole.
 - [x] Map is a **toggle** (SPACE opens, SPACE closes; right-click too); the
       beat-9 inheritance keeps its deliberate hold. Visible map radius
-      roughly doubled (900–2400 u).
+      roughly doubled (900–2400 u), later fixed flat — see Part 13.
 - [x] **Inking is much easier**: being in the general area counts — corridor
       200 u on her mother's routes, 150 u on new ground, +50 on very long
       segments.
@@ -115,7 +121,8 @@ resume from the ⏳ items, in order. Verify with the headless harness
       priority: find a way around an unbridged tear → feed hungry pups →
       hunt when food is low → go look at an unvisited den hollow → walk new
       ground toward a named place → renew a fading route. Tasks complete
-      from state (with a soft chime) or quietly expire after 120 s.
+      from state (with a soft chime) or quietly expire after 120 s. Later
+      expanded with direction words and two new task kinds — see Part 14.
 - [x] **Aspen's movement speed equals Sedge's**: 258 off-route (Sedge's
       pace), 290 on known routes, 210 in snow.
 - [x] **Tutorial slower** (longer gaps between every step) and the scent
@@ -132,7 +139,7 @@ resume from the ⏳ items, in order. Verify with the headless harness
       **ranch fence line** closes the northeast, and `deriveTriggers()`
       computes machines/drycreek/gravelpit triggers from their obstacle
       footprints. Only the Black River keeps a hand trigger (it must never
-      fire on the asphalt). Optional later: a powerline cut.
+      fire on the asphalt). Powerline cut later added — see gap list below.
 - [x] **Clickable map routing**: click a known place on the raised map and
       the way there glows along known ink (Dijkstra over untorn edges);
       clicking again dismisses it; arriving clears it; a tear that breaks
@@ -167,11 +174,14 @@ resume from the ⏳ items, in order. Verify with the headless harness
       at your back → the line holds. Press alone → a nip (injury), a shove
       back, a lesson about lines.
 - [x] **Lichen** joins at day 100 from the north, unsettling the pack
-      (fear +0.15) and inking three northern routes she alone knew.
-- [x] **The fire**: dry lightning east at day ≥130 (summer); 50 s of amber
-      air, drifting smoke, and every herd running west together in
-      truce-by-panic (no stamina drain — panic, not pursuit); afterward the
-      northeastern woods render charred for the rest of the year.
+      (fear +0.15) and inking three northern routes she alone knew. Later
+      hardened against spawning inside blocked ground — see Part 14.
+- [x] **The fire**: dry lightning east at day ≥130 (summer, later randomized
+      per year — see Part 11); 50 s of amber air, drifting smoke, and every
+      herd running west together in truce-by-panic (no stamina drain —
+      panic, not pursuit, and later allowed onto the road itself — see
+      Part 14); afterward the northeastern woods render charred for the
+      rest of the year.
 - [x] **Pack vocal language starter set**: season-turning howls (two
       staggered gliding voices), dog barks, rival growl, rifle crack +
       body, fire rumble, play-fight yip.
@@ -194,14 +204,16 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [x] Beat 2 never says where to go — add a guiding arrow toward the
       overlook (and toward the den in beat 9).
 - [x] Beat 3 advances the moment the map opens — instead wait for the map
-      to be closed and *stay* closed a few seconds.
+      to be closed and *stay* closed a few seconds. (Beat 3 later redesigned
+      into a forced view entirely — see Part 13.)
 - [x] Kills impossible until the hunt is taught (beat 4); gold trails
       exist from the start and should be even longer.
 - [x] Beat 4 text: just "Run it down." — Willow doesn't actually turn it.
 - [x] Beat 5: the road is physically impossible to step onto until the
       truck has passed and Willow crosses.
 - [x] The map is not openable until beat 3 teaches it (and, on the skip
-      path, until the tutorial's map step).
+      path, until the tutorial's map step). Later redesigned so it isn't
+      openable until the inheritance — see Part 13.
 - [x] Beat 8 bug: after the cut the wolves run off — the zone anchor
       doesn't move with the teleport. Clear the anchor + set follow on the
       cut.
@@ -227,25 +239,30 @@ resume from the ⏳ items, in order. Verify with the headless harness
       graze-target inside blocked ground, and any animal wedged inside an
       obstacle frees itself.
 - [x] Prey can never step onto the road **unless Aspen is on it or just
-      crossed it** (a short grace window — so a chase can drive them across).
+      crossed it** (a short grace window — so a chase can drive them across;
+      later also true during the fire's panic-truce — see Part 14).
 - [x] Crossing **most** of a path fully inks it (6 of 8 coverage buckets,
       not all 8).
 - [x] Dog attacks cost a lot of **food** and **injure** Aspen; dogs also
-      attack pack wolves (food + fear). 
+      attack pack wolves (food + fear; later a longer real-time wound for
+      packmates specifically — see Part 14).
 - [x] **Fear is more costly**: at high fear the whole pack freezes in
       place (~a day and more) until fear falls low enough; fear decays a
-      touch faster so the freeze ends.
+      touch faster so the freeze ends. Redesigned entirely in Part 14 (the
+      pack flees to safety first, then freezes, ~10× longer).
 - [x] The obstacle at the Bend must be **a lot bigger and clearly
       human-induced** — a bermed dredge impoundment where the creek was
-      diverted, with pipe, machine, and its own violet, r 110 → 260.
+      diverted, with pipe, machine, and its own violet, r 110 → 260, later
+      340 — see Part 13.
 - [x] The map **always frames the entire land** (camera pulls to the
       world's center at full raise, zoom fits the world) and the visible
-      radius is a little over half the land's width (~2750).
+      radius is a little over half the land's width (~2750). Later fixed to
+      a flat, position-independent radius — see Part 13.
 - [x] Wolves vibrate at the edge of the hunting radius when prey is near
       — hysteresis: a chase starts well inside the radius (0.8×) and only
       breaks well outside it (1.3×).
 
-## Still open (future sessions)
+## Bible gaps closed (2026-07-18)
 
 - [x] Beat-8 matte-quality art for the cut — two seeded mattes of the same
       ridgelines, past and present (drawVistaMatte, beats 2 and 8).
@@ -256,13 +273,146 @@ resume from the ⏳ items, in order. Verify with the headless harness
 - [x] Overpass adoption arc — OBSTACLES.overpass opens day 170: earth over
       the asphalt, prey may cross, three told moments (opening, her
       discovery, the first deer seen using it).
-- [x] Music decision — none. The land is the score: seasonal wind beds,
-      event stings, the howl at each season's turn. (Deliberate, final.)
+- [x] Music decision — sparse motifs at earned emotional beats only (the
+      inheritance, the pups' birth, the pack's arrival); no looped score.
+      The land is otherwise the score: seasonal wind beds, event stings,
+      the howl at each season's turn.
 - [x] Per-season ambience beds — looping filtered-noise wind, weight per
-      season, hushed in the prologue, all through the master gain.
+      season, hushed in the prologue, all through the master gain. Later
+      made location-aware (road hum, creek, birdsong) — see Part 14.
 - [x] Powerline cut — a cleared strip with pylons, wires, and slash from
       the construction ground to the subdivision; prey refuse to graze in
       it (pickGrazeTarget).
+
+## Code review work order (Arjun, 2026-07-17 → 2026-07-18)
+
+A structured code-review pass, worked in order; after each part: harness
+green (checks added where a part called for it), browser feel-check where
+it touched feel, a NOTES.md line, and a commit named `review fix N: …`.
+
+- [x] **Part 0 — TODO.md housekeeping.** The bible-gaps section listed only
+      what wasn't built yet (rancher, standoff, silence, Lichen, fire were
+      all already implemented) — corrected.
+- [x] **Part 1 — Base layer rebuilds every frame.** `drawWorld`'s key must
+      equal `buildBaseLayer`'s three-segment key (era | season | burned).
+      Harness proves one build across repeated frames.
+- [x] **Part 2 — The ending is the pack's arrival.** 'arrived' requires the
+      living pack gathered within ~400 of the range; waiting message when
+      Aspen is there alone ('Not all of them are through…'); survivorCount
+      snapshots who was actually there at `startEnding`; early arrival
+      before WINTER_START says 'Not yet. The season has not turned.'
+- [x] **Part 3 — Road: pack sprints on asphalt** (240·mult when position or
+      target is on the road) **and the conducted crossing is taught** once
+      near the road (F holds → cross → F calls them through), flag saved.
+- [x] **Part 4 — Seasonal squeeze.** Eastern herds (anchor east of the
+      highway, cattle exempt): respawn ×1 spring/summer, ×2.5 autumn, none
+      in winter; western herd ×1 all year. One-time autumn message: 'The
+      hunting thins. The east is emptying.'
+- [x] **Part 5 — Winter starvation ends the year.** In winter, food at 0
+      continuously for 180 real s (extend `starveT`) → `startEnding
+      ('failed')`. Other seasons unchanged.
+- [x] **Part 6 — Daylight decoupled from the 5-s calendar.** `daylight()`
+      runs off `S.time` (~75 s per visual day, same curve; keeps the
+      past-era branch). Night tint, headlights, rancher sighting inherit
+      it. Calendar untouched.
+- [x] **Part 7 — Resume.** Intro screen offers a resume line when a valid
+      v2 save exists; `r` loads it, any other key starts fresh (boot
+      `clearSave()` moved into that path). Never auto-loads. Text later
+      reworded — see Part 14.
+- [x] **Part 8 — Beat 9 scaffold** — absorbed into Part 13: the map raises
+      itself at the inherit and the rip callout labels Mud Spring.
+- [x] **Part 9 — Bram's recall (one line).** Ghost edges render at 0.55·m
+      (instead of 0.3·m) while Bram lives and is within ~300 of Aspen;
+      first time: say('Bram remembers the far side. From before.') Once.
+- [x] **Part 10 — Injury goes real-time.** Replaced `injuredUntilDay` with
+      `S.injuredT` seconds (75), ticking regardless of task freeze; old
+      save field read defensively as 0.
+- [x] **Part 11 — Small fixes** (one commit):
+      1. [x] Master GainNode + M to mute ('M — quiet' in help).
+      2. [x] `mapClick` only in play mode.
+      3. [~] `senseRadius` ghost-skip — superseded while the radius is a
+             flat WORLD.w·0.53; revisit only if ink-density radius returns.
+      4. [x] Past-era strike text: 'The truck clips her. Willow is already
+             there, pressing her to the grass.'
+      5. [x] Fire day randomized 115+rand·45, rolled at newGame (S.fire.day).
+      6. [x] Distinct message for pack-initiated cattle kills (Aspen > 500
+             away): 'The pack took a calf on its own. The house will not
+             know the difference.'
+      7. [x] Prologue beat-4 kill: generic 'A kill…' say suppressed.
+      8. [x] SPACE ignored while `forcedSenseT > 0` (no stuck-open map).
+- [x] **Part 12 — Play-test watch list** (executed 2026-07-18): fire-driven
+      prey may cross the road (the jam breaks in panic-truce); cattle
+      anchor moved to (4120, 830), off the dog/fence stack; Salt
+      Lick–silence overlap kept as deliberate; pup cadence left as tuned.
+- [x] **Part 13 — Prologue map-flow redesign (the big one).** The inherit
+      is the FIRST moment the map can be opened on command. Beat 3's map
+      moment is a forced view (she shows you; no SPACE teaching); beat 7's
+      winter-range map stays a forced view of *Willow's* map; SPACE stays
+      locked until after the beat-9 inheritance. When the inherit hold
+      completes, the map RAISES ITSELF, the rip callout labels Mud Spring
+      (absorbs Part 8), and there is more emotional buildup before the
+      hold (longer stillness, captions). After the map is lowered, Act I
+      starts promptly.
+  - [x] Spring opens away from every den site (at Aspen Stand), with a
+        prompt to open the map; all three hollows are shown on it.
+  - [x] A chosen den becomes a real graph node ("home") with unknown edges
+        to the 3 nearest nodes, walkable and inkable after selection
+        (dynamic nodes/edges stripped at newGame; recreated from denId on
+        load).
+  - [x] Den choice: needs only ~1.2 s standing within 120 u (was 2.5 s / 60).
+  - [x] Old den naming: always "The Old Den" until chosen as home, then
+        "The Den"; no doubled label at the old den site.
+  - [x] H's intro reads "What she knows how to do: H."; after a den is
+        chosen the game teaches R, then, a beat later, H.
+  - [x] The Bend impoundment bigger again (r 260 → 340); the southern
+        detour rerouted around it through a new Sand Bar node.
+  - [x] Map radius: flat half-the-territory-width, never position-dependent.
+  - [x] First arrival in new (grey-void) territory names the node ("Salt
+        Lick. She will remember it.").
+  - [x] The patch task names its tear ("find a way around the Black
+        River / the machines / the drowned Bend / the pit").
+  - [x] Patching works from both sides — `checkBridges` runs an undirected
+        BFS between the chain ends.
+- [x] **Part 14 — Playtest batch (2026-07-18).**
+  - [x] Intro resume line reworded: 'R — resume the year from where you
+        left off', placed further down the screen.
+  - [x] Patching around a tear works for ANY walked route around the
+        obstacle, from any direction (trail-based freeform bridging,
+        alongside the edge-ink BFS).
+  - [x] Being anywhere around a human-made object causes its tear
+        (footprint proximity, not only the derived trigger circles).
+  - [x] Fear redesign: frightened wolves RUN to safe ground away from the
+        threat and THEN freeze (dogs can no longer chew a rooted pack);
+        applies to road encounters too; label reads 'freezes' (never
+        'balks'); the frozen spell lasts ~10× longer.
+  - [x] Lichen must never spawn inside blocked ground.
+  - [x] Pup HUD bar labelled 'PUP FOOD'. 'The pups are coming' goal line
+        only within ~10 days of the birth; a different line before that.
+  - [x] Dog bites injure packmates too, for longer than Aspen (real time),
+        shown as 'hurt'.
+  - [x] Winter snow slows all animals (prey and pack), not just Aspen.
+  - [x] Weather, a few days per spell: sun (normal), cloud (visible radius
+        shrinks), rain (scent washes out faster + the world darkens).
+  - [x] Food drains slower when the pack is smaller.
+  - [x] Ambience follows location: traffic hum near the road, water near
+        the creek, birds in the woods in the green seasons.
+  - [x] Sparse music at the emotional beats (the inheritance, the pups'
+        birth, the pack's arrival) — short motifs, nothing looped.
+  - [x] A packmate never steps onto asphalt unless Aspen herself is on it.
+  - [x] Prologue beat 1 introduces the pack by name before the scent
+        lesson.
+  - [x] In the prologue the pack's zone follows Willow while she lives;
+        leadership passes to Aspen at the inheritance.
+  - [x] The patch task marks its tear on the raised map (emphasis pulse);
+        the scout task names the compass direction of the unknown ground.
+  - [x] More task variety: a carry-it-home delivery task and a
+        lost-packmate search task (with direction words), alongside
+        hunt/patch/pups.
+
+## Still open (future sessions)
+
+Nothing outstanding. Every item raised in feedback and the code review is
+closed as of 2026-07-18. Future work starts from new playtesting.
 
 ## Verification ritual
 
