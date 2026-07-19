@@ -255,3 +255,47 @@ at the inherit, the pups' birth, and the pack's arrival — music exists
 now, only where it is earned.
 
 Harness green x4 through the batch. Next: Arjun plays a full year.
+
+## Part 15 — design drifts (2026-07-19, Arjun's review)
+
+Audited first: every Part-14 item (weather included) confirmed present in
+code before starting.
+
+Drift 1 — the world never waits. MIN_PER_SEC 288->160 (day ~9 s, year
+~54 min); the calendar runs unconditionally, no task freeze. Tasks are
+URGES now: no chime, no 'Done' line, no 120 s expiry — an urge clears
+because the world changed. 'Renew' is gone (decay is the discovered
+dilemma). World-clocked endings only: a lost wolf comes back alone
+(~240 s); ravens finish an unclaimed carcass (~300 s). Decay day-counts
+rescaled 45/75 -> 25/42 (same real-time pace).
+
+Drift 2 — adoption is played. The deck reeks: packRefuses() seals it to
+the pack until Aspen conducts them (same F verb, opposite-sides rule);
+per-wolf deckFrom counts completed crossings; at 3, overpassTrusted() and
+'The pack knows the bridge now.' Prey blockedAt honors trust — no deer on
+the deck before the wolves taught it. From day 240 the eastern-born herd
+anchors mill against the road (h.x1+300, easing toward the deck's y);
+once trusted they trickle west 90/day to x 620 — the east visibly drains
+across the bridge. Anchors reset at newGame (anchor0) and ride the save.
+
+Drift 3 — the gift is a rumor: a raven column (8 circling birds, 60-550
+up) over the gift spot until claimed, plus a gold scent bloom refreshed
+every 2.2 s. Low-conflict players get found by their reward.
+
+Drift 4 — wind. S.wind.a random-walks, re-rolls with each sky.
+windDetectMult: upwind approach seen at up to 2.1x flight radius,
+downwind 0.6x, rain x0.75; windless in the past era (the first hunt is
+meant to be won). Scent view shows drifting streaks the way it blows.
+
+Smaller: season-turn ritual (forced 10 s raise; Willow's original
+inherited map ghosts over the scarred present, fades over the last 3 s);
+Sedge's mark at the world's edge in winter ('Sedge. Going somewhere the
+map does not go.'); F during a standoff = the pack stands tall (instant
+win with >=2 adults at fear +0.25, bluster alone — the nip comes at
+once); lean west (winter west-side spawns are wary: 1.3x flight radius,
+slower tiring, 0.65x meat).
+
+Harness green x3 (new checks: urge/no-freeze, wind up/down/rain, distrust
+-> three crossings -> trust -> prey follow, mill/trickle anchors, season
+ghost smoke, standoff F, Sedge's mark). Next: Arjun plays a full year —
+the new pacing (9 s days, no freeze) is the thing to feel first.

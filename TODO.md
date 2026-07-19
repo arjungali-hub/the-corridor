@@ -409,10 +409,52 @@ it touched feel, a NOTES.md line, and a commit named `review fix N: …`.
         lost-packmate search task (with direction words), alongside
         hunt/patch/pups.
 
-## Still open (future sessions)
+## Part 15 — Design drifts (Arjun, 2026-07-19)
 
-Nothing outstanding. Every item raised in feedback and the code review is
-closed as of 2026-07-18. Future work starts from new playtesting.
+- [x] **Drift 1 — the task system fights the thesis.** Un-freeze time:
+      the calendar runs ALWAYS (no task freeze); slow the ambient clock to
+      ~9 s/day (a 50-60 minute year) so nothing feels missable. Keep task
+      detection but re-theme as URGES in Aspen's register: no timer, no
+      chime, no 'Done' line — an urge clears because the world changed.
+      Drop the 'renew a fading route' task entirely (route maintenance is
+      the player's own discovered dilemma). Kind-specific quiet endings
+      where the world must move on (a lost wolf finds its own way back; an
+      unclaimed carcass goes to the ravens). Rescale ink-decay day counts
+      so real-time decay pace is unchanged.
+- [x] **Drift 2 — the overpass arc must be played, not told.** For ~2
+      weeks after opening the deck reeks of people: pack wolves refuse the
+      band unless Aspen crosses first and calls them through (the existing
+      F-conduct verb); after ~3 conducted pack crossings the bridge is
+      trusted. Prey won't touch it until then — only afterwards can 'the
+      first deer seen crossing' fire. Then the migration image: from late
+      autumn the eastern herd anchors drift to the road and MILL against
+      it; once the bridge is trusted they trickle across over days,
+      draining the east — the squeeze becomes something you watch.
+- [x] **Drift 3 — the rancher thread must be findable.** The gift becomes
+      a magnetic rumor: a tall raven column over the gift spot (visible
+      from far, like the crane beacon) plus a gold scent bloom that keeps
+      refreshing until the gift is taken.
+- [x] **Drift 4 — wind makes the hunt.** Wind gets a direction (slow
+      random walk, re-rolled with the weather). Prey smell Aspen much
+      farther when she approaches from upwind; downwind approach shrinks
+      their detection. Rain dampens detection (a hunting opportunity).
+      The scent view shows the wind (drifting streaks) so approach becomes
+      a tactical read.
+- [x] **Season-turn ritual.** At each season boundary (with the howl): a
+      forced ~10 s map raise where Willow's original complete map ghosts
+      in over the current scarred state, then fades — three times a year
+      the player watches her map die by comparison.
+- [x] **Sedge's epilogue.** If she dispersed: one red mark of hers near
+      the world's edge, findable in scent view in winter — 'Sedge. Going
+      somewhere the map does not go.'
+- [x] **The standoff verb.** F during a standoff = the pack stands tall
+      together: with ≥2 adults it ends the standoff at once, at a fear
+      cost — display/hold/retreat from the existing input.
+- [x] **The lean west (reframed as design).** Winter's final corridor
+      holds one lean, hard-to-catch herd: the western herd in winter is
+      warier and yields less — every calorie out there is earned.
+
+## Verification ritual
 
 ## Verification ritual
 

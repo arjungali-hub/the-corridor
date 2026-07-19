@@ -20,12 +20,12 @@ const SPEED_ROUTE   = 290;   // along a known, untorn route
 const SPEED_SNOW    = 210;   // off-route in winter
 const INJURY_SPEED  = 0.7;   // while hurt
 const INJURY_TIME   = 75;    // real seconds to heal — ticks even while a task holds the calendar
-const MIN_PER_SEC   = 288;   // game minutes per real second (1 day ≈ 5 s; a year ≈ 30 min)
+const MIN_PER_SEC   = 160;   // game minutes per real second (1 day ≈ 9 s; a year ≈ 54 min)
 const SOLID_AT      = 3;     // full traversals to lift dotted → solid
-// Ink decay alone rides the fast calendar at 2× its old real-time pace:
+// Ink decay keeps its tuned real-time pace across clock changes:
 // solid fades after ~225 real s idle, dotted vanishes ~375 real s later.
-const DECAY_SOLID_DAYS  = 45;
-const DECAY_DOTTED_DAYS = 75;
+const DECAY_SOLID_DAYS  = 25;
+const DECAY_DOTTED_DAYS = 42;
 const SENSE_IN      = 0.35;  // seconds to raise the map
 const SENSE_OUT     = 0.5;   // the locked 0.5 s blend back
 const SCALE_WORLD   = 1.1;
@@ -82,6 +82,8 @@ function makePrng(seed) {
 
 const NbyId = new Map(NODES.map(n => [n.id, n]));
 const DEN = NbyId.get('den');
+// herd anchors migrate during the year; remember where they truly live
+for (const H of HERDS) H.anchor0 = { x: H.anchor.x, y: H.anchor.y };
 
 // ── game state ───────────────────────────────────────────────────────────────
 
@@ -91,6 +93,7 @@ let S = null;
 
 function newGame() {
   stripDynamicDen();   // a den dug last year is not part of the eternal graph
+  for (const H of HERDS) { H.anchor.x = H.anchor0.x; H.anchor.y = H.anchor0.y; }
   S = {
     mode: 'intro',           // intro | prologue | play | ending
     era: 'present',          // 'past' during prologue beats 1–7
@@ -156,6 +159,10 @@ function newGame() {
     // the fire picks its own summer day, once per year
     fire: { state: 'none', t: 0, day: 115 + Math.floor(Math.random() * 45) },
     weather: null,     // spells of sky: sun | cloud | rain, a few days each
+    wind: { a: Math.random() * Math.PI * 2 },   // the direction it blows toward
+    overpassCross: 0,  // conducted pack crossings; at 3 the bridge is trusted
+    seasonGhostT: 0,   // the season ritual: her mother's map, ghosted over now
+    sedgeMark: null,   // where Sedge went, if hunger took her
     lastSeason: 0, bondT: 0, bondC: null,
 
     pack: PACK_DEF.map((d, i) => ({
@@ -236,6 +243,9 @@ function spawnPrey(herdIdx) {
     gait: 0,
     bull: H.antlers && Math.random() < 0.4,
     skittish: H.cattle ? 0.45 : 0.75 + Math.random() * 0.5,
+    // the lean west: winter spawns on the far side are warier and thinner —
+    // every calorie on the final corridor is earned
+    wary: seasonIndex() === 3 && !H.cattle && H.anchor.x <= OBSTACLES.highway.x1,
     grazeT: Math.random() * 6,
     tx: 0, ty: 0,
   };
@@ -274,10 +284,25 @@ function setCaption(text, dur, sub) { S.caption = { text, sub: sub || '', t: 0, 
 // ── movement & collision ─────────────────────────────────────────────────────
 
 // The overpass opens when the machines finish it: from then on its band of
-// the road is earth, not asphalt — no cars, no fear, and prey may cross.
+// the road is earth, not asphalt. But it REEKS of people, and nothing has
+// ever used it — adoption is played, not told. Aspen may scout it from day
+// one; her pack refuses the deck until she crosses first and calls them
+// (the F-conduct verb), and only after three conducted pack crossings is
+// the bridge trusted. Prey won't set a hoof on it until then.
 const OVERPASS_OPEN_DAY = 170;
 function overpassOpen() {
   return S && S.era !== 'past' && day() >= OVERPASS_OPEN_DAY;
+}
+function overpassTrusted() {
+  return S && (S.overpassCross || 0) >= 3;
+}
+function onDeck(x, y) {
+  const h = OBSTACLES.highway, o = OBSTACLES.overpass;
+  return x > h.x0 - 8 && x < h.x1 + 8 && y > o.y0 && y < o.y1;
+}
+// asphalt, or a deck the pack does not yet believe in
+function packRefuses(x, y) {
+  return onRoad(x, y) || (onDeck(x, y) && overpassOpen() && !overpassTrusted());
 }
 
 // The bridge at Water-Under-Stone crosses OVER the road: its deck (the gap
@@ -303,9 +328,10 @@ function blockedAt(x, y, r, canPassGap, margin) {
   const h = OBSTACLES.highway;
   if (x > h.x0 - r && x < h.x1 + r) {
     const inGap = canPassGap && y > h.gapY0 + r && y < h.gapY1 - r;
-    // the overpass, once open, is ground: anything may cross above the cars
+    // the overpass, once open AND trusted, is ground: prey follow the
+    // wolves' example, never the other way around
     const o = OBSTACLES.overpass;
-    const inOverpass = overpassOpen() && y > o.y0 + r && y < o.y1 - r;
+    const inOverpass = overpassOpen() && overpassTrusted() && y > o.y0 + r && y < o.y1 - r;
     // prey never sets foot on the road — unless Aspen is on it (or just
     // was, and the chase spills across), or the fire is driving everything
     // west in a truce of panic
@@ -650,11 +676,15 @@ function weatherUpdate(dt) {
     w.kind = r < 0.5 ? 'sun' : r < 0.78 ? 'cloud' : 'rain';
     w.t = 0;
     w.dur = 15 + Math.random() * 15;   // three to six days of it
+    // a new sky brings a new wind
+    if (S.wind) S.wind.a += (Math.random() - 0.5) * 2.4;
   }
   if (w.kind === 'rain') {
     // the grass forgets faster in the wet
     for (const p of S.scent) p.t -= dt * 2;
   }
+  // and between skies, the wind wanders on its own
+  if (S.wind) S.wind.a += (Math.random() - 0.5) * 0.12 * dt;
 }
 
 // The map's visible radius: a little over half the land's width — less
@@ -911,6 +941,23 @@ function packUpdate(dt) {
     // a lost wolf stands where it wandered until she comes for it
     if (w.lost) { w.moving = false; continue; }
 
+    // the bridge is learned by crossings: each wolf that goes over, counts
+    if (overpassOpen() && !overpassTrusted()) {
+      const mid = (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2;
+      if (onDeck(w.x, w.y)) {
+        if (w.deckFrom === undefined) w.deckFrom = w.x < mid ? -1 : 1;
+      } else if (w.deckFrom !== undefined) {
+        if ((w.x < mid ? -1 : 1) !== w.deckFrom) {
+          S.overpassCross = (S.overpassCross || 0) + 1;
+          if (overpassTrusted() && !S.tut.overpassTrust) {
+            S.tut.overpassTrust = true;
+            say('The pack knows the bridge now. The land will learn it from them.');
+          }
+        }
+        w.deckFrom = undefined;
+      }
+    }
+
     // wounds heal on their own slow clock; a hurt wolf lags
     w.injuredT = Math.max(0, (w.injuredT || 0) - dt);
     const lag = (w.injuredT > 0 ? 0.65 : 1) * snow;
@@ -994,13 +1041,13 @@ function packUpdate(dt) {
     // a wolf never ambles on asphalt: mid-road, or headed onto it, full lope
     if (onRoad(w.x, w.y) || onRoad(w.tx, w.ty)) sp = Math.max(sp, 240 * w.mult * lag);
     const step = Math.min(d, sp * dt);
-    // and it NEVER takes asphalt Aspen is not on — unless she is already
-    // across, calling it through (opposite sides = a conducted crossing)
+    // and it NEVER takes asphalt — or an untrusted deck — Aspen is not on,
+    // unless she is already across, calling it through (a conducted crossing)
     const hMid = (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2;
-    const sealed = !onRoad(S.wolf.x, S.wolf.y) && !onRoad(w.x, w.y)
+    const sealed = !packRefuses(S.wolf.x, S.wolf.y) && !packRefuses(w.x, w.y)
       && ((S.wolf.x - hMid > 0) === (w.x - hMid > 0));
     tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step,
-      (x, y) => packBlockedAt(x, y) || (sealed && onRoad(x, y)));
+      (x, y) => packBlockedAt(x, y) || (sealed && packRefuses(x, y)));
     const want = Math.atan2(w.ty - w.y, w.tx - w.x);
     let dh = want - (w.heading || 0);
     while (dh > Math.PI) dh -= Math.PI * 2;
@@ -1036,6 +1083,22 @@ function togglePackStay() {
     S.tut._fTested = true;
   }
   if (!S.tut.fTaught) return;   // no verb before it is given
+  // during a standoff, F is the display: the pack stands tall together —
+  // a faster win with the family at her back, bluster without it
+  if (S.standoff && S.mode === 'play') {
+    const adultsNear = alivePack().filter(w => !w.pup && dist(w.x, w.y, S.wolf.x, S.wolf.y) < 220).length;
+    if (adultsNear >= 2) {
+      S.standoff = null;
+      S.standoffCd = 90;
+      S.fear = Math.min(1, S.fear + 0.25);
+      playGrowl();
+      say('The pack stands tall as one. The shapes think better of it.');
+    } else {
+      S.standoff.t = Math.max(S.standoff.t, 5.9);   // the nip comes at once
+      say('She stands tall alone. It reads as bluster.');
+    }
+    return;
+  }
   const anyFollowing = S.pack.some(w => w.state === 'follow' || w.state === 'balk');
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') continue;
@@ -1133,6 +1196,42 @@ function respawnMult(H) {
   return si === 2 ? 2.5 : si === 3 ? 0 : 1;
 }
 
+// Wind: prey smell what the air carries. When the hunter stands upwind of
+// the elk — the wind blowing her scent toward it — the smell arrives long
+// before the sight of her; approach from downwind and she can come close.
+// Rain drowns scent and is a hunting opportunity. The prologue's golden
+// morning is windless — the first hunt is meant to be won.
+function windDetectMult(hx, hy, ex, ey) {
+  if (!S.wind || S.era === 'past') return 1;
+  const d = dist(hx, hy, ex, ey) || 1;
+  const align = ((ex - hx) * Math.cos(S.wind.a) + (ey - hy) * Math.sin(S.wind.a)) / d;
+  let m = 1 + Math.max(0, align) * 1.1 - Math.max(0, -align) * 0.4;
+  if (S.weather && S.weather.kind === 'rain') m *= 0.75;
+  return m;
+}
+
+// Late autumn, the migration made visible: the eastern herds press against
+// the road — milling at the barrier they cannot cross — and once the bridge
+// is trusted, they trickle over it, day by day, draining the east. The
+// squeeze stops being a respawn table and becomes something you watch.
+function herdDriftUpdate() {
+  if (S.era === 'past' || day() < 240) return;
+  const h = OBSTACLES.highway, o = OBSTACLES.overpass;
+  const oy = (o.y0 + o.y1) / 2;
+  for (const H of HERDS) {
+    if (H.cattle || H.anchor0.x <= h.x1) continue;   // eastern-born herds only
+    if (!overpassTrusted()) {
+      // pressed against the wire of traffic
+      H.anchor.x = Math.max(h.x1 + 300, H.anchor.x - 60);
+      H.anchor.y += clamp((oy - H.anchor.y) * 0.1, -80, 80);
+    } else {
+      // the trickle: over the bridge, west, day by day
+      H.anchor.y += clamp((oy - H.anchor.y) * 0.25, -120, 120);
+      H.anchor.x = Math.max(620, H.anchor.x - 90);
+    }
+  }
+}
+
 function preyUpdate(dt) {
   for (let i = S.elkRespawn.length - 1; i >= 0; i--) {
     if (day() >= S.elkRespawn[i].day) {
@@ -1156,12 +1255,13 @@ function preyUpdate(dt) {
       continue;
     }
     let fx = 0, fy = 0, threat = 0;
-    const flightR = 300 * elk.skittish;
+    const flightR = 300 * elk.skittish * (elk.wary ? 1.3 : 1);
     for (const h of hunters) {
       const d = dist(elk.x, elk.y, h.x, h.y);
-      if (d < flightR && d > 1) {
-        fx += (elk.x - h.x) / d * (flightR - d);
-        fy += (elk.y - h.y) / d * (flightR - d);
+      const fr = flightR * windDetectMult(h.x, h.y, elk.x, elk.y);
+      if (d < fr && d > 1) {
+        fx += (elk.x - h.x) / d * (fr - d);
+        fy += (elk.y - h.y) / d * (fr - d);
         threat++;
       }
     }
@@ -1190,7 +1290,7 @@ function preyUpdate(dt) {
 
     elk.fleeing = threat > 0;
     if (elk.fleeing) {
-      if (!burning) elk.stamina = Math.max(0, elk.stamina - 12 * dt);
+      if (!burning) elk.stamina = Math.max(0, elk.stamina - (elk.wary ? 8 : 12) * dt);
       fx += sx * 0.6; fy += sy * 0.6;
       const wob = Math.sin(S.time * 1.4 + elk.skittish * 17) * 0.9;
       const wa = Math.atan2(fy, fx) + wob;
@@ -1297,7 +1397,7 @@ function preyUpdate(dt) {
       const sedge = S.pack.find(w => w.id === 'sedge');
       const sedgeIn = sedge && sedge.state !== 'dead' && sedge.state !== 'gone'
         && dist(sedge.x, sedge.y, elk.x, elk.y) < 500;
-      S.food = Math.min(100, S.food + H.food + (sedgeIn ? 10 : 0));
+      S.food = Math.min(100, S.food + H.food * (elk.wary ? 0.65 : 1) + (sedgeIn ? 10 : 0));
       S.tut.usedHold = true;
       S.history.push({ type: 'hunt', day: day() });
       if (H.cattle) {
@@ -1336,6 +1436,8 @@ function hungerUpdate(dt) {
   if (!sedge || sedge.state === 'dead' || sedge.state === 'gone') return;
   if (S.starveT > 120) {
     sedge.state = 'gone';
+    // her going leaves one mark at the world's edge, findable in the cold
+    S.sedgeMark = { x: WORLD.w - 70, y: clamp(sedge.y, 300, WORLD.h - 300) };
     S.history.push({ type: 'loss', day: day(), who: 'sedge', dispersed: true });
     say('Sedge is gone. Hunger took her somewhere the map does not go.');
     saveGame();
@@ -1541,6 +1643,22 @@ function rancherUpdate(dt) {
     S.gift.given = true;
     say('Ravens circle the fence line, east.');
   }
+  // the gift is a rumor the whole valley can read: a raven column in the
+  // sky, and a gold bloom in the scent view that stays fresh until claimed
+  if (S.gift.given && !S.gift.taken) {
+    S.giftBloomT = (S.giftBloomT || 0) - dt;
+    if (S.giftBloomT <= 0) {
+      S.giftBloomT = 2.2;
+      for (let i = 0; i < 3; i++) {
+        const a = Math.random() * Math.PI * 2, r = Math.random() * 90;
+        S.scent.push({
+          x: RANCH.giftSpot.x + Math.cos(a) * r,
+          y: RANCH.giftSpot.y + Math.sin(a) * r,
+          t: S.time, v: 0,
+        });
+      }
+    }
+  }
   if (S.gift.given && !S.gift.taken
       && dist(S.wolf.x, S.wolf.y, RANCH.giftSpot.x, RANCH.giftSpot.y) < 60) {
     S.gift.taken = true;
@@ -1743,7 +1861,10 @@ function totalCount() {
 // Roughly half of play carries a task. While one is open, the calendar holds
 // still — the day is spent on the thing itself. When none is open, days flow.
 
-const TASK_TIMEOUT = 120;
+// Urges, not assignments: no timers, no chimes. An urge clears because the
+// world changed — the kill was made, the way was found, the pups ate. The
+// only clocked endings are the world's own (a lost wolf gives up waiting;
+// ravens finish an unclaimed carcass).
 
 function taskDone(t) {
   switch (t.kind) {
@@ -1855,14 +1976,8 @@ function issueTask() {
     mk('scout', `walk new ground, ${compassTo(fn.x, fn.y)}, toward ${fn.name}`, { key: e.id, far });
     return;
   }
-  // renew fading ink
-  const fading = S.edges.filter(e => !e.torn && e.state === 'current-dotted' && e.passCount > 0);
-  if (fading.length) {
-    const e = fading[Math.floor(Math.random() * fading.length)];
-    mk('renew', `renew a fading way: ${NbyId.get(e.a).name} to ${NbyId.get(e.b).name}`,
-      { key: e.id, sinceDay: day() });
-    return;
-  }
+  // (no 'renew' urge: route decay is the player's own discovered dilemma —
+  // the map going quiet where she doesn't walk IS the prompt)
   S.taskCooldown = 15;
 }
 
@@ -1871,19 +1986,19 @@ function taskUpdate(dt) {
     S.task.t += dt;
     taskProgress(S.task);
     if (taskDone(S.task)) {
+      // the world changed; the urge simply isn't there anymore
       S.task = null;
       S.taskCooldown = 18 + Math.random() * 22;
-      playTaskChime();
-      say('Done. The day moves on.');
-    } else if (S.task.t > TASK_TIMEOUT) {
-      // a lost wolf finds its own way back when the search is given up
-      if (S.task.kind === 'findwolf') {
-        const w = S.pack.find(x => x.id === S.task.key);
-        if (w && w.lost) { w.lost = false; w.state = 'follow'; }
-      }
+    } else if (S.task.kind === 'findwolf' && S.task.t > 240) {
+      const w = S.pack.find(x => x.id === S.task.key);
+      if (w && w.lost) { w.lost = false; w.state = 'follow'; }
+      if (w) say(`${w.name} found the way back alone.`);
       S.task = null;
       S.taskCooldown = 24 + Math.random() * 20;
-      say('The moment passes.');
+    } else if (S.task.kind === 'cache' && !S.task.got && S.task.t > 300) {
+      S.task = null;
+      S.taskCooldown = 24 + Math.random() * 20;
+      say('The ravens finished the carcass. Nothing left to carry.');
     }
   } else {
     S.taskCooldown -= dt;
@@ -3002,7 +3117,10 @@ function saveGame() {
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
       pups: S.pups,
       task: S.task, taskCooldown: S.taskCooldown,
-      weather: S.weather,
+      weather: S.weather, wind: S.wind,
+      overpassCross: S.overpassCross || 0,
+      herdAnchors: HERDS.map(H => ({ x: H.anchor.x, y: H.anchor.y })),
+      sedgeMark: S.sedgeMark,
       conflict: S.conflict, gift: S.gift, alarm: S.alarm,
       lichenJoined: S.lichenJoined, fire: S.fire, standoffCd: S.standoffCd,
       hud: S.hud, tut: S.tut, callouts: S.callouts,
@@ -3054,6 +3172,12 @@ function loadGame() {
   S.task = d.task || null;
   S.taskCooldown = typeof d.taskCooldown === 'number' ? d.taskCooldown : 30;
   S.weather = d.weather || null;
+  S.wind = d.wind || { a: Math.random() * Math.PI * 2 };
+  S.overpassCross = d.overpassCross || 0;
+  if (d.herdAnchors) d.herdAnchors.forEach((a, i) => {
+    if (HERDS[i]) { HERDS[i].anchor.x = a.x; HERDS[i].anchor.y = a.y; }
+  });
+  S.sedgeMark = d.sedgeMark || null;
   S.conflict = d.conflict || 0;
   S.gift = d.gift || { given: false, taken: false };
   S.alarm = d.alarm || 0;
@@ -3111,9 +3235,10 @@ function update(dt) {
   if (S.mode === 'prologue') {
     prologueUpdate(dt);
   } else {
-    // an open task holds the calendar still: the day is spent on the thing
-    if (!S.task) S.clock.min += dt * MIN_PER_SEC;
-    if (day() !== S.lastDay) { S.lastDay = day(); applyDecay(); }
+    // the world keeps changing whether or not you watch it: the calendar
+    // never waits — not for tasks, not for anything
+    S.clock.min += dt * MIN_PER_SEC;
+    if (day() !== S.lastDay) { S.lastDay = day(); applyDecay(); herdDriftUpdate(); }
 
     if (S.pendingForcedSense && !onRoad(S.wolf.x, S.wolf.y)) {
       S.pendingForcedSense = false;
@@ -3154,27 +3279,43 @@ function update(dt) {
       say('Bram remembers the far side. From before.');
     }
 
-    // the overpass arc: it opens, she finds it, the land adopts it
+    // the overpass arc: it opens, she scouts it, her pack learns it by
+    // conducted crossings, and only then does the land follow
     if (overpassOpen()) {
-      const h = OBSTACLES.highway, o = OBSTACLES.overpass;
       if (!S.tut.overpassOpen) {
         S.tut.overpassOpen = true;
         say('The machines finished something in the north: earth banked over the asphalt.');
       }
-      const onDeck = (x, y) => x > h.x0 - 8 && x < h.x1 + 8 && y > o.y0 && y < o.y1;
       if (!S.tut.overpassWalked && onDeck(S.wolf.x, S.wolf.y)) {
         S.tut.overpassWalked = true;
-        say('Earth over the roar. A way across that does not gamble.');
+        say('Earth over the roar — but it reeks of people. The pack will not follow her onto it. Not yet.');
       }
-      if (!S.tut.overpassAdopted && S.elk.some(e => onDeck(e.x, e.y))) {
+      if (!S.tut.overpassAdopted && overpassTrusted() && S.elk.some(e => onDeck(e.x, e.y))) {
         S.tut.overpassAdopted = true;
         say('A deer crosses above the traffic. The land is learning the bridge.');
       }
     }
 
-    // the pack sings each season across
+    // the pack sings each season across — and the map is made to answer:
+    // for ten seconds her mother's whole original map ghosts in over the
+    // scarred truth of now, then fades. Three times a year, the player
+    // watches the map die by comparison.
     const si = seasonIndex();
-    if (si !== S.lastSeason) { S.lastSeason = si; playHowl(); }
+    if (si !== S.lastSeason) {
+      S.lastSeason = si;
+      playHowl();
+      S.forcedSenseT = 10;
+      S.seasonGhostT = 10;
+      setCaption(seasonName() + '.', 3.5, 'what the year has taken');
+    }
+    S.seasonGhostT = Math.max(0, (S.seasonGhostT || 0) - dt);
+
+    // Sedge's mark, out at the edge, read only in the cold
+    if (S.sedgeMark && !S.tut.sedgeSeen && seasonIndex() === 3 && input.scent
+        && dist(S.wolf.x, S.wolf.y, S.sedgeMark.x, S.sedgeMark.y) < 240) {
+      S.tut.sedgeSeen = true;
+      say('Sedge. Going somewhere the map does not go.');
+    }
 
     S.histT += dt;
     if (S.histT > 3) {

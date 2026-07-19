@@ -1028,6 +1028,27 @@ function drawWorld() {
       ctx.beginPath(); ctx.arc(sx, sy, 3 + rng() * 5, 0, Math.PI * 2); ctx.fill();
     }
   }
+  // the gift is findable from far: a raven column stands tall over the
+  // fence line until the gut pile is claimed
+  if (S.gift && S.gift.given && !S.gift.taken && S.era !== 'past') {
+    const gs = RANCH.giftSpot;
+    ctx.fillStyle = 'rgba(90,45,35,0.5)';
+    ctx.beginPath(); ctx.ellipse(gs.x, gs.y + 4, 14, 7, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(25,22,20,0.85)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      const ph = i * 1.9, hgt = 60 + i * 70;
+      const bx = gs.x + Math.cos(S.time * (0.7 + i * 0.07) + ph) * (26 + i * 9);
+      const by = gs.y - hgt + Math.sin(S.time * 1.3 + ph) * 8;
+      const s = 7 + (i % 3) * 2;
+      const flap = Math.sin(S.time * 6 + ph) * 0.35;
+      ctx.beginPath();
+      ctx.moveTo(bx - s, by - s * (0.35 + flap));
+      ctx.quadraticCurveTo(bx, by + s * 0.2, bx, by);
+      ctx.quadraticCurveTo(bx, by + s * 0.2, bx + s, by - s * (0.35 + flap));
+      ctx.stroke();
+    }
+  }
   for (const e of S.elk) drawPrey(e);
 
   // pups at the den, tumbling
@@ -1306,6 +1327,19 @@ function drawScent() {
         ctx.stroke();
       }
     }
+    // Sedge's one mark at the world's edge, legible only in the cold
+    if (S.sedgeMark && seasonIndex() === 3) {
+      const sm = S.sedgeMark;
+      ctx.strokeStyle = 'rgba(210,60,50,0.55)';
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      for (const off of [-6, 4]) {
+        ctx.beginPath();
+        ctx.moveTo(sm.x - 12 + off, sm.y - 14);
+        ctx.lineTo(sm.x + 10 + off, sm.y + 14);
+        ctx.stroke();
+      }
+    }
   }
   ctx.globalCompositeOperation = 'source-over';
 
@@ -1327,6 +1361,26 @@ function drawScent() {
   fog.addColorStop(1, `rgba(${fr},${fg},${fb},${0.72 + 0.24 * v})`);
   ctx.fillStyle = fog;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // the wind, made visible: pale streaks drifting the way it blows — the
+  // nose reads which approaches will be smelled first
+  if (S.wind && S.era !== 'past') {
+    const a = S.wind.a;
+    const dx = Math.cos(a), dy = Math.sin(a);
+    ctx.strokeStyle = 'rgba(215,228,222,0.14)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    const rngW = makePrng(7);
+    for (let i = 0; i < 26; i++) {
+      const bx = rngW() * canvas.width, by = rngW() * canvas.height;
+      const drift = (S.time * 55 + i * 41) % 260;
+      const x = ((bx + dx * drift) % canvas.width + canvas.width) % canvas.width;
+      const y = ((by + dy * drift) % canvas.height + canvas.height) % canvas.height;
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + dx * 26, y + dy * 26);
+    }
+    ctx.stroke();
+  }
 
   drawCallout('scent');
 }
@@ -1579,6 +1633,23 @@ function drawMap() {
   }
 
   for (const e of S.edges) drawInkEdge(e, m);
+
+  // the season ritual: her mother's original, whole map ghosts in over the
+  // scarred truth of now, holds, and fades
+  if (S.seasonGhostT > 0) {
+    const elapsed = 10 - S.seasonGhostT;
+    const ga = Math.min(1, elapsed) * Math.min(1, S.seasonGhostT / 3) * 0.45 * m;
+    if (ga > 0.01) {
+      ctx.globalAlpha = ga;
+      for (const d of EDGES) {
+        if (d.state !== 'inherited' || d.dynamic) continue;
+        const e = S.edges.find(x => x.id === d.id);
+        if (e) strokePolyline(ctx, edgePolyline(e), 3 / sc, C_INK_LIGHT, [12 / sc, 6 / sc]);
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
   for (const g of TEAR_GROUPS) {
     if (!groupTorn(g)) continue;
     drawRip(g, m);
