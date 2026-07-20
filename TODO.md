@@ -527,3 +527,14 @@ action; commit everything.
 - [x] The rip on the map is shaped almost exactly like its obstacle
       (footprint outline traced at tear time, at that season's true
       size; regenerated on load).
+- [x] 'The machines' renamed: the patch urge reads 'find a way around the
+      broken ground at Fence Line' — a place, not a category.
+- [x] First-time dangers announce themselves with a caption: 'Sick.',
+      'A snare.', 'Through the ice.' — each once, with its cost named.
+- [x] Curved paths actually curve now: detection margins widened (they
+      were tight enough that only already-torn edges qualified), and the
+      planned-route glow follows the curved ink leg by leg.
+- [x] One negative sound (playHurt — a low blunt bite) for EVERYTHING
+      that happens to Aspen: car, dogs, rifle wound, standoff nip, snare,
+      wrong water, ice. The tear keeps its own sting. Barks, growls, and
+      the gunshot remain as world sounds only.

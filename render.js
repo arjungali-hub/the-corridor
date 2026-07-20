@@ -1716,8 +1716,11 @@ function drawMap() {
   if (S.routePath && S.routePath.length > 1) {
     ctx.globalAlpha = m * (0.35 + 0.15 * Math.sin(S.time * 2.5));
     for (let i = 1; i < S.routePath.length; i++) {
-      const A = NbyId.get(S.routePath[i - 1]), B = NbyId.get(S.routePath[i]);
-      strokePolyline(ctx, [[A.x, A.y], [B.x, B.y]], 16 / sc, 'rgba(78,122,140,0.6)');
+      const idA = S.routePath[i - 1], idB = S.routePath[i];
+      const A = NbyId.get(idA), B = NbyId.get(idB);
+      // the plan follows the walked way, curves and all
+      const e = S.edges.find(x => (x.a === idA && x.b === idB) || (x.a === idB && x.b === idA));
+      strokePolyline(ctx, e ? edgePolyline(e) : [[A.x, A.y], [B.x, B.y]], 16 / sc, 'rgba(78,122,140,0.6)');
     }
     ctx.globalAlpha = 1;
   }

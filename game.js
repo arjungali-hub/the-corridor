@@ -116,20 +116,20 @@ function edgeVia(A, B) {
   const vias = [];
   const ms = OBSTACLES.mudSink;
   const hit = distSeg(ms.x, ms.y, A.x, A.y, B.x, B.y);
-  if (hit.d < ms.r + 60 && hit.t > 0.08 && hit.t < 0.92) {
+  if (hit.d < ms.r + 150 && hit.t > 0.06 && hit.t < 0.94) {
     const px = A.x + (B.x - A.x) * hit.t, py = A.y + (B.y - A.y) * hit.t;
     const n = Math.hypot(px - ms.x, py - ms.y) || 1;
-    vias.push({ t: hit.t, x: ms.x + (px - ms.x) / n * (ms.r + 140), y: ms.y + (py - ms.y) / n * (ms.r + 140) });
+    vias.push({ t: hit.t, x: ms.x + (px - ms.x) / n * (ms.r + 170), y: ms.y + (py - ms.y) / n * (ms.r + 170) });
   }
   for (const key of ['construction', 'subdivision', 'gravelPit']) {
     const o = OBSTACLES[key];
     const cx = (o.x0 + o.x1) / 2, cy = (o.y0 + o.y1) / 2;
     const orad = Math.hypot(o.x1 - o.x0, o.y1 - o.y0) / 2;
     const h2 = distSeg(cx, cy, A.x, A.y, B.x, B.y);
-    if (h2.d < orad + 40 && h2.t > 0.08 && h2.t < 0.92) {
+    if (h2.d < orad + 100 && h2.t > 0.06 && h2.t < 0.94) {
       const px = A.x + (B.x - A.x) * h2.t, py = A.y + (B.y - A.y) * h2.t;
       const n = Math.hypot(px - cx, py - cy) || 1;
-      vias.push({ t: h2.t, x: cx + (px - cx) / n * (orad + 120), y: cy + (py - cy) / n * (orad + 120) });
+      vias.push({ t: h2.t, x: cx + (px - cx) / n * (orad + 150), y: cy + (py - cy) / n * (orad + 150) });
     }
   }
   vias.sort((u, v) => u.t - v.t);
@@ -1283,7 +1283,7 @@ function carCollisions() {
           S.fearSource = { x: (h.x0 + h.x1) / 2, y: ref.y };
           S.food = Math.max(0, S.food - 8);
           if (S.mode === 'play') S.injuredT = INJURY_TIME;
-          playImpact();
+          playHurt();
           say(S.era === 'past'
             ? 'The truck clips her. Willow is already there, pressing her to the grass.'
             : 'The Black River strikes. She drags herself back, limping.');
@@ -1293,7 +1293,7 @@ function carCollisions() {
           w.state = 'dead';
           S.fear = 1; S.flickerT = 0.6; S.shake = 14;
           S.fearSource = { x: (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2, y: w.y };
-          playImpact();
+          playHurt();
           S.history.push({ type: 'loss', day: day(), who: id });
           say(`${w.name} does not come back from the road.`);
           saveGame();
@@ -1731,7 +1731,7 @@ function rancherUpdate(dt) {
         dog.biteCd = 8;
         S.conflict = Math.min(1, S.conflict + 0.05);
         S.shake = Math.max(S.shake, 6);
-        playBark();
+        playHurt();
         if (target.aspen) {
           S.food = Math.max(0, S.food - 15);
           S.fear = Math.min(1, S.fear + 0.35);
@@ -1802,6 +1802,7 @@ function rancherUpdate(dt) {
     S.flickerT = 0.3;
     if (S.conflict > 0.85 && Math.random() < 0.3) {
       S.injuredT = INJURY_TIME;
+      playHurt();
       say('CRACK. Fire along her flank. Run.');
       S.fearSource = { x: RANCH.house.x, y: RANCH.house.y };
     } else {
@@ -1913,7 +1914,7 @@ function standoffUpdate(dt) {
     }
     const a = Math.atan2(S.wolf.y - mark.y, S.wolf.x - mark.x);
     tryMove(S.wolf, Math.cos(a) * 120, Math.sin(a) * 120, wolfBlockedAt);
-    playGrowl();
+    playHurt();
     say('Teeth. A shove. A lesson about lines.');
   }
 }
@@ -2006,7 +2007,12 @@ function waterUpdate(dt) {
     S.fear = Math.min(1, S.fear + 0.3);
     S.food = Math.max(0, S.food - 6);
     S.shake = Math.max(S.shake, 6);
+    playHurt();
     say('The ice gives. Cold takes its tax.');
+    if (!S.tut.iceTaught) {
+      S.tut.iceTaught = true;
+      setCaption('Through the ice.', 4.5, 'winter water bites — warmth and meat lost');
+    }
   }
   if (!S.tut.drinkTaught && S.water < 75) {
     S.tut.drinkTaught = true;
@@ -2018,7 +2024,12 @@ function waterUpdate(dt) {
     if (!ws.clean && S.sickT <= 0 && S.foulCd <= 0) {
       S.sickT = 75;
       S.foulCd = 40;
+      playHurt();
       say(`Wrong water at ${ws.name}. It sits in her like a stone.`);
+      if (!S.tut.sickTaught) {
+        S.tut.sickTaught = true;
+        setCaption('Sick.', 4.5, 'wrong water — slower, and hungrier, until it passes');
+      }
     }
   }
 }
@@ -2047,7 +2058,12 @@ function snareUpdate(dt) {
       S.fear = Math.min(1, S.fear + 0.4);
       S.fearSource = { x: sn.x, y: sn.y };
       S.shake = Math.max(S.shake, 8);
+      playHurt();
       say('Steel jaws. She wrenches free, bleeding, wiser.');
+      if (!S.tut.snareTaught) {
+        S.tut.snareTaught = true;
+        setCaption('A snare.', 4.5, "steel by the wire — the rancher's patience");
+      }
       saveGame();
     }
   }
@@ -2174,7 +2190,7 @@ function issueTask() {
   const torn = TEAR_GROUPS.find(g => groupTorn(g) && !S.bridged.has(g.key));
   if (torn) {
     const TEAR_NAMES = {
-      blackriver: 'the Black River', machines: 'the machines',
+      blackriver: 'the Black River', machines: 'the broken ground at Fence Line',
       drycreek: 'the drowned Bend', gravelpit: 'the pit',
       railline: 'the rail line',
     };
@@ -3230,6 +3246,21 @@ function playImpact() {
   g2.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
   o2.connect(g2); g2.connect(masterGain);
   o2.start(now); o2.stop(now + 0.2);
+}
+
+// The ONE sound for things that happen to HER — every wound, every poison,
+// every set of teeth plays this and only this. The tear keeps its own sting.
+function playHurt() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(150, now);
+  o.frequency.exponentialRampToValueAtTime(48, now + 0.22);
+  g.gain.setValueAtTime(0.3, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+  o.connect(g); g.connect(masterGain);
+  o.start(now); o.stop(now + 0.45);
 }
 
 // Dogs: three quick hard yips.
