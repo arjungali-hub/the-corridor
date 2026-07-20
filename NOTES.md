@@ -336,3 +336,14 @@ The land is bigger, closer, and meaner.
   stays unchanged by year's end.
 Harness green x3 (new checks: drink action, wrong water, wading, curves,
 construction growth, rail wall/trestle/tear, radius span).
+
+## Part 17 — prologue polish (2026-07-19)
+
+Beat 1's scent lesson now has a live subject: a low-skittish deer spawns
+460 u offscreen as 'Hold E' appears and grazes a line right past Aspen.
+Beat 4's winter-thin elk spawns at (w.x-50, w.y-140) — inside the 2x
+viewport when named. And F left the prologue entirely: beat 6 is only
+the lean-in, beat 7 walks on with no lesson, togglePackStay is inert in
+the prologue past the bond, applyPostPrologue no longer grants fTaught —
+the verb is taught ~14 s into spring ('The pack is hers to lead now.').
+Harness green x2 (beat-7 rewritten: no-F checks; deer-nearby check).

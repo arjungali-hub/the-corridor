@@ -494,3 +494,14 @@ it touched feel, a NOTES.md line, and a commit named `review fix N: …`.
 Run the harness (all checks must pass) before every commit; play a year in
 the browser for feel. NOTES.md gets a session entry + tomorrow's first
 action; commit everything.
+
+## Part 17 — Prologue polish (Arjun, 2026-07-19)
+
+- [x] Beat 1: a deer spawns offscreen and walks close past Aspen exactly
+      when 'Hold E' is taught — live gold laid across her nose in place.
+- [x] Beat 4: the winter-thin elk spawns close enough to SEE at the new
+      close-in camera when it is named.
+- [x] F is introduced AFTER spring starts, when Aspen leads the pack —
+      never in the prologue. Beat 6 keeps the lean-in bond only; beat 7
+      simply walks on; ~14 s into Act I: 'The pack is hers to lead now.
+      F — they hold this ground, or follow.'

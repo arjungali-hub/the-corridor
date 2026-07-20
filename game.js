@@ -1190,9 +1190,9 @@ function togglePackStay() {
   // in the prologue, F is the bond gesture in beat 6, and from beat 7 —
   // once taught — the real verb, tested under Willow's eye
   if (S.mode === 'prologue') {
-    if (S.beat === 6) { S.tut._bond = true; return; }
-    if (!(S.beat >= 7 && S.tut.fTaught)) return;
-    S.tut._fTested = true;
+    // in the prologue F is only the lean-in: the pack is Willow's to lead
+    if (S.beat === 6) S.tut._bond = true;
+    return;
   }
   if (!S.tut.fTaught) return;   // no verb before it is given
   // during a standoff, F is the display: the pack stands tall together —
@@ -2471,7 +2471,8 @@ function applyPostPrologue() {
   recomputeGhosts();
   // the prologue already taught move / scent / map / hunt / F
   S.tut.step = 6; S.tut.t = 0;
-  S.tut.sawMap = true; S.tut.scentHold = 1; S.tut.usedHold = true; S.tut.fTaught = true;
+  // F is NOT taught here: the verb arrives in spring, when the pack is hers
+  S.tut.sawMap = true; S.tut.scentHold = 1; S.tut.usedHold = true;
   S.hud.pack = true;
   S.clock.min = 8 * 60; S.lastDay = 1;
   // Spring opens away from every hollow: the den choice must be walked to,
@@ -2592,6 +2593,15 @@ function prologueUpdate(dt) {
         if (T._b1packT > 15) {
           T._b1scent = true;
           stickyPrompt('The world speaks in scent. Hold E.', ['E']);
+          // a deer crosses the morning from offscreen, close by, writing
+          // its gold across her nose as the lesson is given
+          S.elk.push({
+            herd: 1, x: S.wolf.x + 460, y: S.wolf.y - 210,
+            heading: Math.PI, stamina: 100, fleeing: false, gait: 0,
+            bull: false, skittish: 0.1, grazeT: 90,
+            tx: S.wolf.x - 460, ty: S.wolf.y + 110,
+            vx: 0, vy: 0,
+          });
         }
       }
       if (T._b1scent && input.scent) T.scentHold += dt;
@@ -2646,10 +2656,11 @@ function prologueUpdate(dt) {
         // an easy hunt on open, unbroken ground
         S.prologueElk = true;
         S.elk.length = 0;
+        // close enough to SEE at the close-in camera when it is named
         S.elk.push({
-          herd: 0, x: w.x - 60, y: w.y - 240,
+          herd: 0, x: w.x - 50, y: w.y - 140,
           heading: Math.PI / 2, stamina: 32, fleeing: false, gait: 0,
-          bull: false, skittish: 0.8, grazeT: 99, tx: w.x - 60, ty: w.y - 240,
+          bull: false, skittish: 0.8, grazeT: 99, tx: w.x - 50, ty: w.y - 140,
           frail: 0.55,   // winter-thin: the first hunt is meant to be won
         });
         setCaption('An elk, winter-thin.', 3.5);
@@ -2729,16 +2740,14 @@ function prologueUpdate(dt) {
         if (S.beatT > 14) { /* the moment passed unnoticed; move on */ }
         else if (S.bondT > 0.05) break;   // let the circling finish first
         S.beat = 7; S.beatT = 0;
-        S.tut.fTaught = true;   // only now does the verb exist
-        // Willow waits while the new verb is tried
-        stickyPrompt('F — the pack holds its ground, or follows. Try it.', ['F']);
+        // no verb is taught here: the pack is WILLOW's to lead. F becomes
+        // Aspen's word only after the inheritance, in spring.
       }
       break;
 
-    // Beat 7 — F is tested under her eye; then she walks the last miles
+    // Beat 7 — she walks the last miles to the range, and you follow
     case 7:
-      if (!T._fTested && S.beatT > 20) T._fTested = true;   // never a softlock
-      if (T._fTested && !T._b7go) {
+      if (!T._b7go && S.beatT > 2.5) {
         T._b7go = true;
         clearPrompt();
         showPrompt('Follow. The winter range is close now.', [], 5);
@@ -3492,6 +3501,16 @@ function update(dt) {
     if (!S.tut.bramRecall && bramRemembers()) {
       S.tut.bramRecall = true;
       say('Bram remembers the far side. From before.');
+    }
+
+    // the verb of leadership arrives a little into spring, when the pack
+    // has settled at her heels — hers now, not her mother's
+    if (!S.tut.fTaught && S.tut.step >= 6) {
+      S.tut.fTeachT = (S.tut.fTeachT || 0) + dt;
+      if (S.tut.fTeachT > 14) {
+        S.tut.fTaught = true;
+        showPrompt('The pack is hers to lead now. F — they hold this ground, or follow.', ['F'], 8);
+      }
     }
 
     // the overpass arc: it opens, she scouts it, her pack learns it by
