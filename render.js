@@ -109,25 +109,26 @@ function buildBaseLayer() {
   const si = S.era === 'past' ? 0 : seasonIndex();
   const burned = S.era !== 'past' && S.fire && S.fire.state === 'done';
   baseKey = S.era + '|' + si + '|' + burned;
+  const X0 = WORLD.x0 || 0;
   if (!baseLayer) {
     baseLayer = document.createElement('canvas');
-    baseLayer.width = (WORLD.w + 2 * APRON) * BASE_SCALE;
+    baseLayer.width = (WORLD.w - X0 + 2 * APRON) * BASE_SCALE;
     baseLayer.height = (WORLD.h + 2 * APRON) * BASE_SCALE;
   }
   const b = baseLayer.getContext('2d');
   // world coords at half scale; the apron is negative space
-  b.setTransform(BASE_SCALE, 0, 0, BASE_SCALE, APRON * BASE_SCALE, APRON * BASE_SCALE);
+  b.setTransform(BASE_SCALE, 0, 0, BASE_SCALE, (APRON - X0) * BASE_SCALE, APRON * BASE_SCALE);
   const past = S.era === 'past';
-  const AX = -APRON, AW = WORLD.w + 2 * APRON, AH = WORLD.h + 2 * APRON;
+  const AX = X0 - APRON, AY = -APRON, AW = WORLD.w - X0 + 2 * APRON, AH = WORLD.h + 2 * APRON;
 
   // ground — the land continues past where she can walk; no black void
   b.fillStyle = past ? PAST_GROUND : SEASON_GROUND[si];
-  b.fillRect(AX, AX, AW, AH);
+  b.fillRect(AX, AY, AW, AH);
 
   const rng = makePrng(710);
   // broad tonal patches
   for (let i = 0; i < 60; i++) {
-    const x = AX + rng() * AW, y = AX + rng() * AH, r = 260 + rng() * 480;
+    const x = AX + rng() * AW, y = AY + rng() * AH, r = 260 + rng() * 480;
     const g = b.createRadialGradient(x, y, r * 0.2, x, y, r);
     const dark = rng() > 0.5;
     g.addColorStop(0, dark ? 'rgba(50,60,30,0.10)' : 'rgba(240,240,200,0.08)');
@@ -140,30 +141,30 @@ function buildBaseLayer() {
   for (let i = 0; i < 900; i++) {
     b.globalAlpha = 0.05 + rng() * 0.05;
     b.beginPath();
-    b.ellipse(AX + rng() * AW, AX + rng() * AH, 30 + rng() * 90, 18 + rng() * 50, rng() * 3, 0, Math.PI * 2);
+    b.ellipse(AX + rng() * AW, AY + rng() * AH, 30 + rng() * 90, 18 + rng() * 50, rng() * 3, 0, Math.PI * 2);
     b.fill();
   }
   b.globalAlpha = 1;
   // fine speckle: grass tufts / stones
   for (let i = 0; i < 3200; i++) {
     b.fillStyle = rng() > 0.5 ? 'rgba(40,55,25,0.12)' : 'rgba(235,235,205,0.10)';
-    b.fillRect(AX + rng() * AW, AX + rng() * AH, 2 + rng() * 3, 1.5 + rng() * 2);
+    b.fillRect(AX + rng() * AW, AY + rng() * AH, 2 + rng() * 3, 1.5 + rng() * 2);
   }
   // season dressing
   if (si === 0) {
     for (let i = 0; i < 640; i++) {   // wildflowers
       b.fillStyle = rng() > 0.5 ? 'rgba(250,245,220,0.7)' : 'rgba(230,200,120,0.6)';
-      b.beginPath(); b.arc(AX + rng() * AW, AX + rng() * AH, 1.6 + rng() * 1.6, 0, Math.PI * 2); b.fill();
+      b.beginPath(); b.arc(AX + rng() * AW, AY + rng() * AH, 1.6 + rng() * 1.6, 0, Math.PI * 2); b.fill();
     }
   } else if (si === 2 && !past) {
     for (let i = 0; i < 760; i++) {   // leaf litter
       b.fillStyle = `rgba(${150 + rng() * 60 | 0},${70 + rng() * 40 | 0},30,0.5)`;
-      b.beginPath(); b.ellipse(AX + rng() * AW, AX + rng() * AH, 3, 1.6, rng() * 3, 0, Math.PI * 2); b.fill();
+      b.beginPath(); b.ellipse(AX + rng() * AW, AY + rng() * AH, 3, 1.6, rng() * 3, 0, Math.PI * 2); b.fill();
     }
   } else if (si === 3 && !past) {
     for (let i = 0; i < 330; i++) {   // drifts
       b.fillStyle = 'rgba(255,255,255,0.5)';
-      b.beginPath(); b.ellipse(AX + rng() * AW, AX + rng() * AH, 40 + rng() * 90, 8 + rng() * 16, rng() * 0.6 - 0.3, 0, Math.PI * 2); b.fill();
+      b.beginPath(); b.ellipse(AX + rng() * AW, AY + rng() * AH, 40 + rng() * 90, 8 + rng() * 16, rng() * 0.6 - 0.3, 0, Math.PI * 2); b.fill();
     }
   }
 
@@ -307,7 +308,7 @@ function buildBaseLayer() {
   // lone trees
   const lrng = makePrng(4242);
   for (let i = 0; i < 170; i++) {
-    const x = AX + lrng() * AW, y = AX + lrng() * AH;
+    const x = AX + lrng() * AW, y = AY + lrng() * AH;
     if (x > 820 && x < 1020) continue;  // not in the road bed
     drawTree(b, x, y, 10 + lrng() * 12, lrng, si, past);
   }
@@ -386,7 +387,7 @@ function buildBaseLayer() {
 
   if (!past) {
     // construction: graded dirt, spoil, machines, stakes
-    const c = OBSTACLES.construction;
+    const c = obstacleRect("construction");
     b.fillStyle = '#a8905f';
     b.fillRect(c.x0, c.y0, c.x1 - c.x0, c.y1 - c.y0);
     b.strokeStyle = 'rgba(140,115,70,0.5)';
@@ -477,6 +478,34 @@ function buildBaseLayer() {
       b.fillStyle = '#e5e0d2'; b.fillRect(fe.x0 - 20, fe.y0 + 26, 30, 18);
     }
 
+    // the rail line: fenced ballast wall of the far west, one trestle under
+    {
+      const rl = OBSTACLES.rail;
+      b.fillStyle = '#8d8878';                             // ballast bed
+      b.fillRect(rl.x0 - 14, AY, rl.x1 - rl.x0 + 28, AH);
+      b.strokeStyle = '#4a4c50'; b.lineWidth = 3;          // the rails
+      for (const rx of [rl.x0 + 14, rl.x1 - 14]) {
+        b.beginPath(); b.moveTo(rx, AY); b.lineTo(rx, AY + AH); b.stroke();
+      }
+      b.strokeStyle = 'rgba(70,55,38,0.8)'; b.lineWidth = 2;  // ties
+      for (let ty = AY + 10; ty < AY + AH; ty += 26) {
+        if (ty > rl.gapY0 && ty < rl.gapY1) continue;
+        b.beginPath(); b.moveTo(rl.x0 + 6, ty); b.lineTo(rl.x1 - 6, ty); b.stroke();
+      }
+      b.strokeStyle = 'rgba(60,58,52,0.6)'; b.lineWidth = 1.4;  // the fences
+      for (const fx of [rl.x0 - 26, rl.x1 + 26]) {
+        b.beginPath(); b.moveTo(fx, AY); b.lineTo(fx, rl.gapY0); b.stroke();
+        b.beginPath(); b.moveTo(fx, rl.gapY1); b.lineTo(fx, AY + AH); b.stroke();
+      }
+      // the trestle: timber over dark passage
+      b.fillStyle = 'rgba(20,22,20,0.75)';
+      b.fillRect(rl.x0 - 20, rl.gapY0, rl.x1 - rl.x0 + 40, rl.gapY1 - rl.gapY0);
+      b.strokeStyle = '#5d4c38'; b.lineWidth = 4;
+      for (const ty of [rl.gapY0 + 8, rl.gapY1 - 8]) {
+        b.beginPath(); b.moveTo(rl.x0 - 22, ty); b.lineTo(rl.x1 + 22, ty); b.stroke();
+      }
+    }
+
     // the powerline cut: forest cleared pole to pole, slash left where it fell
     {
       const pl = POWERLINE;
@@ -540,6 +569,15 @@ function buildBaseLayer() {
     const sub = OBSTACLES.subdivision;
     b.fillStyle = '#9aa07c';
     b.fillRect(sub.x0, sub.y0, sub.x1 - sub.x0, sub.y1 - sub.y0);
+    if (si >= 2) {   // by autumn a second row stands framed north of the first
+      for (let k = 0; k < 5; k++) {
+        const hx = sub.x0 + 70 + k * 110, hy = sub.y0 - 46;
+        b.fillStyle = '#8b8578';
+        b.fillRect(hx - 26, hy - 12, 52, 24);
+        b.fillStyle = '#6e5a44';
+        b.beginPath(); b.moveTo(hx - 30, hy - 10); b.lineTo(hx, hy - 32); b.lineTo(hx + 30, hy - 10); b.closePath(); b.fill();
+      }
+    }
     b.strokeStyle = '#b9b3a2'; b.lineWidth = 3;
     b.strokeRect(sub.x0 + 4, sub.y0 + 4, sub.x1 - sub.x0 - 8, sub.y1 - sub.y0 - 8);
     b.fillStyle = '#7e7f82';
@@ -932,13 +970,13 @@ function drawWorld() {
   applyCamera();
   // blit only the visible slice of the terrain (from the half-res layer)
   const vw = canvas.width / S.cam.scale, vh = canvas.height / S.cam.scale;
-  const wx0 = Math.max(-APRON, S.cam.x - vw / 2 - 60);
+  const wx0 = Math.max((WORLD.x0 || 0) - APRON, S.cam.x - vw / 2 - 60);
   const wy0 = Math.max(-APRON, S.cam.y - vh / 2 - 60);
   const wx1 = Math.min(WORLD.w + APRON, S.cam.x + vw / 2 + 60);
   const wy1 = Math.min(WORLD.h + APRON, S.cam.y + vh / 2 + 60);
   if (wx1 > wx0 && wy1 > wy0) {
     ctx.drawImage(baseLayer,
-      (wx0 + APRON) * BASE_SCALE, (wy0 + APRON) * BASE_SCALE,
+      (wx0 + APRON - (WORLD.x0 || 0)) * BASE_SCALE, (wy0 + APRON) * BASE_SCALE,
       (wx1 - wx0) * BASE_SCALE, (wy1 - wy0) * BASE_SCALE,
       wx0, wy0, wx1 - wx0, wy1 - wy0);
   }
@@ -1028,6 +1066,46 @@ function drawWorld() {
       ctx.beginPath(); ctx.arc(sx, sy, 3 + rng() * 5, 0, Math.PI * 2); ctx.fill();
     }
   }
+  // water sources: a soft pooling sheen; the fouled ones carry a film —
+  // and winter shuts a pale lid over all of them
+  for (const ws of WATER_SOURCES) {
+    const iced = seasonIndex() === 3 && S.era !== 'past';
+    ctx.fillStyle = iced ? 'rgba(215,225,228,0.45)'
+      : ws.clean ? 'rgba(96,132,148,0.30)' : 'rgba(112,116,84,0.32)';
+    ctx.beginPath(); ctx.ellipse(ws.x, ws.y, ws.r * 0.55, ws.r * 0.34, 0.25, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = iced ? 'rgba(255,255,255,0.4)'
+      : ws.clean ? 'rgba(200,224,230,0.35)' : 'rgba(168,168,120,0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.ellipse(ws.x, ws.y, ws.r * 0.42, ws.r * 0.24, 0.25, 0, Math.PI * 2); ctx.stroke();
+  }
+
+  // snares: near-invisible stakes and a wire glint by the fence
+  if (S.snares) {
+    for (const sn of S.snares) {
+      if (sn.sprung) continue;
+      ctx.fillStyle = 'rgba(70,58,40,0.8)';
+      ctx.fillRect(sn.x - 2, sn.y - 5, 4, 7);
+      ctx.strokeStyle = `rgba(220,225,230,${0.25 + 0.2 * Math.sin(S.time * 3 + sn.x)})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(sn.x, sn.y + 3, 8, 0, Math.PI * 2); ctx.stroke();
+    }
+  }
+
+  // roadkill on the shoulder, with its low attendants
+  if (S.roadkill) {
+    const rk = S.roadkill;
+    ctx.fillStyle = 'rgba(96,50,40,0.75)';
+    ctx.beginPath(); ctx.ellipse(rk.x, rk.y, 13, 6, 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(25,22,20,0.8)'; ctx.lineWidth = 1.6;
+    for (let i = 0; i < 2; i++) {
+      const bx = rk.x + Math.cos(S.time * 1.1 + i * 3) * 22;
+      const by2 = rk.y - 26 - i * 14 + Math.sin(S.time * 1.7 + i) * 5;
+      ctx.beginPath();
+      ctx.moveTo(bx - 6, by2 - 2); ctx.quadraticCurveTo(bx, by2 + 2, bx + 6, by2 - 2);
+      ctx.stroke();
+    }
+  }
+
   // the gift is findable from far: a raven column stands tall over the
   // fence line until the gut pile is claimed
   if (S.gift && S.gift.given && !S.gift.taken && S.era !== 'past') {
@@ -1272,7 +1350,8 @@ function drawPrologueWorldBits() {
 
 function drawScent() {
   resetTransform();
-  ctx.fillStyle = 'rgba(12,12,24,0.5)';
+  // the nose sees almost nothing of the land: only what carries a story
+  ctx.fillStyle = 'rgba(10,10,20,0.82)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   applyCamera();
@@ -1358,7 +1437,7 @@ function drawScent() {
   const fog = ctx.createRadialGradient(wp0.x, wp0.y, R * 0.55, wp0.x, wp0.y, R * 1.5);
   const fr = Math.round(lerp(14, 58, v)), fg = Math.round(lerp(14, 30, v)), fb = Math.round(lerp(22, 86, v));
   fog.addColorStop(0, `rgba(${fr},${fg},${fb},0)`);
-  fog.addColorStop(1, `rgba(${fr},${fg},${fb},${0.72 + 0.24 * v})`);
+  fog.addColorStop(1, `rgba(${fr},${fg},${fb},${0.86 + 0.14 * v})`);
   ctx.fillStyle = fog;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -1407,15 +1486,20 @@ function edgePolyline(e) {
   if (wobbleCache.has(e.id)) return wobbleCache.get(e.id);
   const A = NbyId.get(e.a), B = NbyId.get(e.b);
   const rng = makePrng(hashStr(e.id));
-  const pts = [[A.x, A.y]];
-  for (let i = 1; i <= 3; i++) {
-    const t = i / 4;
-    const nx = -(B.y - A.y), ny = B.x - A.x;
-    const L = Math.hypot(nx, ny) || 1;
-    const off = (rng() - 0.5) * 26;
-    pts.push([A.x + (B.x - A.x) * t + nx / L * off, A.y + (B.y - A.y) * t + ny / L * off]);
+  // a path is not a ruler: where something stands in the way, it curves
+  const base = e.via ? [A, ...e.via, B] : [A, B];
+  const pts = [[base[0].x, base[0].y]];
+  for (let s = 1; s < base.length; s++) {
+    const P = base[s - 1], Q = base[s];
+    for (let i = 1; i <= 3; i++) {
+      const t = i / 4;
+      const nx = -(Q.y - P.y), ny = Q.x - P.x;
+      const L = Math.hypot(nx, ny) || 1;
+      const off = (rng() - 0.5) * 26;
+      pts.push([P.x + (Q.x - P.x) * t + nx / L * off, P.y + (Q.y - P.y) * t + ny / L * off]);
+    }
+    pts.push([Q.x, Q.y]);
   }
-  pts.push([B.x, B.y]);
   wobbleCache.set(e.id, pts);
   return pts;
 }
@@ -1835,7 +1919,7 @@ function calloutAnchor(id) {
         return { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
       });
     case 'rip': {
-      const g = TEAR_GROUPS.find(g2 => groupTorn(g2) && g2.key !== 'mudspring') || TEAR_GROUPS.find(groupTorn);
+      const g = TEAR_GROUPS.find(groupTorn);
       if (!g) return null;
       const pts = chainPoints(g);
       const mid = pointAt(pts, pathLength(pts) / 2);
@@ -1997,15 +2081,16 @@ function drawHUD() {
 
   let by = S.task ? 80 : 60;
   if (S.hud.food) { drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f'); by += 16; }
+  if (S.hud.food) { drawBar(20, by, 140, 'WATER', S.water / 100, S.water < 25 ? '#b0473a' : '#5f7d92'); by += 16; }
   if (S.hud.fear) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }
   if (S.hud.pups && S.pups && !S.pups.traveling && S.pups.count > 0) {
     drawBar(20, by, 140, `PUP FOOD ×${S.pups.count}`, S.pups.food / 100, '#8d6f4a'); by += 16;
   }
-  if (isInjured()) {
+  if (isInjured() || (S.sickT || 0) > 0) {
     ctx.font = `italic 12px ${FONT}`;
     ctx.fillStyle = onMap ? '#7a2f1a' : '#e8a090';
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText('hurt — she limps', 20, by + 2);
+    ctx.fillText(isInjured() ? 'hurt — she limps' : 'sick — the water was wrong', 20, by + 2);
   }
 
   if (S.hud.pack) {
@@ -2115,19 +2200,21 @@ function drawIntro() {
 // ── the ending: the satellite dissolve ───────────────────────────────────────
 
 function endingCamera() {
-  const sc = Math.min(canvas.width / WORLD.w, canvas.height / WORLD.h) * 0.94;
+  const X0 = WORLD.x0 || 0, span = WORLD.w - X0;
+  const sc = Math.min(canvas.width / span, canvas.height / WORLD.h) * 0.94;
   ctx.setTransform(sc, 0, 0, sc,
-    canvas.width / 2 - WORLD.w / 2 * sc, canvas.height / 2 - WORLD.h / 2 * sc);
+    canvas.width / 2 - (X0 + WORLD.w) / 2 * sc, canvas.height / 2 - WORLD.h / 2 * sc);
   return sc;
 }
 
 function drawSatellite() {
+  const X0 = WORLD.x0 || 0, span = WORLD.w - X0;
   ctx.fillStyle = '#6a705c';
-  ctx.fillRect(0, 0, WORLD.w, WORLD.h);
+  ctx.fillRect(X0, 0, span, WORLD.h);
   const rng = makePrng(99);
   for (let i = 0; i < 90; i++) {
     ctx.fillStyle = `rgba(${120 + rng() * 60},${115 + rng() * 40},${70 + rng() * 30},0.25)`;
-    ctx.fillRect(rng() * WORLD.w, rng() * WORLD.h, 160 + rng() * 480, 120 + rng() * 340);
+    ctx.fillRect(X0 + rng() * span, rng() * WORLD.h, 160 + rng() * 480, 120 + rng() * 340);
   }
   ctx.fillStyle = 'rgba(40,55,35,0.8)';
   for (const f of TERRAIN.forests) {

@@ -12,12 +12,13 @@ function corridorFor(e) {
   const long = dist(A.x, A.y, B.x, B.y) > 900 ? 50 : 0;
   return (e.state === 'inherited' ? 200 : 150) + long;
 }
-const COV_BUCKETS   = 8;     // a pass requires every stretch of the edge walked
+const COV_BUCKETS   = 10;    // ten stretches per edge; 8 of 10 (80%) is a pass
+const COV_NEEDED    = 8;
 const COV_FULL      = (1 << COV_BUCKETS) - 1;
 const NODE_VISIT_R  = 70;
-const SPEED_ROUGH   = 258;   // off-route — matches Sedge's pace
-const SPEED_ROUTE   = 290;   // along a known, untorn route
-const SPEED_SNOW    = 210;   // off-route in winter
+const SPEED_ROUGH   = 266;   // off-route — a shade quicker than the pack
+const SPEED_ROUTE   = 298;   // along a known, untorn route
+const SPEED_SNOW    = 216;   // off-route in winter
 const INJURY_SPEED  = 0.7;   // while hurt
 const INJURY_TIME   = 75;    // real seconds to heal — ticks even while a task holds the calendar
 const MIN_PER_SEC   = 160;   // game minutes per real second (1 day ≈ 9 s; a year ≈ 54 min)
@@ -85,6 +86,66 @@ const DEN = NbyId.get('den');
 // herd anchors migrate during the year; remember where they truly live
 for (const H of HERDS) H.anchor0 = { x: H.anchor.x, y: H.anchor.y };
 
+// The construction grows a little every season: the effective footprint of
+// the machines' ground expands, and its tear zone with it.
+function obstacleRect(key) {
+  const o = OBSTACLES[key];
+  if (key !== 'construction' || !S || S.era === 'past') return o;
+  const g = seasonIndex() * 80;
+  return { x0: o.x0 - g, y0: o.y0 - g * 0.5, x1: o.x1 + g, y1: o.y1 + g * 0.5 };
+}
+
+// A path is not a ruler. Where an obstacle stands between two nodes, the
+// walked way curves around it — one derived waypoint per obstruction.
+function edgeVia(A, B) {
+  const vias = [];
+  const ms = OBSTACLES.mudSink;
+  const hit = distSeg(ms.x, ms.y, A.x, A.y, B.x, B.y);
+  if (hit.d < ms.r + 60 && hit.t > 0.08 && hit.t < 0.92) {
+    const px = A.x + (B.x - A.x) * hit.t, py = A.y + (B.y - A.y) * hit.t;
+    const n = Math.hypot(px - ms.x, py - ms.y) || 1;
+    vias.push({ t: hit.t, x: ms.x + (px - ms.x) / n * (ms.r + 140), y: ms.y + (py - ms.y) / n * (ms.r + 140) });
+  }
+  for (const key of ['construction', 'subdivision', 'gravelPit']) {
+    const o = OBSTACLES[key];
+    const cx = (o.x0 + o.x1) / 2, cy = (o.y0 + o.y1) / 2;
+    const orad = Math.hypot(o.x1 - o.x0, o.y1 - o.y0) / 2;
+    const h2 = distSeg(cx, cy, A.x, A.y, B.x, B.y);
+    if (h2.d < orad + 40 && h2.t > 0.08 && h2.t < 0.92) {
+      const px = A.x + (B.x - A.x) * h2.t, py = A.y + (B.y - A.y) * h2.t;
+      const n = Math.hypot(px - cx, py - cy) || 1;
+      vias.push({ t: h2.t, x: cx + (px - cx) / n * (orad + 120), y: cy + (py - cy) / n * (orad + 120) });
+    }
+  }
+  vias.sort((u, v) => u.t - v.t);
+  return vias.length ? vias.map(v => ({ x: v.x, y: v.y })) : undefined;
+}
+
+for (const d of EDGES) {
+  const A = NbyId.get(d.a), B = NbyId.get(d.b);
+  if (A && B) d.via = edgeVia(A, B);
+}
+
+// distance to the WALKED path of an edge (curved where it curves), and the
+// true 0..1 parameter along its whole length
+function distToEdgePath(e) {
+  const A = NbyId.get(e.a), B = NbyId.get(e.b);
+  const pts = e.via ? [A, ...e.via, B] : [A, B];
+  let total = 0;
+  const lens = [];
+  for (let i = 1; i < pts.length; i++) {
+    const L = dist(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+    lens.push(L); total += L;
+  }
+  let best = { d: Infinity, t: 0 }, acc = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const r = distSeg(S.wolf.x, S.wolf.y, pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+    if (r.d < best.d) best = { d: r.d, t: (acc + r.t * lens[i - 1]) / (total || 1) };
+    acc += lens[i - 1];
+  }
+  return best;
+}
+
 // ── game state ───────────────────────────────────────────────────────────────
 
 const input = { up: false, down: false, left: false, right: false, sense: false, scent: false };
@@ -110,7 +171,7 @@ function newGame() {
     fearSource: null,    // where the last terror came from — what they flee
 
     edges: EDGES.map(d => ({
-      id: d.id, a: d.a, b: d.b, tearGroup: d.tearGroup,
+      id: d.id, a: d.a, b: d.b, tearGroup: d.tearGroup, via: d.via,
       state: d.state, torn: false,
       passCount: 0, lastUsedDay: 1,
       inkLo: 1, inkHi: 0,
@@ -172,6 +233,9 @@ function newGame() {
     trail: [{ x: DEN.x, y: DEN.y }],
     fear: 0,
     food: 70,
+    water: 90, sickT: 0,          // thirst beside hunger; wrong water costs
+    snares: [], snaredT: 0,       // steel by the wire, once the ledger rises
+    roadkill: null,               // what the road leaves on its shoulder
     starveT: 0,
     yearlingKnows: new Set(),
 
@@ -324,7 +388,13 @@ function bridgeWallAt(x, y, r) {
 
 function blockedAt(x, y, r, canPassGap, margin) {
   const m = margin || 0;
-  if (x < r - m || y < r - m || x > WORLD.w - r + m || y > WORLD.h - r + m) return true;
+  if (x < (WORLD.x0 || 0) + r - m || y < r - m || x > WORLD.w - r + m || y > WORLD.h - r + m) return true;
+  // the rail line: fenced ballast, impassable but for the trestle
+  if (S.era !== 'past') {
+    const rl = OBSTACLES.rail;
+    if (x > rl.x0 - r && x < rl.x1 + r
+        && !(y > rl.gapY0 + r && y < rl.gapY1 - r)) return true;
+  }
   const h = OBSTACLES.highway;
   if (x > h.x0 - r && x < h.x1 + r) {
     const inGap = canPassGap && y > h.gapY0 + r && y < h.gapY1 - r;
@@ -341,7 +411,7 @@ function blockedAt(x, y, r, canPassGap, margin) {
   if (bridgeWallAt(x, y, r)) return true;
   if (S.era === 'past') return false;  // none of it has been built yet
   for (const key of ['construction', 'subdivision', 'gravelPit']) {
-    const c = OBSTACLES[key];
+    const c = obstacleRect(key);
     if (x > c.x0 - r && x < c.x1 + r && y > c.y0 - r && y < c.y1 + r) return true;
   }
   const ms = OBSTACLES.mudSink;
@@ -356,7 +426,12 @@ function blockedAt(x, y, r, canPassGap, margin) {
 // `margin` lets pack wolves roam the apron; Aspen never gets one.
 function wolfBlockedAt(x, y, margin) {
   const m = margin || 0;
-  if (x < WOLF_R - m || y < WOLF_R - m || x > WORLD.w - WOLF_R + m || y > WORLD.h - WOLF_R + m) return true;
+  if (x < (WORLD.x0 || 0) + WOLF_R - m || y < WOLF_R - m || x > WORLD.w - WOLF_R + m || y > WORLD.h - WOLF_R + m) return true;
+  if (S.era !== 'past') {
+    const rl = OBSTACLES.rail;
+    if (x > rl.x0 - WOLF_R && x < rl.x1 + WOLF_R
+        && !(y > rl.gapY0 + WOLF_R && y < rl.gapY1 - WOLF_R)) return true;
+  }
   if (bridgeWallAt(x, y, WOLF_R)) return true;
   // in the prologue the road cannot be stepped onto until Willow shows how
   if (S.mode === 'prologue' && !S.tut._b5go) {
@@ -365,7 +440,7 @@ function wolfBlockedAt(x, y, margin) {
   }
   if (S.era === 'past') return false;
   for (const key of ['construction', 'subdivision', 'gravelPit']) {
-    const c = OBSTACLES[key];
+    const c = obstacleRect(key);
     if (x > c.x0 - WOLF_R && x < c.x1 + WOLF_R && y > c.y0 - WOLF_R && y < c.y1 + WOLF_R) return true;
   }
   const ms = OBSTACLES.mudSink;
@@ -396,13 +471,14 @@ function onRoad(x, y) {
 function onKnownRoute() {
   for (const e of S.edges) {
     if (e.torn || e.state === 'unknown') continue;
-    const A = NbyId.get(e.a), B = NbyId.get(e.b);
-    if (distSeg(S.wolf.x, S.wolf.y, A.x, A.y, B.x, B.y).d < 40) return true;
+    if (distToEdgePath(e).d < 40) return true;
   }
   return false;
 }
 
 function moveAspen(dt) {
+  // held fast: a sprung snare pins her while she wrenches free
+  if ((S.snaredT || 0) > 0) { S.wolf.moving = false; return; }
   let vx = 0, vy = 0;
   if (S.senseBlend < 0.25 && S.inputLockT <= 0) {
     vx = (input.right ? 1 : 0) - (input.left ? 1 : 0);
@@ -413,6 +489,12 @@ function moveAspen(dt) {
     const rough = seasonIndex() === 3 && S.mode === 'play' ? SPEED_SNOW : SPEED_ROUGH;
     let sp = onKnownRoute() ? SPEED_ROUTE : rough;
     if (isInjured()) sp *= INJURY_SPEED;
+    if ((S.sickT || 0) > 0) sp *= 0.75;      // wrong water, slow feet
+    if (S.water <= 0) sp *= 0.85;            // thirst dulls everything
+    // wading: standing water drags at her legs
+    for (const ws of WATER_SOURCES) {
+      if (dist(S.wolf.x, S.wolf.y, ws.x, ws.y) < ws.r) { sp *= 0.7; break; }
+    }
     tryMove(S.wolf, vx / m * sp * dt, vy / m * sp * dt, wolfBlockedAt);
     S.wolf.heading = Math.atan2(vy, vx);
     S.wolf.moving = true;
@@ -474,6 +556,8 @@ function completeTraversal(e) {
   e.lastUsedDay = day();
   if (e.state === 'unknown') { e.state = 'current-dotted'; e.inkLo = 0; e.inkHi = 1; }
   if (e.state === 'current-dotted' && e.passCount >= SOLID_AT) e.state = 'current-solid';
+  // a fully-walked path names both of its ends on the map
+  S.visited.add(e.a); S.visited.add(e.b);
   S.history.push({ type: 'edge', day: day(), edge: e.id });
 
   // Generational encoding — silent, never surfaced during play
@@ -491,8 +575,7 @@ function completeTraversal(e) {
 function traversalUpdate() {
   for (const e of S.edges) {
     if (e.torn) continue;
-    const A = NbyId.get(e.a), B = NbyId.get(e.b);
-    const { d, t } = distSeg(S.wolf.x, S.wolf.y, A.x, A.y, B.x, B.y);
+    const { d, t } = distToEdgePath(e);
     if (d >= corridorFor(e)) continue;
     // Honest-but-generous knowledge: walking MOST of the edge (6 of 8
     // stretches, in however many visits) counts as a full pass.
@@ -500,7 +583,7 @@ function traversalUpdate() {
     if (e.state === 'unknown') { e.inkLo = Math.min(e.inkLo, t); e.inkHi = Math.max(e.inkHi, t); }
     let covered = 0;
     for (let bit = 0; bit < COV_BUCKETS; bit++) if (e.covBits & (1 << bit)) covered++;
-    if (covered >= 6) {
+    if (covered >= COV_NEEDED) {
       completeTraversal(e);
       e.covBits = 0;
     }
@@ -534,18 +617,35 @@ function traversalUpdate() {
 // distance to the footprint itself, not only the derived trigger circle.
 function nearFootprint(g, margin) {
   if (!g.footprint) return false;
-  const o = OBSTACLES[g.footprint];
+  const o = obstacleRect(g.footprint);
   if (o.r !== undefined) return dist(S.wolf.x, S.wolf.y, o.x, o.y) < o.r + margin;
   const dx = Math.max(o.x0 - S.wolf.x, 0, S.wolf.x - o.x1);
   const dy = Math.max(o.y0 - S.wolf.y, 0, S.wolf.y - o.y1);
   return Math.hypot(dx, dy) < margin;
 }
 
+// ...or near the tear's own line: any of its edges, or its rip path
+function nearTearLine(g, margin) {
+  for (const eid of g.edges) {
+    const e = S.edges.find(x => x.id === eid);
+    if (!e) continue;
+    const A = NbyId.get(e.a), B = NbyId.get(e.b);
+    if (A && B && distSeg(S.wolf.x, S.wolf.y, A.x, A.y, B.x, B.y).d < margin) return true;
+  }
+  if (g.ripPath) {
+    for (let i = 1; i < g.ripPath.length; i++) {
+      const [ax, ay] = g.ripPath[i - 1], [bx, by] = g.ripPath[i];
+      if (distSeg(S.wolf.x, S.wolf.y, ax, ay, bx, by).d < margin) return true;
+    }
+  }
+  return false;
+}
+
 function tearCheck() {
   for (const g of TEAR_GROUPS) {
     if (groupTorn(g)) continue;
     if (dist(S.wolf.x, S.wolf.y, g.trigger.x, g.trigger.y) < g.trigger.r
-        || nearFootprint(g, 150)) {
+        || nearFootprint(g, 150) || nearTearLine(g, 150)) {
       for (const eid of g.edges) S.edges.find(e => e.id === eid).torn = true;
       recomputeGhosts();
       S.flickerT = 0.5;
@@ -612,7 +712,7 @@ function checkBridges() {
 // or not they followed the graph.
 function inFootprint(g, x, y, margin) {
   if (!g.footprint) return false;
-  const o = OBSTACLES[g.footprint];
+  const o = obstacleRect(g.footprint);
   if (o.r !== undefined) return dist(x, y, o.x, o.y) < o.r + margin;
   return x > o.x0 - margin && x < o.x1 + margin && y > o.y0 - margin && y < o.y1 + margin;
 }
@@ -690,13 +790,13 @@ function weatherUpdate(dt) {
 // The map's visible radius: a little over half the land's width — less
 // under a grey ceiling.
 function senseRadius() {
-  return WORLD.w * 0.53 * (S.weather && S.weather.kind === 'cloud' ? 0.72 : 1);
+  return (WORLD.w - (WORLD.x0 || 0)) * 0.5 * (S.weather && S.weather.kind === 'cloud' ? 0.72 : 1);
 }
 
 // The raised map frames the whole territory, whatever the screen size.
 function mapFitScale() {
   if (typeof canvas === 'undefined' || !canvas.width) return SCALE_MAP;
-  return Math.min(canvas.width / (WORLD.w + 500), canvas.height / (WORLD.h + 500));
+  return Math.min(canvas.width / (WORLD.w - (WORLD.x0 || 0) + 500), canvas.height / (WORLD.h + 500));
 }
 
 // Violet human-noise intensity at a point; radii widen every season.
@@ -873,7 +973,7 @@ function zoneRadius(c) {
   clear = Math.min(clear, c.x < h.x0 ? h.x0 - c.x : c.x > h.x1 ? c.x - h.x1 : 0);
   if (S.era !== 'past') {
     for (const key of ['construction', 'subdivision', 'gravelPit']) {
-      const o = OBSTACLES[key];
+      const o = obstacleRect(key);
       const dx = Math.max(o.x0 - c.x, 0, c.x - o.x1);
       const dy = Math.max(o.y0 - c.y, 0, c.y - o.y1);
       clear = Math.min(clear, Math.hypot(dx, dy));
@@ -938,8 +1038,20 @@ function packUpdate(dt) {
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') { w.moving = false; continue; }
 
-    // a lost wolf stands where it wandered until she comes for it
-    if (w.lost) { w.moving = false; continue; }
+    // a lost wolf stands where it wandered until she comes for it — and if
+    // no one ever comes, one day it simply isn't waiting anymore
+    if (w.lost) {
+      w.moving = false;
+      w.lostT = (w.lostT || 0) + dt;
+      if (w.lostT > 420 && S.mode === 'play') {
+        w.lost = false;
+        w.state = 'gone';
+        S.history.push({ type: 'loss', day: day(), who: w.id, dispersed: true });
+        say(`${w.name} is gone. The waiting outlasted the hope.`);
+        saveGame();
+      }
+      continue;
+    }
 
     // the bridge is learned by crossings: each wolf that goes over, counts
     if (overpassOpen() && !overpassTrusted()) {
@@ -1338,7 +1450,7 @@ function preyUpdate(dt) {
     }
 
     // beyond the world's edge: it has escaped the land entirely
-    if (elk.x < 0 || elk.y < 0 || elk.x > WORLD.w || elk.y > WORLD.h) {
+    if (elk.x < (WORLD.x0 || 0) || elk.y < 0 || elk.x > WORLD.w || elk.y > WORLD.h) {
       elk.outT = (elk.outT || 0) + dt;
     } else {
       elk.outT = 0;
@@ -1351,7 +1463,7 @@ function preyUpdate(dt) {
   // the heart of the land to replace what the land lost
   for (let i = S.elk.length - 1; i >= 0; i--) {
     const elk = S.elk[i];
-    const gone = elk.x < -APRON + 40 || elk.y < -APRON + 40
+    const gone = elk.x < (WORLD.x0 || 0) - APRON + 40 || elk.y < -APRON + 40
       || elk.x > WORLD.w + APRON - 40 || elk.y > WORLD.h + APRON - 40
       || (elk.outT || 0) > 7;
     if (gone) {
@@ -1424,8 +1536,10 @@ function preyUpdate(dt) {
 // ── hunger and Sedge's restlessness ──────────────────────────────────────────
 
 function hungerUpdate(dt) {
-  // fewer mouths, slower drain: a full pack of four eats at the old rate
-  const mouths = Math.min(1.15, (1 + alivePack().length) / 5);
+  // fewer mouths, slower drain: a full pack of four eats at the old rate —
+  // but sickness and thirst both burn the larder faster
+  const mouths = Math.min(1.15, (1 + alivePack().length) / 5)
+    * ((S.sickT || 0) > 0 ? 1.3 : 1) * (S.water <= 0 ? 1.25 : 1);
   S.food = Math.max(0, S.food - FOOD_PER_SEC * mouths * dt);
   if (S.food <= 0) S.starveT += dt; else S.starveT = 0;
 
@@ -1488,9 +1602,10 @@ function materializeDen(siteId) {
     .slice(0, 3);
   for (const n of near) {
     const def = { id: `home-${n.id}`, a: 'home', b: n.id, state: 'unknown', dynamic: true };
+    def.via = edgeVia(node, n);
     EDGES.push(def);
     S.edges.push({
-      id: def.id, a: def.a, b: def.b, tearGroup: undefined,
+      id: def.id, a: def.a, b: def.b, tearGroup: undefined, via: def.via,
       state: 'unknown', torn: false, passCount: 0, lastUsedDay: day(),
       inkLo: 1, inkHi: 0, covBits: 0,
     });
@@ -1826,6 +1941,98 @@ function lichenUpdate() {
   saveGame();
 }
 
+// ── water, and the dangers the land grew this year ──────────────────────────
+// Thirst runs beside hunger. Clean water is the land's; fouled water is
+// people's, and it costs. Steel waits by the wire once the ledger rises;
+// the road leaves meat on its shoulder; winter water bites back.
+
+const WATER_PER_SEC = 0.10;
+
+function waterUpdate(dt) {
+  S.water = Math.max(0, S.water - WATER_PER_SEC * dt);
+  S.sickT = Math.max(0, (S.sickT || 0) - dt);
+  S.foulCd = Math.max(0, (S.foulCd || 0) - dt);
+  S.iceCd = Math.max(0, (S.iceCd || 0) - dt);
+  for (const ws of WATER_SOURCES) {
+    if (dist(S.wolf.x, S.wolf.y, ws.x, ws.y) >= ws.r) continue;
+    // thin ice bites whether or not she means to drink
+    if (seasonIndex() === 3 && S.iceCd <= 0 && Math.random() < 0.05 * dt * 20) {
+      S.iceCd = 30;
+      S.inputLockT = Math.max(S.inputLockT, 1.6);
+      S.fear = Math.min(1, S.fear + 0.3);
+      S.food = Math.max(0, S.food - 6);
+      S.shake = Math.max(S.shake, 6);
+      say('The ice gives. Cold takes its tax.');
+    }
+    if (!S.tut.drinkTaught && S.water < 75) {
+      S.tut.drinkTaught = true;
+      showPrompt('Water. She must stand still in the shallows to drink.', [], 6);
+    }
+    // drinking is an act, not a side effect: she stops, head down
+    if (!S.wolf.moving && S.water < 99) {
+      S.water = Math.min(100, S.water + 30 * dt);
+      if (!ws.clean && S.sickT <= 0 && S.foulCd <= 0) {
+        S.sickT = 75;
+        S.foulCd = 40;
+        say(`Wrong water at ${ws.name}. It sits in her like a stone.`);
+      }
+    }
+  }
+}
+
+function snareUpdate(dt) {
+  S.snaredT = Math.max(0, (S.snaredT || 0) - dt);
+  // once his ledger rises, steel appears along the wire
+  if (!S.snares.length && S.conflict > 0.4 && day() > 120) {
+    const f = OBSTACLES.fence;
+    for (let k = 0; k < 3; k++) {
+      const t = 0.2 + k * 0.28;
+      S.snares.push({
+        x: f.x0 + (f.x1 - f.x0) * t - 46,
+        y: f.y0 + (f.y1 - f.y0) * t + 46,
+        sprung: false,
+      });
+    }
+    say('New smells along the wire: steel, and cord, and patience.');
+  }
+  for (const sn of S.snares) {
+    if (sn.sprung) continue;
+    if (dist(S.wolf.x, S.wolf.y, sn.x, sn.y) < 26) {
+      sn.sprung = true;
+      S.snaredT = 3.5;
+      S.injuredT = INJURY_TIME;
+      S.fear = Math.min(1, S.fear + 0.4);
+      S.fearSource = { x: sn.x, y: sn.y };
+      S.shake = Math.max(S.shake, 8);
+      say('Steel jaws. She wrenches free, bleeding, wiser.');
+      saveGame();
+    }
+  }
+}
+
+function roadkillUpdate(dt) {
+  if (S.roadkill) {
+    if (dist(S.wolf.x, S.wolf.y, S.roadkill.x, S.roadkill.y) < 40) {
+      S.roadkill = null;
+      S.food = Math.min(100, S.food + 15);
+      say('Something the road killed first. Meat, for nerve.');
+    }
+    return;
+  }
+  S.roadkillCd = (S.roadkillCd === undefined ? 50 : S.roadkillCd) - dt;
+  if (S.roadkillCd <= 0) {
+    S.roadkillCd = 45 + Math.random() * 40;
+    const h = OBSTACLES.highway;
+    const side = Math.random() < 0.5 ? h.x0 - 22 : h.x1 + 22;
+    const rk = { x: side, y: 400 + Math.random() * (WORLD.h - 800) };
+    S.roadkill = rk;
+    // its rumor is laid in scent, not words
+    for (let i = 0; i < 5; i++) {
+      S.scent.push({ x: rk.x + (Math.random() - 0.5) * 60, y: rk.y + (Math.random() - 0.5) * 60, t: S.time, v: 0 });
+    }
+  }
+}
+
 // ── the fire ─────────────────────────────────────────────────────────────────
 // Dry lightning in the east, one summer day. Everything that runs, runs west
 // together — predator and prey in truce-by-panic. Afterward the eastern
@@ -1885,6 +2092,7 @@ function taskDone(t) {
       return !w || w.state === 'dead' || w.state === 'gone' || !w.lost;
     }
     case 'cache': return t.done === true;
+    case 'drink': return S.water > 60;
   }
   return true;
 }
@@ -1899,7 +2107,7 @@ function taskProgress(t) {
   if (t.kind === 'findwolf') {
     const w = S.pack.find(x => x.id === t.key);
     if (w && w.lost && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 150) {
-      w.lost = false; w.state = 'follow';
+      w.lost = false; w.lostT = 0; w.state = 'follow';
       say(`${w.name} falls in at her shoulder as if nothing happened.`);
     }
   } else if (t.kind === 'cache') {
@@ -1920,11 +2128,12 @@ function issueTask() {
   if (S.tut.step < 7) { S.taskCooldown = 10; return; }
   const mk = (kind, text, extra) => { S.task = { kind, text, t: 0, ...(extra || {}) }; };
 
-  const torn = TEAR_GROUPS.find(g => g.key !== 'mudspring' && groupTorn(g) && !S.bridged.has(g.key));
+  const torn = TEAR_GROUPS.find(g => groupTorn(g) && !S.bridged.has(g.key));
   if (torn) {
     const TEAR_NAMES = {
       blackriver: 'the Black River', machines: 'the machines',
       drycreek: 'the drowned Bend', gravelpit: 'the pit',
+      railline: 'the rail line',
     };
     mk('patch', `find a way around ${TEAR_NAMES[torn.key] || 'the tear'}`, { key: torn.key });
     return;
@@ -1933,6 +2142,7 @@ function issueTask() {
     mk('pups', 'the pups are hungry — carry food home', {}); return;
   }
   if (S.food < 45) { mk('hunt', 'the pack is hungry — bring something down', {}); return; }
+  if (S.water < 35) { mk('drink', 'thirst — find clean water', {}); return; }
   if (!S.denId) {
     const unseen = DEN_SITES.find(s => !S.seenDens.includes(s.id));
     if (unseen) { mk('den-look', `go and look at ${unseen.name}`, { key: unseen.id }); return; }
@@ -1990,11 +2200,10 @@ function taskUpdate(dt) {
       S.task = null;
       S.taskCooldown = 18 + Math.random() * 22;
     } else if (S.task.kind === 'findwolf' && S.task.t > 240) {
-      const w = S.pack.find(x => x.id === S.task.key);
-      if (w && w.lost) { w.lost = false; w.state = 'follow'; }
-      if (w) say(`${w.name} found the way back alone.`);
+      // the moment passes — but a missing wolf is NOT thereby found
       S.task = null;
       S.taskCooldown = 24 + Math.random() * 20;
+      say('The trail is cold. Somewhere out there, one of hers is waiting.');
     } else if (S.task.kind === 'cache' && !S.task.got && S.task.t > 300) {
       S.task = null;
       S.taskCooldown = 24 + Math.random() * 20;
@@ -2255,11 +2464,9 @@ function skipPrologue() {
 // Shared by finishing the prologue and skipping it: the world of Act I.
 function applyPostPrologue() {
   S.era = 'present';
-  // the spur near the den is already gone when the game opens (beat 9's find)
   for (const e of S.edges) {
     const d = EDGES.find(x => x.id === e.id);
     if (e.state === 'unknown' && d.state === 'inherited') e.state = 'inherited';
-    if (e.tearGroup === 'mudspring') e.torn = true;
   }
   recomputeGhosts();
   // the prologue already taught move / scent / map / hunt / F
@@ -2538,7 +2745,8 @@ function prologueUpdate(dt) {
         willowSetPath([
           nodePt('farBench', 'sageFlat-farBench'),
           nodePt('highMeadow', 'farBench-highMeadow'),
-          nodePt('winterRange', 'highMeadow-winterRange'),
+          nodePt('ashSaddle', 'highMeadow-ashSaddle'),
+          nodePt('winterRange', 'ashSaddle-winterRange'),
         ]);
       }
       if (w && T._b7go && !w.path.length
@@ -2574,8 +2782,6 @@ function prologueUpdate(dt) {
         S.vistaT = 3.6; S.vistaTMax = 3.6; S.inputLockT = 3.6;
         S.ghostPulse = 3.6;
         S.shake = 6;
-        // the world that changed while she grew
-        for (const e of S.edges) if (e.tearGroup === 'mudspring') e.torn = true;
         recomputeGhosts();
         setCaption('Three winters later.', 3.6, 'the world did not wait');
       }
@@ -3113,6 +3319,8 @@ function saveGame() {
         injuredT: w.injuredT || 0, lost: !!w.lost,
       })),
       fear: S.fear, food: S.food,
+      water: S.water, sickT: S.sickT || 0,
+      snares: S.snares, roadkill: S.roadkill,
       yearlingKnows: [...S.yearlingKnows],
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
       pups: S.pups,
@@ -3166,6 +3374,10 @@ function loadGame() {
     }
   }
   S.fear = d.fear; S.food = d.food;
+  S.water = typeof d.water === 'number' ? d.water : 90;
+  S.sickT = d.sickT || 0;
+  S.snares = d.snares || [];
+  S.roadkill = d.roadkill || null;
   S.yearlingKnows = new Set(d.yearlingKnows);
   S.denId = d.denId; S.denSite = d.denSite; S.seenDens = d.seenDens || [];
   S.pups = d.pups;
@@ -3264,6 +3476,9 @@ function update(dt) {
     hungerUpdate(dt);
     denUpdate(dt);
     pupUpdate(dt);
+    waterUpdate(dt);
+    snareUpdate(dt);
+    roadkillUpdate(dt);
     rancherUpdate(dt);
     silenceUpdate(dt);
     standoffUpdate(dt);
@@ -3334,9 +3549,11 @@ function update(dt) {
 
   // camera — the raised map pulls out to frame the entire land
   const mblend = smooth(S.senseBlend);
-  let targetScale = lerp(SCALE_WORLD, mapFitScale(), mblend);
+  // the world runs close-in (2x); the nose pulls the view back out wide
+  const nearScale = input.scent && S.senseBlend < 0.2 ? SCALE_WORLD : SCALE_WORLD * 2;
+  let targetScale = lerp(nearScale, mapFitScale(), mblend);
   if (S.vistaT > 0) targetScale = SCALE_VISTA;
-  const targetX = lerp(S.wolf.x, WORLD.w / 2, mblend);
+  const targetX = lerp(S.wolf.x, ((WORLD.x0 || 0) + WORLD.w) / 2, mblend);
   const targetY = lerp(S.wolf.y, WORLD.h / 2, mblend);
   S.cam.scale += (targetScale - S.cam.scale) * Math.min(1, dt * 8);
   S.cam.x += (targetX - S.cam.x) * Math.min(1, dt * 6);

@@ -2,7 +2,7 @@
 // Distances are world units. Everything mutable at runtime is copied out of
 // here at newGame(); this file is never written to.
 
-const WORLD = { w: 5200, h: 3600 };
+const WORLD = { x0: -2400, w: 5200, h: 3600 };  // x0: the far west, won in Act IV
 
 // Landmarks. Names are Aspen's names for places, not human ones.
 const NODES = [
@@ -14,7 +14,13 @@ const NODES = [
   { id: 'sageFlat',    x: 1120, y: 1520, name: 'Sage Flat' },
   { id: 'farBench',    x: 640,  y: 1400, name: 'Far Bench' },
   { id: 'highMeadow',  x: 320,  y: 1120, name: 'High Meadow' },
-  { id: 'winterRange', x: 180,  y: 760,  name: 'Winter Range' },
+
+  // The far west: the last long miles to the winter range, across the rail
+  { id: 'ashSaddle',   x: -700,  y: 1000, name: 'Ash Saddle' },
+  { id: 'winterRange', x: -1900, y: 900,  name: 'Winter Range' },
+  { id: 'longSlope',   x: -560,  y: 2150, name: 'Long Slope' },
+  { id: 'railGap',     x: -1080, y: 3020, name: 'The Trestle' },
+  { id: 'coldRise',    x: -1750, y: 2050, name: 'Cold Rise' },
 
   // Hunting loop, north — intact ground
   { id: 'birchDraw',   x: 3000, y: 1240, name: 'Birch Draw' },
@@ -47,7 +53,6 @@ const NODES = [
   { id: 'sandbar',     x: 2800, y: 3320, name: 'Sand Bar' },
 
   // A small spur Willow's map still shows — already torn when the game opens
-  { id: 'mudSpring',   x: 2860, y: 1590, name: 'Mud Spring' },
 ];
 
 // state: 'inherited' (Willow's frozen ink) or 'unknown' (grey void).
@@ -58,7 +63,15 @@ const EDGES = [
   { id: 'oldFord-sageFlat',    a: 'oldFord',     b: 'sageFlat',    state: 'inherited', tearGroup: 'blackriver' },
   { id: 'sageFlat-farBench',   a: 'sageFlat',    b: 'farBench',    state: 'inherited', tearGroup: 'blackriver' },
   { id: 'farBench-highMeadow', a: 'farBench',    b: 'highMeadow',  state: 'inherited', tearGroup: null },
-  { id: 'highMeadow-winterRange', a: 'highMeadow', b: 'winterRange', state: 'inherited', tearGroup: null },
+  { id: 'highMeadow-ashSaddle', a: 'highMeadow', b: 'ashSaddle',   state: 'inherited', tearGroup: null },
+  { id: 'ashSaddle-winterRange', a: 'ashSaddle', b: 'winterRange', state: 'inherited', tearGroup: 'railline' },
+
+  // The far west's grey void: the long way around the rail, through the
+  // trestle — new ground that must be walked into ink
+  { id: 'ashSaddle-longSlope',  a: 'ashSaddle',  b: 'longSlope',   state: 'unknown', tearGroup: null },
+  { id: 'longSlope-railGap',    a: 'longSlope',  b: 'railGap',     state: 'unknown', tearGroup: null },
+  { id: 'railGap-coldRise',     a: 'railGap',    b: 'coldRise',    state: 'unknown', tearGroup: null },
+  { id: 'coldRise-winterRange', a: 'coldRise',   b: 'winterRange', state: 'unknown', tearGroup: null },
 
   // Hunting loop
   { id: 'den-birchDraw',       a: 'den',         b: 'birchDraw',   state: 'inherited', tearGroup: null },
@@ -79,7 +92,6 @@ const EDGES = [
   { id: 'gravelBar-den',       a: 'gravelBar',   b: 'den',         state: 'inherited', tearGroup: null },
 
   // The torn spur — inherited ink into a wound, from the very first map-check
-  { id: 'den-mudSpring',       a: 'den',         b: 'mudSpring',   state: 'inherited', tearGroup: 'mudspring' },
 
   // Detours (grey void until walked)
   { id: 'oldFord-willowSlough',   a: 'oldFord',      b: 'willowSlough', state: 'unknown', tearGroup: null },
@@ -118,6 +130,12 @@ const TEAR_GROUPS = [
     chain: ['oldFord', 'sageFlat', 'farBench'],
     trigger: { x: 1180, y: 1510, r: 100 },
     ripPath: [[920, 60], [920, 1200], [920, 2340]] },
+  // The rail line: the far west's wall. Her mother's last miles cross it;
+  // the only way under is the trestle, far to the south.
+  { key: 'railline', edges: ['ashSaddle-winterRange'],
+    chain: ['ashSaddle', 'winterRange'],
+    trigger: { x: -1100, y: 950, r: 240 },
+    ripPath: [[-1100, -400], [-1100, 1600], [-1100, 2960]] },
   // footprint: the trigger is derived from the obstacle itself at newGame
   { key: 'machines',   edges: ['birchDraw-fenceLine', 'fenceLine-dustyRise'],
     chain: ['birchDraw', 'fenceLine', 'dustyRise'],
@@ -131,11 +149,6 @@ const TEAR_GROUPS = [
     chain: ['elkMeadow', 'ridgeSaddle'],
     footprint: 'gravelPit',
     trigger: { x: 2200, y: 920, r: 190 } },
-  // Pre-torn before play begins (beat 8's world-change); its trigger is
-  // parked off-world so it can never re-fire.
-  { key: 'mudspring',  edges: ['den-mudSpring'],
-    chain: ['den', 'mudSpring'],
-    trigger: { x: -99999, y: -99999, r: 1 } },
 ];
 
 const OBSTACLES = {
@@ -146,6 +159,9 @@ const OBSTACLES = {
   // north stretch. Earth over the asphalt from OVERPASS_OPEN_DAY on —
   // anything may cross above the traffic there.
   overpass: { y0: 620, y1: 760 },
+  // The rail line: the far west's wall, fenced ballast pole to pole. One
+  // way under — the trestle, far south. Nothing crosses anywhere else.
+  rail: { x0: -1130, x1: -1070, gapY0: 2940, gapY1: 3110 },
   // Groundwork for something Aspen has no word for.
   construction: { x0: 3640, y0: 1440, x1: 4040, y1: 1960 },
   // Rooflines, southeast. Impassable fenced ground.
@@ -174,6 +190,11 @@ const TERRAIN = {
     { x: 4200, y: 3300, r: 240 }, { x: 3300, y: 3500, r: 200 }, { x: 700,  y: 1700, r: 200 },
     { x: 4600, y: 700,  r: 260 }, { x: 5000, y: 1600, r: 230 }, { x: 1500, y: 3400, r: 240 },
     { x: 2500, y: 3350, r: 190 }, { x: 4950, y: 2600, r: 200 },
+    // the far west, past the rail: older, colder woods
+    { x: -500,  y: 500,  r: 280 }, { x: -900,  y: 1800, r: 240 },
+    { x: -1600, y: 400,  r: 260 }, { x: -2100, y: 1400, r: 250 },
+    { x: -1900, y: 2700, r: 270 }, { x: -400,  y: 2900, r: 220 },
+    { x: -2100, y: 3200, r: 230 }, { x: -1400, y: 1200, r: 190 },
   ],
 };
 
@@ -181,7 +202,7 @@ const TERRAIN = {
 // yearling: routes walked while they follow are silently copied to their map.
 const PACK_DEF = [
   { id: 'bram',  name: 'Bram',  mult: 0.80, yearling: false },
-  { id: 'sedge', name: 'Sedge', mult: 1.12, yearling: false },
+  { id: 'sedge', name: 'Sedge', mult: 1.08, yearling: false },   // prey-pace, no faster
   { id: 'alder', name: 'Alder', mult: 1.00, yearling: true },
   { id: 'fen',   name: 'Fen',   mult: 1.00, yearling: true },
 ];
@@ -212,6 +233,18 @@ const RANCH = {
 // subdivision from the construction ground. Open, silent, humming — prey
 // will not graze in it.
 const POWERLINE = { x0: 4000, y0: 1900, x1: 4400, y1: 2800 };
+
+// Water. The clean sources are the land's own; the fouled ones sit
+// downstream of what people built — drink there and sickness follows.
+const WATER_SOURCES = [
+  { x: 1560, y: 1180, r: 110, clean: true,  name: 'the springs' },
+  { x: 1120, y: 2120, r: 130, clean: true,  name: 'the creek' },
+  { x: 3350, y: 3150, r: 140, clean: true,  name: 'the marsh' },
+  { x: 2700, y: 3260, r: 120, clean: false, name: 'the dead channel' },  // below the impoundment
+  { x: 2200, y: 1150, r: 90,  clean: false, name: 'the pit sump' },      // gravel-pit runoff
+  { x: 4180, y: 950,  r: 90,  clean: false, name: 'the stock pond' },    // cattle-fouled
+  { x: -1550, y: 1750, r: 120, clean: true, name: 'the cold creek' },    // the far west's own
+];
 
 const DEN_SITES = [
   { id: 'oldDen',   x: 2600, y: 1800, name: 'The Old Den' },

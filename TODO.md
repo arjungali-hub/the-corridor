@@ -454,7 +454,40 @@ it touched feel, a NOTES.md line, and a commit named `review fix N: …`.
       holds one lean, hard-to-catch herd: the western herd in winter is
       warier and yields less — every calorie out there is earned.
 
-## Verification ritual
+## Part 16 — Playtest batch (Arjun, 2026-07-19)
+
+- [x] Normal view 2× zoomed in; scent view zooms back out to the old
+      framing — but much darker, so little reads except trails and marks.
+- [x] The world is a lot longer horizontally toward the winter range;
+      getting there is genuinely hard (a long human barrier — a fenced
+      rail line — with one way under, torn inherited ink, new unknown
+      ground to ink).
+- [x] More danger, mostly (not only) human-induced — brainstormed set:
+      water as a need beside food (WATER bar, drink at sources); fouled
+      sources (below the impoundment, the cattle pond, the pit sump)
+      cause sickness (slow, hungry); snare lines near the wire once the
+      ledger rises (held fast + wound); roadkill lures on the shoulder
+      (meat next to the traffic); thin ice on winter water (a plunge:
+      cold, fear, lost meat).
+- [x] 'The moment passes' must NOT return a missing packmate: an unfound
+      lost wolf stays lost, and eventually is gone for good.
+- [x] Aspen slightly faster; Sedge reduced to prey speed.
+- [x] Full inking requires 80% of the path walked (10 coverage buckets,
+      8 required); a completed path names BOTH end nodes on the map.
+- [x] Remove the tear right next to the den and the spur path it sat on
+      (mudspring is gone; the rip callout waits for the first real tear).
+- [x] Paths need not be straight: when an obstacle stands between nodes,
+      the path curves around it (auto-derived via points; traversal and
+      rendering follow the curve).
+- [x] Season-to-season change everywhere: by year's end barely any
+      unchanged territory (construction grows each season and its tear
+      zone with it; subdivision second row; pit deepens; impoundment
+      spreads; winter freezes the water).
+- [x] Being anywhere next to a tear's line (its edges, or its rip path)
+      activates it — not only the obstacle footprint.
+- [x] Walking in water slows her down (wading drag at every source).
+- [x] Drinking is an ACTION: she must stand still in the shallows —
+      never a passive refill (taught once, in place).
 
 ## Verification ritual
 

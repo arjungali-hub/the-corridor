@@ -299,3 +299,40 @@ Harness green x3 (new checks: urge/no-freeze, wind up/down/rain, distrust
 -> three crossings -> trust -> prey follow, mill/trickle anchors, season
 ghost smoke, standoff F, Sedge's mark). Next: Arjun plays a full year —
 the new pacing (9 s days, no freeze) is the thing to feel first.
+
+## Part 16 — playtest batch (2026-07-19)
+
+The land is bigger, closer, and meaner.
+- View: normal play runs at 2x zoom; holding E pulls the camera back out
+  to the old framing — and the scent view is near-black now (0.82 wash,
+  deeper fog): only trails and marks read.
+- The far west: WORLD.x0 = -2400. Winter Range moved to (-1900, 900),
+  reached through Ash Saddle; the fenced RAIL LINE (x -1130..-1070, one
+  trestle under at y ~3025) walls the west. Her mother's last miles
+  (ashSaddle-winterRange, inherited) tear at the rail; the way around is
+  four unknown edges south through The Trestle and Cold Rise. Base layer,
+  camera, map fit, sense radius (0.5 span), satellite, bounds all honor
+  x0. The prologue crosses in the past era, where no rail exists.
+- Danger: WATER runs beside food (0.10/s; WATER bar). Drinking is an ACT
+  — stand still in the shallows (taught once). Fouled sources (dead
+  channel, pit sump, stock pond) sicken her 75 s (slow, hungry, 'sick'
+  line); wading drags (0.7x); winter water can plunge her through thin
+  ice; snare lines appear by the wire at conflict > 0.4 (held 3.5 s +
+  wound); roadkill appears on the shoulder (+15 food beside the traffic);
+  a clean cold creek waits in the far west. All saved.
+- 'The moment passes' no longer returns a lost wolf: unfound for ~420 s,
+  they are gone for good.
+- Aspen 266/298/216; Sedge mult 1.08 (prey pace). Inking needs 8 of 10
+  buckets (80%); a completed pass names both end nodes. The mudspring
+  spur and its tear are gone (the rip callout waits for the first real
+  tear). Tears also fire within 150 of their edge lines or rip path.
+- Paths curve: edgeVia() derives waypoints around the impoundment, pit,
+  construction, subdivision; traversal, route-speed, and rendering all
+  follow the curved path (distToEdgePath).
+- Seasons change the territory: construction's effective rect grows 80/
+  season (collision + tear zone + drawing), a second subdivision row
+  stands by autumn, winter lids every water source in ice — with the
+  existing palette shifts, stakes, drought, and char, little of the land
+  stays unchanged by year's end.
+Harness green x3 (new checks: drink action, wrong water, wading, curves,
+construction growth, rail wall/trestle/tear, radius span).
