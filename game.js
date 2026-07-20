@@ -2491,7 +2491,8 @@ function applyPostPrologue() {
   for (let h = 0; h < HERDS.length; h++) {
     for (let k = 0; k < HERDS[h].count; k++) spawnPrey(h);
   }
-  setCaption('Spring.', 3.5, 'the pack is yours now');
+  S.passageFade = 1.8;   // the white lets go slowly over the first thaw
+  setCaption('Spring.', 3.5, 'the first thaw after her — the pack is yours now');
   // the year's first decision, named at once
   S.tut.denPrompt = true;
   showPrompt('The pups will come with the late spring. A den must be chosen — raise the map; the hollows are marked.', ['SPACE'], 9);
@@ -2840,18 +2841,33 @@ function prologueUpdate(dt) {
           S.inheritHold = Math.max(0, S.inheritHold - dt * 2);
         }
       } else {
-        // the year begins the moment she lowers the map — or walks away
+        // lowering the map — or walking away — begins the passage
         if (!T._b9raised && S.senseBlend > 0.8) T._b9raised = true;
         const lowered = T._b9raised && !S.mapOpen && S.senseBlend < 0.15;
         if (lowered || dist(S.wolf.x, S.wolf.y, DEN.x, DEN.y) > 240) {
-          markPrologueDone();
-          applyPostPrologue();
-          S.mode = 'play';
-          saveGame();
+          S.beat = 10; S.beatT = 0;
+          S.inputLockT = 7;
         }
       }
       break;
     }
+
+    // Beat 10 — the pause after her: winter closes over the den, unwatched,
+    // and the world goes white before the thaw
+    case 10:
+      if (!T._b10) {
+        T._b10 = true;
+        clearPrompt();
+        playHowl();   // one far voice, for her
+        setCaption('The winter closes over the den.', 4.5, 'no one watches her through it');
+      }
+      if (S.beatT > 6.5) {
+        markPrologueDone();
+        applyPostPrologue();
+        S.mode = 'play';
+        saveGame();
+      }
+      break;
   }
 }
 
@@ -3447,6 +3463,7 @@ function update(dt) {
   S.msgT = Math.max(0, S.msgT - dt);
   // a wound heals in real time, task freeze or no — the calendar has no say
   S.injuredT = Math.max(0, S.injuredT - dt);
+  S.passageFade = Math.max(0, (S.passageFade || 0) - dt);
   S.shake = Math.max(0, S.shake - 30 * dt);
   S.inputLockT = Math.max(0, S.inputLockT - dt);
   S.confirmNewYearT = Math.max(0, S.confirmNewYearT - dt);

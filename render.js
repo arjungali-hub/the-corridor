@@ -2498,6 +2498,26 @@ function drawVistaMatte() {
   ctx.globalAlpha = 1;
 }
 
+// The passage: winter closing over the den in white, snow drifting through
+// it, then letting go slowly into the first thaw. Drawn under the caption.
+function drawPassage() {
+  let a = 0;
+  if (S.mode === 'prologue' && S.beat === 10) a = Math.min(1, S.beatT / 1.5) * 0.96;
+  else if ((S.passageFade || 0) > 0) a = (S.passageFade / 1.8) * 0.96;
+  if (a <= 0.01) return;
+  resetTransform();
+  ctx.fillStyle = `rgba(236,239,241,${a})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = `rgba(255,255,255,${Math.min(1, a + 0.2)})`;
+  const rngS = makePrng(13);
+  for (let i = 0; i < 40; i++) {
+    const bx = rngS() * canvas.width, by = rngS() * canvas.height, spd = 12 + rngS() * 22;
+    const y = (by + S.time * spd) % canvas.height;
+    const x = ((bx + Math.sin(S.time * 0.8 + i) * 14) % canvas.width + canvas.width) % canvas.width;
+    ctx.beginPath(); ctx.arc(x, y, 1.2 + rngS() * 1.4, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
 // ── dispatcher ───────────────────────────────────────────────────────────────
 
 function draw() {
@@ -2513,6 +2533,7 @@ function draw() {
   if (S.vistaT > 0 && S.mode === 'prologue') drawVistaMatte();
   drawFlicker();
   if (S.mode === 'play') drawHUD();
+  drawPassage();
   drawPrompt();
   drawCaption();
   drawHelp();

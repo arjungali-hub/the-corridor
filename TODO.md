@@ -508,3 +508,7 @@ action; commit everything.
 - [x] The inherit hold works from wherever the circle over Willow is
       visible (radius 110, matching the render), not only right on top
       of her.
+- [x] A held pause between Willow's death and Spring: beat 10 — a far
+      howl, 'The winter closes over the den.', the screen whiting over
+      with drifting snow for ~6.5 s, then the white letting go slowly
+      into 'Spring. the first thaw after her'.
