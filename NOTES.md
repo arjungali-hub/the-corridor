@@ -347,3 +347,18 @@ the lean-in, beat 7 walks on with no lesson, togglePackStay is inert in
 the prologue past the bond, applyPostPrologue no longer grants fTaught —
 the verb is taught ~14 s into spring ('The pack is hers to lead now.').
 Harness green x2 (beat-7 rewritten: no-F checks; deer-nearby check).
+
+## Water made real + tears made honest (2026-07-19, follow-up batch)
+
+Drinking is hold-Q, standing in water (input.drink; blur-safe; taught in
+place; help row). WATER_SOURCES is gone: waterAt() reads the DRAWN water
+— TERRAIN.creekFlow within 48, plus four rendered PONDS (marsh pond, pit
+sump, stock pond, the far-west cold pool) with banks/shine/film/winter
+lids. waterFouled(x,y) derives sickness from proximity to people: the
+impoundment (900), construction/subdivision/pit rects (420, seasonal
+growth included), the ranch house (900), asphalt runoff (220). Wading
+drag rides waterAt too. Tears: nearTearLine uses only the PHYSICAL rip
+path (edge-proximity removed — the damage must be in the close camera's
+vision); footprint groups get an auto ripPath tracing the obstacle's
+outline at fire time (obstacleRect-true, cleared at newGame, rebuilt on
+load) so every rip is shaped like the thing that caused it.

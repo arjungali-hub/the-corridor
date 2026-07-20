@@ -95,6 +95,21 @@ function obstacleRect(key) {
   return { x0: o.x0 - g, y0: o.y0 - g * 0.5, x1: o.x1 + g, y1: o.y1 + g * 0.5 };
 }
 
+// The rip on the map traces the obstacle itself, almost exactly
+function footprintOutline(key) {
+  const o = obstacleRect(key);
+  if (o.r !== undefined) {
+    const pts = [];
+    for (let i = 0; i <= 14; i++) {
+      const a = (i / 14) * Math.PI * 2;
+      pts.push([o.x + Math.cos(a) * (o.r + 24), o.y + Math.sin(a) * (o.r + 24)]);
+    }
+    return pts;
+  }
+  return [[o.x0 - 24, o.y0 - 24], [o.x1 + 24, o.y0 - 24], [o.x1 + 24, o.y1 + 24],
+          [o.x0 - 24, o.y1 + 24], [o.x0 - 24, o.y0 - 24]];
+}
+
 // A path is not a ruler. Where an obstacle stands between two nodes, the
 // walked way curves around it — one derived waypoint per obstruction.
 function edgeVia(A, B) {
@@ -148,7 +163,7 @@ function distToEdgePath(e) {
 
 // ── game state ───────────────────────────────────────────────────────────────
 
-const input = { up: false, down: false, left: false, right: false, sense: false, scent: false };
+const input = { up: false, down: false, left: false, right: false, sense: false, scent: false, drink: false };
 
 let S = null;
 
@@ -277,6 +292,7 @@ function newGame() {
 // gets its trigger computed from the obstacle itself, not a hand-set circle.
 function deriveTriggers() {
   for (const g of TEAR_GROUPS) {
+    if (g.autoRip) { delete g.ripPath; g.autoRip = false; }   // last year's shape
     if (!g.footprint) continue;
     const o = OBSTACLES[g.footprint];
     if (o.r !== undefined) {
@@ -491,10 +507,8 @@ function moveAspen(dt) {
     if (isInjured()) sp *= INJURY_SPEED;
     if ((S.sickT || 0) > 0) sp *= 0.75;      // wrong water, slow feet
     if (S.water <= 0) sp *= 0.85;            // thirst dulls everything
-    // wading: standing water drags at her legs
-    for (const ws of WATER_SOURCES) {
-      if (dist(S.wolf.x, S.wolf.y, ws.x, ws.y) < ws.r) { sp *= 0.7; break; }
-    }
+    // wading: real water — the creek, the ponds — drags at her legs
+    if (waterAt(S.wolf.x, S.wolf.y)) sp *= 0.7;
     tryMove(S.wolf, vx / m * sp * dt, vy / m * sp * dt, wolfBlockedAt);
     S.wolf.heading = Math.atan2(vy, vx);
     S.wolf.moving = true;
@@ -624,19 +638,14 @@ function nearFootprint(g, margin) {
   return Math.hypot(dx, dy) < margin;
 }
 
-// ...or near the tear's own line: any of its edges, or its rip path
+// ...or near the tear's own PHYSICAL line — its rip path — never the
+// abstract edges: the damage must be inside her (close-camera) vision
+// before the map admits it
 function nearTearLine(g, margin) {
-  for (const eid of g.edges) {
-    const e = S.edges.find(x => x.id === eid);
-    if (!e) continue;
-    const A = NbyId.get(e.a), B = NbyId.get(e.b);
-    if (A && B && distSeg(S.wolf.x, S.wolf.y, A.x, A.y, B.x, B.y).d < margin) return true;
-  }
-  if (g.ripPath) {
-    for (let i = 1; i < g.ripPath.length; i++) {
-      const [ax, ay] = g.ripPath[i - 1], [bx, by] = g.ripPath[i];
-      if (distSeg(S.wolf.x, S.wolf.y, ax, ay, bx, by).d < margin) return true;
-    }
+  if (!g.ripPath) return false;
+  for (let i = 1; i < g.ripPath.length; i++) {
+    const [ax, ay] = g.ripPath[i - 1], [bx, by] = g.ripPath[i];
+    if (distSeg(S.wolf.x, S.wolf.y, ax, ay, bx, by).d < margin) return true;
   }
   return false;
 }
@@ -647,6 +656,8 @@ function tearCheck() {
     if (dist(S.wolf.x, S.wolf.y, g.trigger.x, g.trigger.y) < g.trigger.r
         || nearFootprint(g, 150) || nearTearLine(g, 150)) {
       for (const eid of g.edges) S.edges.find(e => e.id === eid).torn = true;
+      // the rip takes the obstacle's own shape, as it stands today
+      if (g.footprint && !g.ripPath) { g.ripPath = footprintOutline(g.footprint); g.autoRip = true; }
       recomputeGhosts();
       S.flickerT = 0.5;
       S.shake = 8;
@@ -1948,34 +1959,66 @@ function lichenUpdate() {
 
 const WATER_PER_SEC = 0.10;
 
+// The water is the DRAWN water: the creek's own line, and the real ponds.
+// And water near people is wrong water — whatever people it is near.
+function waterFouled(x, y) {
+  if (S.era === 'past') return false;
+  const ms = OBSTACLES.mudSink;
+  if (dist(x, y, ms.x, ms.y) < 900) return true;                       // the impoundment
+  for (const key of ['construction', 'subdivision', 'gravelPit']) {
+    const o = obstacleRect(key);
+    const dx = Math.max(o.x0 - x, 0, x - o.x1), dy = Math.max(o.y0 - y, 0, y - o.y1);
+    if (Math.hypot(dx, dy) < 420) return true;
+  }
+  if (dist(x, y, RANCH.house.x, RANCH.house.y) < 900) return true;     // the cattle's ground
+  const h = OBSTACLES.highway;
+  const dRoad = x < h.x0 ? h.x0 - x : x > h.x1 ? x - h.x1 : 0;
+  if (dRoad < 220) return true;                                        // asphalt runoff
+  return false;
+}
+
+function waterAt(x, y) {
+  for (const p of PONDS) {
+    if (dist(x, y, p.x, p.y) < p.r) return { clean: !waterFouled(p.x, p.y), name: p.name };
+  }
+  const cf = TERRAIN.creekFlow;
+  for (let i = 1; i < cf.length; i++) {
+    const [ax, ay] = cf[i - 1], [bx, by] = cf[i];
+    if (distSeg(x, y, ax, ay, bx, by).d < 48) {
+      const f = waterFouled(x, y);
+      return { clean: !f, name: f ? 'this dead stretch of the creek' : 'the creek' };
+    }
+  }
+  return null;
+}
+
 function waterUpdate(dt) {
   S.water = Math.max(0, S.water - WATER_PER_SEC * dt);
   S.sickT = Math.max(0, (S.sickT || 0) - dt);
   S.foulCd = Math.max(0, (S.foulCd || 0) - dt);
   S.iceCd = Math.max(0, (S.iceCd || 0) - dt);
-  for (const ws of WATER_SOURCES) {
-    if (dist(S.wolf.x, S.wolf.y, ws.x, ws.y) >= ws.r) continue;
-    // thin ice bites whether or not she means to drink
-    if (seasonIndex() === 3 && S.iceCd <= 0 && Math.random() < 0.05 * dt * 20) {
-      S.iceCd = 30;
-      S.inputLockT = Math.max(S.inputLockT, 1.6);
-      S.fear = Math.min(1, S.fear + 0.3);
-      S.food = Math.max(0, S.food - 6);
-      S.shake = Math.max(S.shake, 6);
-      say('The ice gives. Cold takes its tax.');
-    }
-    if (!S.tut.drinkTaught && S.water < 75) {
-      S.tut.drinkTaught = true;
-      showPrompt('Water. She must stand still in the shallows to drink.', [], 6);
-    }
-    // drinking is an act, not a side effect: she stops, head down
-    if (!S.wolf.moving && S.water < 99) {
-      S.water = Math.min(100, S.water + 30 * dt);
-      if (!ws.clean && S.sickT <= 0 && S.foulCd <= 0) {
-        S.sickT = 75;
-        S.foulCd = 40;
-        say(`Wrong water at ${ws.name}. It sits in her like a stone.`);
-      }
+  const ws = waterAt(S.wolf.x, S.wolf.y);
+  if (!ws) return;
+  // thin ice bites whether or not she means to drink
+  if (seasonIndex() === 3 && S.iceCd <= 0 && Math.random() < 0.05 * dt * 20) {
+    S.iceCd = 30;
+    S.inputLockT = Math.max(S.inputLockT, 1.6);
+    S.fear = Math.min(1, S.fear + 0.3);
+    S.food = Math.max(0, S.food - 6);
+    S.shake = Math.max(S.shake, 6);
+    say('The ice gives. Cold takes its tax.');
+  }
+  if (!S.tut.drinkTaught && S.water < 75) {
+    S.tut.drinkTaught = true;
+    showPrompt('Water. Stand in the shallows and hold Q to drink.', ['Q'], 6);
+  }
+  // drinking is an ACT: standing in the water, head down, holding Q
+  if (input.drink && !S.wolf.moving && S.water < 99) {
+    S.water = Math.min(100, S.water + 30 * dt);
+    if (!ws.clean && S.sickT <= 0 && S.foulCd <= 0) {
+      S.sickT = 75;
+      S.foulCd = 40;
+      say(`Wrong water at ${ws.name}. It sits in her like a stone.`);
     }
   }
 }
@@ -3429,6 +3472,12 @@ function loadGame() {
   S.elkRespawn = d.elkRespawn || [];
   S.history = d.history;
   S.time = d.time || 0;
+  for (const g of TEAR_GROUPS) {
+    if (g.footprint && !g.ripPath && groupTorn(g)) {
+      g.ripPath = footprintOutline(g.footprint);
+      g.autoRip = true;
+    }
+  }
   recomputeGhosts();
   S.mode = 'play';
   return true;

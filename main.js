@@ -19,6 +19,7 @@ const KEYMAP = {
   d: 'right', arrowright: 'right',
   ' ': 'sense',
   e: 'scent',
+  q: 'drink',
 };
 
 window.addEventListener('keydown', (ev) => {
@@ -61,7 +62,7 @@ canvas.addEventListener('click', (ev) => {
 canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 canvas.addEventListener('mousedown', (ev) => { if (ev.button === 2) toggleMap(); });
 window.addEventListener('blur', () => {
-  input.up = input.down = input.left = input.right = input.sense = input.scent = false;
+  input.up = input.down = input.left = input.right = input.sense = input.scent = input.drink = false;
 });
 
 // ── boot ─────────────────────────────────────────────────────────────────────

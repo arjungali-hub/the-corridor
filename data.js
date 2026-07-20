@@ -234,16 +234,14 @@ const RANCH = {
 // will not graze in it.
 const POWERLINE = { x0: 4000, y0: 1900, x1: 4400, y1: 2800 };
 
-// Water. The clean sources are the land's own; the fouled ones sit
-// downstream of what people built — drink there and sickness follows.
-const WATER_SOURCES = [
-  { x: 1560, y: 1180, r: 110, clean: true,  name: 'the springs' },
-  { x: 1120, y: 2120, r: 130, clean: true,  name: 'the creek' },
-  { x: 3350, y: 3150, r: 140, clean: true,  name: 'the marsh' },
-  { x: 2700, y: 3260, r: 120, clean: false, name: 'the dead channel' },  // below the impoundment
-  { x: 2200, y: 1150, r: 90,  clean: false, name: 'the pit sump' },      // gravel-pit runoff
-  { x: 4180, y: 950,  r: 90,  clean: false, name: 'the stock pond' },    // cattle-fouled
-  { x: -1550, y: 1750, r: 120, clean: true, name: 'the cold creek' },    // the far west's own
+// Water is the DRAWN water: the creek itself, and real ponds. The creek
+// runs fouled where it passes the impoundment; the human ponds are wrong
+// from the start. Drinking is an act (hold Q, standing in the shallows).
+const PONDS = [
+  { x: 3350, y: 3150, r: 150, clean: true,  name: 'the marsh pond' },
+  { x: 2210, y: 1150, r: 80,  clean: false, name: 'the pit sump' },      // gravel-pit runoff
+  { x: 4180, y: 950,  r: 85,  clean: false, name: 'the stock pond' },    // cattle-fouled
+  { x: -1550, y: 1750, r: 110, clean: true, name: 'the cold pool' },     // the far west's own
 ];
 
 const DEN_SITES = [

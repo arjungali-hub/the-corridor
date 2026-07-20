@@ -1066,17 +1066,23 @@ function drawWorld() {
       ctx.beginPath(); ctx.arc(sx, sy, 3 + rng() * 5, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // water sources: a soft pooling sheen; the fouled ones carry a film —
-  // and winter shuts a pale lid over all of them
-  for (const ws of WATER_SOURCES) {
+  // the ponds are real standing water: a body, a bank, a shine — fouled
+  // ones carry a scummed film, and winter shuts a pale lid over them all
+  for (const p of PONDS) {
     const iced = seasonIndex() === 3 && S.era !== 'past';
-    ctx.fillStyle = iced ? 'rgba(215,225,228,0.45)'
-      : ws.clean ? 'rgba(96,132,148,0.30)' : 'rgba(112,116,84,0.32)';
-    ctx.beginPath(); ctx.ellipse(ws.x, ws.y, ws.r * 0.55, ws.r * 0.34, 0.25, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = iced ? 'rgba(255,255,255,0.4)'
-      : ws.clean ? 'rgba(200,224,230,0.35)' : 'rgba(168,168,120,0.4)';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.ellipse(ws.x, ws.y, ws.r * 0.42, ws.r * 0.24, 0.25, 0, Math.PI * 2); ctx.stroke();
+    const foul = typeof waterFouled === 'function' && S.era !== 'past' && waterFouled(p.x, p.y);
+    ctx.fillStyle = iced ? 'rgba(219,228,231,0.85)'
+      : foul ? 'rgba(96,102,70,0.75)' : 'rgba(70,104,122,0.75)';
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.62, 0.2, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(60,52,38,0.5)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.62, 0.2, 0, Math.PI * 2); ctx.stroke();
+    if (!iced) {
+      ctx.strokeStyle = foul ? 'rgba(178,180,130,0.5)' : 'rgba(220,235,240,0.55)';
+      ctx.lineWidth = 1.6;
+      const sh = Math.sin(S.time * 1.4 + p.x) * 6;
+      ctx.beginPath(); ctx.ellipse(p.x + sh, p.y - p.r * 0.14, p.r * 0.5, p.r * 0.2, 0.2, 0, Math.PI * 2); ctx.stroke();
+    }
   }
 
   // snares: near-invisible stakes and a wire glint by the fence
@@ -2144,6 +2150,7 @@ function drawHelp() {
   if (S.tut.sawMap) rows.push(['SPACE', 'the map — press to open, press to close']);
   if (S.tut.scentHold > 0.6) rows.push(['E (hold)', 'smell the wind']);
   if (S.tut.fTaught) rows.push(['F', 'the pack holds, or follows']);
+  if (S.tut.drinkTaught) rows.push(['Q (hold)', 'drink, standing in water']);
   rows.push(['M', 'quiet']);
   rows.push(['R  R', 'restart the game (skips prologue)']);
   rows.push(['H', 'open or close this']);

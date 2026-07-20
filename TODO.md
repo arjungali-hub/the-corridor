@@ -512,3 +512,18 @@ action; commit everything.
       howl, 'The winter closes over the den.', the screen whiting over
       with drifting snow for ~6.5 s, then the white letting go slowly
       into 'Spring. the first thaw after her'.
+- [x] Drinking is a held KEY (Q), never passive: standing in water does
+      nothing until Q is held, head down. Taught in place; help row.
+- [x] The water is the DRAWN water: the creek's own line and four real
+      rendered ponds (banks, shine, scummed film when fouled, winter
+      lids) — they wade-slow her and supply drink; the invented ellipse
+      sources are gone.
+- [x] Water near people is what sickens — derived, not hand-flagged:
+      anything within reach of the impoundment, construction, pit,
+      subdivision, ranch, or asphalt runoff fouls the water it touches.
+- [x] A tear only fires when its damage is inside her reduced vision:
+      the obstacle's footprint, its rip line, or the trigger spot —
+      never the abstract path edges.
+- [x] The rip on the map is shaped almost exactly like its obstacle
+      (footprint outline traced at tear time, at that season's true
+      size; regenerated on load).
