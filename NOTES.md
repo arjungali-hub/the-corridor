@@ -362,3 +362,18 @@ path (edge-proximity removed — the damage must be in the close camera's
 vision); footprint groups get an auto ripPath tracing the obstacle's
 outline at fire time (obstacleRect-true, cleared at newGame, rebuilt on
 load) so every rip is shaped like the thing that caused it.
+
+## Deep playtest batch (2026-07-19/20)
+
+Water is the drawn water: ponds painted into the base terrain (banks,
+shallows, reeds, scum, winter ice) + the creek line, fouled by proximity to
+any human works (waterFouled). Drinking is hold-Q standing still, taught by
+thirst and at the bank. Sick = 0.6x speed. One playHurt sting for all harm
+to her; first sick/snare/ice captions once. TEAR_NAMES is the single source
+of truth: named on the map and asked for by the patch urge. Rips draw as the
+obstacle's jagged outline (closed-shape fix). Tears fire only when physical
+damage is in her 2x-close vision. Layout de-overlapped (overlap-probe.js).
+Railroad walkable; TRAINS (1700 u/s, 1300-long) kill even Aspen ->
+startEnding('dead'). Weather visuals strengthened. Overpass shows the road
+continuing beneath. Prologue forced views use the west-extended mapFitScale.
+Harness green x3.

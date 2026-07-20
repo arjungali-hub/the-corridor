@@ -95,6 +95,12 @@ function obstacleRect(key) {
   return { x0: o.x0 - g, y0: o.y0 - g * 0.5, x1: o.x1 + g, y1: o.y1 + g * 0.5 };
 }
 
+// Every wound has a name — shown on the map, and asked for by the urges
+const TEAR_NAMES = {
+  blackriver: 'the Black River', machines: 'the broken ground at Fence Line',
+  drycreek: 'the drowned Bend', gravelpit: 'the pit', railline: 'the rail line',
+};
+
 // The rip on the map traces the obstacle itself, almost exactly
 function footprintOutline(key) {
   const o = obstacleRect(key);
@@ -251,6 +257,7 @@ function newGame() {
     water: 90, sickT: 0,          // thirst beside hunger; wrong water costs
     snares: [], snaredT: 0,       // steel by the wire, once the ledger rises
     roadkill: null,               // what the road leaves on its shoulder
+    trains: [], trainCd: 25,      // what runs on the rail — lethal, even to her
     starveT: 0,
     yearlingKnows: new Set(),
 
@@ -380,9 +387,20 @@ function onDeck(x, y) {
   const h = OBSTACLES.highway, o = OBSTACLES.overpass;
   return x > h.x0 - 8 && x < h.x1 + 8 && y > o.y0 && y < o.y1;
 }
-// asphalt, or a deck the pack does not yet believe in
+// the rail ballast, where the trains run — deadly ground, never ambled onto
+function onRail(x, y) {
+  if (!S || S.era === 'past') return false;
+  const rl = OBSTACLES.rail;
+  if (x <= rl.x0 - 8 || x >= rl.x1 + 8) return false;
+  if (y > rl.gapY0 && y < rl.gapY1) return false;   // under the trestle
+  return true;
+}
+
+// asphalt, an untrusted deck, or the rail: the pack refuses them all
+// unless Aspen is on it or already across, calling them through
 function packRefuses(x, y) {
-  return onRoad(x, y) || (onDeck(x, y) && overpassOpen() && !overpassTrusted());
+  return onRoad(x, y) || onRail(x, y)
+    || (onDeck(x, y) && overpassOpen() && !overpassTrusted());
 }
 
 // The bridge at Water-Under-Stone crosses OVER the road: its deck (the gap
@@ -443,11 +461,8 @@ function blockedAt(x, y, r, canPassGap, margin) {
 function wolfBlockedAt(x, y, margin) {
   const m = margin || 0;
   if (x < (WORLD.x0 || 0) + WOLF_R - m || y < WOLF_R - m || x > WORLD.w - WOLF_R + m || y > WORLD.h - WOLF_R + m) return true;
-  if (S.era !== 'past') {
-    const rl = OBSTACLES.rail;
-    if (x > rl.x0 - WOLF_R && x < rl.x1 + WOLF_R
-        && !(y > rl.gapY0 + WOLF_R && y < rl.gapY1 - WOLF_R)) return true;
-  }
+  // the rail ballast is WALKABLE for wolves — crossing it is a choice.
+  // What makes it a wall is what runs on it.
   if (bridgeWallAt(x, y, WOLF_R)) return true;
   // in the prologue the road cannot be stepped onto until Willow shows how
   if (S.mode === 'prologue' && !S.tut._b5go) {
@@ -505,7 +520,7 @@ function moveAspen(dt) {
     const rough = seasonIndex() === 3 && S.mode === 'play' ? SPEED_SNOW : SPEED_ROUGH;
     let sp = onKnownRoute() ? SPEED_ROUTE : rough;
     if (isInjured()) sp *= INJURY_SPEED;
-    if ((S.sickT || 0) > 0) sp *= 0.75;      // wrong water, slow feet
+    if ((S.sickT || 0) > 0) sp *= 0.6;       // wrong water — badly slow
     if (S.water <= 0) sp *= 0.85;            // thirst dulls everything
     // wading: real water — the creek, the ponds — drags at her legs
     if (waterAt(S.wolf.x, S.wolf.y)) sp *= 0.7;
@@ -1998,6 +2013,11 @@ function waterUpdate(dt) {
   S.sickT = Math.max(0, (S.sickT || 0) - dt);
   S.foulCd = Math.max(0, (S.foulCd || 0) - dt);
   S.iceCd = Math.max(0, (S.iceCd || 0) - dt);
+  // thirst teaches itself before she ever finds a bank
+  if (!S.tut.drinkTaught && S.water < 55 && S.mode === 'play') {
+    S.tut.drinkTaught = true;
+    showPrompt('Thirst. Find water — the creek, a pond — stand in it and hold Q to drink.', ['Q'], 9);
+  }
   const ws = waterAt(S.wolf.x, S.wolf.y);
   if (!ws) return;
   // thin ice bites whether or not she means to drink
@@ -2014,9 +2034,9 @@ function waterUpdate(dt) {
       setCaption('Through the ice.', 4.5, 'winter water bites — warmth and meat lost');
     }
   }
-  if (!S.tut.drinkTaught && S.water < 75) {
-    S.tut.drinkTaught = true;
-    showPrompt('Water. Stand in the shallows and hold Q to drink.', ['Q'], 6);
+  if (!S.tut.drinkHere && S.water < 90) {
+    S.tut.drinkHere = true;
+    showPrompt('Water underfoot. Hold Q to drink.', ['Q'], 6);
   }
   // drinking is an ACT: standing in the water, head down, holding Q
   if (input.drink && !S.wolf.moving && S.water < 99) {
@@ -2066,6 +2086,51 @@ function snareUpdate(dt) {
       }
       saveGame();
     }
+  }
+}
+
+// Trains: very fast, very long, and final. The road maims; the rail kills —
+// even Aspen. Crossing the ballast is always a bet against the timetable.
+function trainUpdate(dt) {
+  if (S.era === 'past') return;
+  S.trainCd -= dt;
+  if (S.trainCd <= 0 && !S.trains.length) {
+    S.trainCd = 35 + Math.random() * 40;
+    const south = Math.random() < 0.5;
+    S.trains.push({
+      y: south ? -APRON - 1600 : WORLD.h + APRON + 1600,
+      vy: (south ? 1 : -1) * 1700,
+      len: 1300,
+      met: new Set(),
+    });
+    playRumble();
+  }
+  const rl = OBSTACLES.rail;
+  const cx = (rl.x0 + rl.x1) / 2;
+  for (let i = S.trains.length - 1; i >= 0; i--) {
+    const t = S.trains[i];
+    t.y += t.vy * dt;
+    const y0 = Math.min(t.y, t.y - Math.sign(t.vy) * t.len);
+    const y1 = Math.max(t.y, t.y - Math.sign(t.vy) * t.len);
+    const wolves = [{ ref: S.wolf, id: 'aspen' }, ...alivePack().map(w => ({ ref: w, id: w.id }))];
+    for (const q of wolves) {
+      if (t.met.has(q.id)) continue;
+      if (onRail(q.ref.x, q.ref.y) && q.ref.y > y0 - 24 && q.ref.y < y1 + 24) {
+        t.met.add(q.id);
+        if (q.id === 'aspen') {
+          if (S.mode === 'play') { playHurt(); startEnding('dead'); return; }
+        } else {
+          q.ref.state = 'dead';
+          S.fear = 1;
+          S.fearSource = { x: cx, y: q.ref.y };
+          playHurt();
+          S.history.push({ type: 'loss', day: day(), who: q.id });
+          say(`${q.ref.name} does not come off the rail.`);
+          saveGame();
+        }
+      }
+    }
+    if (t.y < -APRON - 1800 || t.y > WORLD.h + APRON + 1800) S.trains.splice(i, 1);
   }
 }
 
@@ -2189,11 +2254,6 @@ function issueTask() {
 
   const torn = TEAR_GROUPS.find(g => groupTorn(g) && !S.bridged.has(g.key));
   if (torn) {
-    const TEAR_NAMES = {
-      blackriver: 'the Black River', machines: 'the broken ground at Fence Line',
-      drycreek: 'the drowned Bend', gravelpit: 'the pit',
-      railline: 'the rail line',
-    };
     mk('patch', `find a way around ${TEAR_NAMES[torn.key] || 'the tear'}`, { key: torn.key });
     return;
   }
@@ -3586,6 +3646,7 @@ function update(dt) {
     waterUpdate(dt);
     snareUpdate(dt);
     roadkillUpdate(dt);
+    trainUpdate(dt);
     rancherUpdate(dt);
     silenceUpdate(dt);
     standoffUpdate(dt);

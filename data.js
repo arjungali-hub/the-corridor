@@ -28,7 +28,7 @@ const NODES = [
   { id: 'ridgeSaddle', x: 1900, y: 1000, name: 'Ridge Saddle' },
 
   // Boundary loop, east — construction arrived
-  { id: 'fenceLine',   x: 3800, y: 1600, name: 'Fence Line' },
+  { id: 'fenceLine',   x: 3560, y: 1560, name: 'Fence Line' },
   { id: 'dustyRise',   x: 3920, y: 2240, name: 'Dusty Rise' },
 
   // Water route, south — the creek was diverted
@@ -129,7 +129,7 @@ const TEAR_GROUPS = [
   { key: 'blackriver', edges: ['oldFord-sageFlat', 'sageFlat-farBench'],
     chain: ['oldFord', 'sageFlat', 'farBench'],
     trigger: { x: 1180, y: 1510, r: 100 },
-    ripPath: [[920, 60], [920, 1200], [920, 2340]] },
+    ripPath: [[920, -500], [920, 1200], [920, 2340]] },
   // The rail line: the far west's wall. Her mother's last miles cross it;
   // the only way under is the trestle, far to the south.
   { key: 'railline', edges: ['ashSaddle-winterRange'],
@@ -239,15 +239,15 @@ const POWERLINE = { x0: 4000, y0: 1900, x1: 4400, y1: 2800 };
 // from the start. Drinking is an act (hold Q, standing in the shallows).
 const PONDS = [
   { x: 3350, y: 3150, r: 150, clean: true,  name: 'the marsh pond' },
-  { x: 2210, y: 1150, r: 80,  clean: false, name: 'the pit sump' },      // gravel-pit runoff
+  { x: 2200, y: 730,  r: 80,  clean: false, name: 'the pit sump' },      // gravel-pit runoff
   { x: 4180, y: 950,  r: 85,  clean: false, name: 'the stock pond' },    // cattle-fouled
   { x: -1550, y: 1750, r: 110, clean: true, name: 'the cold pool' },     // the far west's own
 ];
 
 const DEN_SITES = [
   { id: 'oldDen',   x: 2600, y: 1800, name: 'The Old Den' },
-  { id: 'ridgeDen', x: 2120, y: 1140, name: 'Ridge Hollow' },
-  { id: 'bankDen',  x: 2340, y: 2660, name: 'Bank Hollow' },
+  { id: 'ridgeDen', x: 1960, y: 1200, name: 'Ridge Hollow' },
+  { id: 'bankDen',  x: 2160, y: 2620, name: 'Bank Hollow' },
 ];
 
 // Scent geography. Violet = human chemical noise: volumetric, directionless.

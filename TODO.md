@@ -541,3 +541,32 @@ action; commit everything.
 - [x] The rip drawn for a footprint tear is the obstacle's OWN outline,
       traced jagged — the old width-band self-overlapped into a grey blob
       on closed shapes (the Ridge Hollow screenshot).
+
+## Part 17b — Deep playtest batch (Arjun, 2026-07-19/20)
+
+- [x] Ponds are painted into the terrain (irregular mud-banked bodies,
+      shallows, reeds, scum when fouled, winter ice) — not overlay rings.
+- [x] Drinking is hold-Q, standing in water; thirst teaches it before she
+      ever reaches a bank, and again at the water's edge; help row.
+- [x] Water near ANY people fouls it (impoundment, construction, pit,
+      subdivision, ranch, asphalt) — derived, not flagged.
+- [x] Being sick slows her hard (0.6x — worse than injury's 0.7x).
+- [x] One hurt sound (playHurt) for everything that happens to Aspen; the
+      tear keeps its own sting. First sickness/snare/ice each caption once.
+- [x] 'Find your way around' names the specific tear; every tear is named
+      on the map, and the urge asks for that same name.
+- [x] The rip drawn is the obstacle's own jagged outline (closed shapes no
+      longer bloat into a width-band blob).
+- [x] A tear only fires when its physical damage (footprint / rip line /
+      trigger) is in her reduced vision — never the abstract graph edge.
+- [x] Layout de-overlapped: pit sump off Ridge Hollow, dens off the pit and
+      the mud sink, Fence Line off the construction; ponds clear of dens,
+      nodes, forests, obstacles.
+- [x] The railroad is CROSSABLE (walkable ballast) — the wall is the trains.
+- [x] Trains: very fast (1700 u/s), very long, and lethal — a train on the
+      ballast kills even Aspen (the 'dead' ending).
+- [x] Weather made unmistakable: cloud is a grey ceiling with drifting cloud
+      shadows; rain is real sheets.
+- [x] The prologue map is the full west-extended land.
+- [x] The road scar runs on under the overpass (dark asphalt strip + cast
+      deck shadows) — the bridge is over a continuing road, not a gap.

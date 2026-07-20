@@ -172,6 +172,38 @@ function buildBaseLayer() {
   strokeSmooth(b, TERRAIN.creekFlow, 44, 'rgba(80,70,45,0.45)');
   strokeSmooth(b, TERRAIN.creekFlow, 30, si === 3 && !past ? '#aebfc9' : '#6f9cae');
   strokeSmooth(b, TERRAIN.creekFlow, 12, si === 3 && !past ? '#d5dfe5' : '#a9c6d2');
+
+  // ponds: real standing water — mud bank, irregular body, shallows, reeds;
+  // fouled ones sit scummed olive, and winter lids them pale
+  for (const p of PONDS) {
+    const prng4 = makePrng(hashStr('pond' + Math.round(p.x)));
+    const lobe = (rad, squash) => {
+      b.beginPath();
+      for (let i = 0; i <= 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const rr = rad * (0.84 + prng4() * 0.3);
+        const px = p.x + Math.cos(a) * rr, py = p.y + Math.sin(a) * rr * squash;
+        i ? b.lineTo(px, py) : b.moveTo(px, py);
+      }
+      b.closePath();
+    };
+    b.fillStyle = '#7d7154';
+    lobe(p.r * 1.22, 0.78); b.fill();
+    const foul = !past && typeof waterFouled === 'function' && S && waterFouled(p.x, p.y);
+    const iced = !past && si === 3;
+    b.fillStyle = iced ? '#ccd7db' : foul ? '#6d7250' : '#5d8296';
+    lobe(p.r, 0.74); b.fill();
+    b.fillStyle = iced ? '#e6edf0' : foul ? '#7c8158' : '#7fa5b5';
+    lobe(p.r * 0.6, 0.7); b.fill();
+    if (!iced) {
+      b.strokeStyle = 'rgba(70,80,40,0.7)'; b.lineWidth = 2;
+      for (let k = 0; k < 10; k++) {
+        const a = prng4() * Math.PI * 2;
+        const rx = p.x + Math.cos(a) * p.r * 1.05, ry = p.y + Math.sin(a) * p.r * 0.78;
+        b.beginPath(); b.moveTo(rx, ry); b.lineTo(rx + 3 - prng4() * 6, ry - 12 - prng4() * 8); b.stroke();
+      }
+    }
+  }
   if (!past) {
     strokeSmooth(b, TERRAIN.creekDry, 26, 'rgba(150,132,96,0.8)');
     strokeSmooth(b, TERRAIN.creekDry, 14, 'rgba(190,172,130,0.9)');
@@ -884,20 +916,33 @@ function drawLightAndAir() {
     ctx.fillStyle = `rgba(214,190,120,${dr * 0.08})`;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
-  // weather: a grey ceiling, or rain
+  // weather, unmistakably: a grey ceiling with drifting cloud shadows, or
+  // real rain — sheets of it
   if (S.weather && S.era !== 'past') {
     if (S.weather.kind === 'cloud') {
-      ctx.fillStyle = 'rgba(120,126,130,0.10)';
+      ctx.fillStyle = 'rgba(116,122,128,0.20)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const crng = makePrng(31);
+      ctx.fillStyle = 'rgba(60,66,74,0.10)';
+      for (let i = 0; i < 5; i++) {
+        const bx = crng() * canvas.width, by = crng() * canvas.height;
+        const x = ((bx + S.time * (14 + crng() * 10)) % (canvas.width + 700)) - 350;
+        ctx.beginPath();
+        ctx.ellipse(x, by, 320 + crng() * 200, 150 + crng() * 90, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (S.weather.kind === 'rain') {
-      ctx.fillStyle = 'rgba(40,52,66,0.12)';
+      ctx.fillStyle = 'rgba(36,46,60,0.24)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = 'rgba(200,215,225,0.20)';
-      ctx.lineWidth = 1;
+      ctx.strokeStyle = 'rgba(205,220,230,0.35)';
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      for (let i = 0; i < 60; i++) {
-        const x = Math.random() * canvas.width, y = Math.random() * canvas.height;
-        ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 11);
+      const rrng = makePrng(47);
+      for (let i = 0; i < 150; i++) {
+        const bx = rrng() * canvas.width, by = rrng() * canvas.height, spd = 700 + rrng() * 300;
+        const y = (by + S.time * spd) % canvas.height;
+        const x = (bx - (y - by) * 0.18 % canvas.width + canvas.width) % canvas.width;
+        ctx.moveTo(x, y); ctx.lineTo(x - 4, y + 16);
       }
       ctx.stroke();
     }
@@ -1049,6 +1094,17 @@ function drawWorld() {
   if (overpassOpen()) {
     const h = OBSTACLES.highway, o = OBSTACLES.overpass;
     const x0 = h.x0 - 26, x1 = h.x1 + 26;
+    // the road runs on UNDER the bridge: a dark asphalt strip through the
+    // deck's shadow, so the black scar of the highway is never severed
+    ctx.fillStyle = 'rgba(24,24,26,0.9)';
+    ctx.fillRect(h.x0, o.y0, h.x1 - h.x0, o.y1 - o.y0);
+    // cast shadows where the deck overhangs the road, north and south edges
+    const sN = ctx.createLinearGradient(0, o.y0 - 26, 0, o.y0);
+    sN.addColorStop(0, 'rgba(20,20,22,0)'); sN.addColorStop(1, 'rgba(20,20,22,0.55)');
+    ctx.fillStyle = sN; ctx.fillRect(h.x0, o.y0 - 26, h.x1 - h.x0, 26);
+    const sS = ctx.createLinearGradient(0, o.y1, 0, o.y1 + 26);
+    sS.addColorStop(0, 'rgba(20,20,22,0.55)'); sS.addColorStop(1, 'rgba(20,20,22,0)');
+    ctx.fillStyle = sS; ctx.fillRect(h.x0, o.y1, h.x1 - h.x0, 26);
     ctx.fillStyle = 'rgba(30,30,26,0.35)';
     ctx.fillRect(x0 - 6, o.y0 + 4, x1 - x0 + 12, o.y1 - o.y0);
     const g = ctx.createLinearGradient(0, o.y0, 0, o.y1);
@@ -1066,24 +1122,7 @@ function drawWorld() {
       ctx.beginPath(); ctx.arc(sx, sy, 3 + rng() * 5, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // the ponds are real standing water: a body, a bank, a shine — fouled
-  // ones carry a scummed film, and winter shuts a pale lid over them all
-  for (const p of PONDS) {
-    const iced = seasonIndex() === 3 && S.era !== 'past';
-    const foul = typeof waterFouled === 'function' && S.era !== 'past' && waterFouled(p.x, p.y);
-    ctx.fillStyle = iced ? 'rgba(219,228,231,0.85)'
-      : foul ? 'rgba(96,102,70,0.75)' : 'rgba(70,104,122,0.75)';
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.62, 0.2, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(60,52,38,0.5)';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.62, 0.2, 0, Math.PI * 2); ctx.stroke();
-    if (!iced) {
-      ctx.strokeStyle = foul ? 'rgba(178,180,130,0.5)' : 'rgba(220,235,240,0.55)';
-      ctx.lineWidth = 1.6;
-      const sh = Math.sin(S.time * 1.4 + p.x) * 6;
-      ctx.beginPath(); ctx.ellipse(p.x + sh, p.y - p.r * 0.14, p.r * 0.5, p.r * 0.2, 0.2, 0, Math.PI * 2); ctx.stroke();
-    }
-  }
+  // (ponds live in the terrain base layer now — no overlay rings)
 
   // snares: near-invisible stakes and a wire glint by the fence
   if (S.snares) {
@@ -1109,6 +1148,24 @@ function drawWorld() {
       ctx.beginPath();
       ctx.moveTo(bx - 6, by2 - 2); ctx.quadraticCurveTo(bx, by2 + 2, bx + 6, by2 - 2);
       ctx.stroke();
+    }
+  }
+
+  // trains: long, indifferent, and faster than anything alive
+  if (S.trains && S.trains.length) {
+    const rl = OBSTACLES.rail;
+    const tcx = (rl.x0 + rl.x1) / 2;
+    for (const t of S.trains) {
+      const dir = Math.sign(t.vy);
+      for (let c = 0; c < 9; c++) {
+        const top = dir > 0 ? t.y - c * 150 - 140 : t.y + c * 150;
+        ctx.fillStyle = 'rgba(10,10,10,0.3)';
+        ctx.fillRect(tcx - 30, top + 8, 60, 140);
+        ctx.fillStyle = c === 0 ? '#33383e' : (c % 2 ? '#5a4a42' : '#474f4c');
+        ctx.fillRect(tcx - 26, top, 52, 140);
+        ctx.fillStyle = 'rgba(255,255,255,0.12)';
+        ctx.fillRect(tcx - 26, top, 10, 140);
+      }
     }
   }
 
@@ -1768,6 +1825,19 @@ function drawMap() {
   for (const g of TEAR_GROUPS) {
     if (!groupTorn(g)) continue;
     drawRip(g, m);
+    // the wound wears its name — the same name the urge asks around
+    if (m > 0.7 && TEAR_NAMES[g.key]) {
+      let lx = g.trigger.x, ly = g.trigger.y;
+      if (g.ripPath) {
+        let sx = 0, sy = 0;
+        for (const pt of g.ripPath) { sx += pt[0]; sy += pt[1]; }
+        lx = sx / g.ripPath.length; ly = sy / g.ripPath.length;
+      }
+      ctx.font = `italic ${13 / sc}px ${FONT}`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = `rgba(238,228,205,${0.95 * m})`;
+      ctx.fillText(TEAR_NAMES[g.key], lx, ly);
+    }
     // the tear she is working on right now announces itself
     if (S.task && S.task.kind === 'patch' && S.task.key === g.key) {
       const pu = 0.3 + 0.25 * Math.sin(S.time * 3);
@@ -2326,7 +2396,9 @@ function drawEnding() {
     ctx.fillStyle = `rgba(237,226,201,${a})`;
     const line1 = S.endKind === 'arrived'
       ? 'She brought them through. The map that did it was hers, not her mother’s.'
-      : 'The winter closed before the map was finished.';
+      : S.endKind === 'dead'
+        ? 'The train did not notice her. The map ends where she did.'
+        : 'The winter closed before the map was finished.';
     ctx.fillText(line1, canvas.width / 2, canvas.height / 2 - 66);
     ctx.font = `15px ${FONT}`;
     ctx.fillStyle = `rgba(200,190,165,${a})`;
