@@ -505,3 +505,6 @@ action; commit everything.
       never in the prologue. Beat 6 keeps the lean-in bond only; beat 7
       simply walks on; ~14 s into Act I: 'The pack is hers to lead now.
       F — they hold this ground, or follow.'
+- [x] The inherit hold works from wherever the circle over Willow is
+      visible (radius 110, matching the render), not only right on top
+      of her.

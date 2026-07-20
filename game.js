@@ -2807,7 +2807,8 @@ function prologueUpdate(dt) {
 
     // Beat 9 — Willow's death, and the inheritance
     case 9: {
-      const nearHer = w && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 70;
+      // close enough to see the circle over her is close enough to hold
+      const nearHer = w && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 110;
       if (!S.inherited) {
         // stillness first: the ask comes only after it has weight
         if (nearHer && !T._b9near) {
