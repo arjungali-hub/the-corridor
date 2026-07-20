@@ -538,3 +538,6 @@ action; commit everything.
       that happens to Aspen: car, dogs, rifle wound, standoff nip, snare,
       wrong water, ice. The tear keeps its own sting. Barks, growls, and
       the gunshot remain as world sounds only.
+- [x] The rip drawn for a footprint tear is the obstacle's OWN outline,
+      traced jagged — the old width-band self-overlapped into a grey blob
+      on closed shapes (the Ridge Hollow screenshot).

@@ -1598,14 +1598,36 @@ function drawRip(g, m) {
   const W = Math.max(36, Math.min(110, (total - 2 * margin) * 0.14));
   const N = g.ripPath ? 22 : 12;
 
-  const pos = [], neg = [];
-  for (let i = 0; i <= N; i++) {
-    const p = pointAt(pts, margin + (i / N) * (total - 2 * margin));
-    const w = W + (rng() * 2 - 1) * W * 0.4;
-    pos.push([p.x - p.uy * w, p.y + p.ux * w]);
-    neg.push([p.x + p.uy * w, p.y - p.ux * w]);
+  // a CLOSED rip path is the obstacle's own outline: the rip is that shape,
+  // traced jagged — never a width-band, which self-overlaps into a blob
+  const closed = g.ripPath && pts.length > 3
+    && Math.abs(pts[0].x - pts[pts.length - 1].x) < 0.001
+    && Math.abs(pts[0].y - pts[pts.length - 1].y) < 0.001;
+  let poly;
+  if (closed) {
+    const cx0 = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const cy0 = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    poly = [];
+    for (let i = 0; i < pts.length - 1; i++) {
+      const P = pts[i], Q = pts[i + 1];
+      for (const t of [0, 0.5]) {
+        const x = P.x + (Q.x - P.x) * t, y = P.y + (Q.y - P.y) * t;
+        const dx = x - cx0, dy = y - cy0;
+        const n = Math.hypot(dx, dy) || 1;
+        const off = (rng() - 0.35) * 30;
+        poly.push([x + dx / n * off, y + dy / n * off]);
+      }
+    }
+  } else {
+    const pos = [], neg = [];
+    for (let i = 0; i <= N; i++) {
+      const p = pointAt(pts, margin + (i / N) * (total - 2 * margin));
+      const w = W + (rng() * 2 - 1) * W * 0.4;
+      pos.push([p.x - p.uy * w, p.y + p.ux * w]);
+      neg.push([p.x + p.uy * w, p.y - p.ux * w]);
+    }
+    poly = pos.concat(neg.reverse());
   }
-  const poly = pos.concat(neg.reverse());
 
   ctx.globalAlpha = m;
   const sc = S.cam.scale;
