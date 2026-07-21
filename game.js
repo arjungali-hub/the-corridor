@@ -51,6 +51,74 @@ const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
 const OVERLOOK = { x: 2050, y: 1500 };  // beat 2 and beat 8 share this camera
 const WILLOW_TONE_ID = 'willow';
 
+// ── the seen-grid: the map remembers only what her own senses passed over ────
+// Inheriting Willow's ROUTE is not the same as having SEEN the land. A coarse
+// grid records where Aspen has actually been; the raised map fills in behind
+// her, and unwalked ground — even where Willow's ink runs — reads as rumor.
+const SEEN_CELL = 120;
+const SIGHT_WORLD = 240;   // world-units of ground her senses register as seen
+const GRID_W = Math.ceil((WORLD.w - (WORLD.x0 || 0)) / SEEN_CELL) + 1;
+const GRID_H = Math.ceil(WORLD.h / SEEN_CELL) + 1;
+
+function cellIndex(x, y) {
+  const cx = Math.floor((x - (WORLD.x0 || 0)) / SEEN_CELL);
+  const cy = Math.floor(y / SEEN_CELL);
+  if (cx < 0 || cy < 0 || cx >= GRID_W || cy >= GRID_H) return -1;
+  return cy * GRID_W + cx;
+}
+
+function markSeen(x, y, r) {
+  if (!S.seen) return;
+  const rc = Math.ceil(r / SEEN_CELL);
+  const cx = Math.floor((x - (WORLD.x0 || 0)) / SEEN_CELL);
+  const cy = Math.floor(y / SEEN_CELL);
+  for (let dy = -rc; dy <= rc; dy++) {
+    for (let dx = -rc; dx <= rc; dx++) {
+      const gx = cx + dx, gy = cy + dy;
+      if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) continue;
+      if (dx * dx + dy * dy > rc * rc + 1) continue;
+      S.seen[gy * GRID_W + gx] = 1;
+    }
+  }
+}
+
+function cellSeen(x, y) {
+  const i = cellIndex(x, y);
+  return i >= 0 && S.seen && S.seen[i] === 1;
+}
+
+// how much of an edge's line has been walked over (sampled), 0..1
+function edgeSeenFrac(e) {
+  const A = NbyId.get(e.a), B = NbyId.get(e.b);
+  if (!A || !B) return 0;
+  const pts = e.via ? [A, ...e.via, B] : [A, B];
+  let seen = 0, n = 0;
+  for (let s = 1; s < pts.length; s++) {
+    for (let t = 0; t <= 1.0001; t += 0.2) {
+      const x = lerp(pts[s - 1].x, pts[s].x, t), y = lerp(pts[s - 1].y, pts[s].y, t);
+      n++; if (cellSeen(x, y)) seen++;
+    }
+  }
+  return n ? seen / n : 0;
+}
+
+function nodeSeen(id) {
+  const n = NbyId.get(id);
+  return !!n && cellSeen(n.x, n.y);
+}
+
+// mark the corridor along a chain of nodes as seen (she walked it)
+function seedSeenAlong(ids) {
+  for (let i = 0; i < ids.length; i++) {
+    const n = NbyId.get(ids[i]);
+    if (n) markSeen(n.x, n.y, SIGHT_WORLD);
+    if (i > 0) {
+      const p = NbyId.get(ids[i - 1]);
+      if (p && n) for (let t = 0; t <= 1; t += 0.05) markSeen(lerp(p.x, n.x, t), lerp(p.y, n.y, t), SIGHT_WORLD);
+    }
+  }
+}
+
 // ── small helpers ────────────────────────────────────────────────────────────
 
 function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
@@ -184,6 +252,7 @@ function newGame() {
     lastDay: 1,
 
     wolf: { x: DEN.x, y: DEN.y, heading: -Math.PI / 2, moving: false, gait: 0 },
+    seen: new Uint8Array(GRID_W * GRID_H),   // the map's memory of walked ground
     injuredT: 0,
     roadEntrySide: null,
     wolfWasOnRoad: false,
@@ -2588,6 +2657,10 @@ function applyPostPrologue() {
     if (e.state === 'unknown' && d.state === 'inherited') e.state = 'inherited';
   }
   recomputeGhosts();
+  // the migration corridor she walked with Willow is seen from the first
+  // frame of Act I (seeds the skip path to match a played prologue)
+  seedSeenAlong(['den', 'aspenStand', 'oldFord', 'sageFlat', 'farBench',
+    'highMeadow', 'ashSaddle', 'winterRange']);
   // the prologue already taught move / scent / map / hunt / F
   S.tut.step = 6; S.tut.t = 0;
   // F is NOT taught here: the verb arrives in spring, when the pack is hers
@@ -3472,6 +3545,7 @@ function saveGame() {
         covBits: e.covBits,
       })),
       visited: [...S.visited], bridged: [...S.bridged],
+      seen: S.seen ? Array.from(S.seen) : null,
       firstTear: S.firstTear,
       pack: S.pack.map(w => ({
         id: w.id, name: w.name, mult: w.mult, yearling: w.yearling,
@@ -3521,6 +3595,7 @@ function loadGame() {
     if (e) Object.assign(e, se);
   }
   S.visited = new Set(d.visited); S.bridged = new Set(d.bridged);
+  if (d.seen && d.seen.length === GRID_W * GRID_H) S.seen = Uint8Array.from(d.seen);
   S.firstTear = d.firstTear;
   for (const sw of d.pack) {
     const w = S.pack.find(x => x.id === sw.id);
@@ -3610,6 +3685,9 @@ function update(dt) {
 
   const sensing = S.mapOpen || S.forcedSenseT > 0;
   S.senseBlend = clamp(S.senseBlend + (sensing ? dt / SENSE_IN : -dt / SENSE_OUT), 0, 1);
+
+  // her senses register the ground around her onto the map's memory
+  if (S.mode === 'play' || S.mode === 'prologue') markSeen(S.wolf.x, S.wolf.y, SIGHT_WORLD);
 
   if (S.mode === 'prologue') {
     prologueUpdate(dt);

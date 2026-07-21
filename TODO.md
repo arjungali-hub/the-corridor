@@ -570,3 +570,53 @@ action; commit everything.
 - [x] The prologue map is the full west-extended land.
 - [x] The road scar runs on under the overpass (dark asphalt strip + cast
       deck shadows) — the bridge is over a continuing road, not a gap.
+
+## Part 18 — Map centrality & directed exploration (Arjun, 2026-07-20)
+
+Goal: make the MAP the thing the player navigates BY, and make Aspen
+travel toward reasons that live in unknown ground. Strict order A1→B5;
+commit per part. Additive only — weaken no existing system.
+
+Block A — make the map central:
+- [ ] A1 Exploration fog: the map remembers only what she has SEEN. Coarse
+      seen-grid (~120u cells) marked within ~240u sight each tick, saved,
+      prologue route pre-seen. Three map tiers: seen = full; unseen-but-
+      inherited = faint cold ghost-thread, nodes dimmed/unlabeled; unseen-
+      uninherited = grey void. Names resolve within ~200u (seenDens
+      pattern). Routing still works over inherited-unseen edges, but a
+      planned leg over unseen ground draws dashed/cold.
+- [ ] A2 The planned route persists into the porthole: a diegetic bearing-
+      only cue (drifting motes / scent-trace at the fog edge) toward the
+      next un-reached node of S.routePath in play view; dies the instant a
+      tear nulls the path.
+- [ ] A3 Fog/night force map-reliance + fix the screen-space fog bug:
+      convert the play clear radius to world units × cam scale (fair on
+      every monitor), base ~240u; night + heavy violet pull it to ~90-110u
+      at a road; rain/cloud shrink it modestly.
+- [ ] A4 Season-turn map ritual: at each howl, a ~5s forced map raise where
+      Willow's full original ink ghosts over the live map, then fades.
+      Once: 'What her mother knew. What is left of it.' Defer off the road.
+- [ ] A5 Guard the map toggle against inherit-hold and forced states
+      (forcedSenseT>0, beat-9 inherit, A4 ritual): the hold still inherits;
+      only toggleMap is suppressed.
+
+Block B — make exploration directed (bearing, not waypoint):
+- [ ] B1 Deplete near, smell far: near herd thinned → a distant unvisited
+      herd reads as a faint gold bearing at the vision edge, intensity by
+      hunger; direction only, no dot, no reveal through fog. Crossing into
+      the region resolves the hunt.
+- [ ] B2 Thirst is a second compass toward clean water she hasn't reached
+      (cool bearing, distinct from gold). Fix waterFouled so the western
+      creek reads clean (test the point's own nearby footprints); floor the
+      stacked slow multiplier at ~0.5 so directed effort can always pay off.
+- [ ] B3 Rumors on the inherited map: 4-7 RUMORS (water/den/vantage/
+      carrion) as faint marks on threads into dim ground; reaching one
+      resolves it to a real feature — some to nothing or to changed (a
+      "water this way" now the fouled impoundment).
+- [ ] B4 The home range dies: tune the seasonal squeeze + violet growth +
+      route decay to compound near the den; one winter escalation line
+      ('Nothing answers the hunt here. The living land has moved west.').
+      Keep the west comparatively alive.
+- [ ] B5 Distant goals are the spine, local upkeep the detour: the top
+      surfaced task in travel seasons is distant + names a compass bearing;
+      pup tasks read as the counter-pull; B1-B3 keep a bearing always legible.

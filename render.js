@@ -1581,9 +1581,17 @@ function drawInkEdge(e, m) {
   }
 
   if (e.state === 'inherited') {
-    ctx.globalAlpha = m;
-    strokePolyline(ctx, edgePolyline(e), 6 / sc, C_INK_DARK);
-    strokePolyline(ctx, edgePolyline(e), 2.6 / sc, C_INK_LIGHT);
+    // three tiers: ground she has WALKED shows her mother's ink in full;
+    // ground only INHERITED (never seen) is a faint cold rumor-thread
+    const walked = edgeSeenFrac(e) >= 0.5;
+    if (walked) {
+      ctx.globalAlpha = m;
+      strokePolyline(ctx, edgePolyline(e), 6 / sc, C_INK_DARK);
+      strokePolyline(ctx, edgePolyline(e), 2.6 / sc, C_INK_LIGHT);
+    } else {
+      ctx.globalAlpha = 0.34 * m;
+      strokePolyline(ctx, edgePolyline(e), 2.2 / sc, C_INK_LIGHT, [11 / sc, 9 / sc]);
+    }
     ctx.globalAlpha = 1;
     return;
   }
@@ -1791,15 +1799,22 @@ function drawMap() {
   }
   ctx.globalAlpha = 1;
 
-  // the way she has in mind — a soft emphasis over her own knowledge
+  // the way she has in mind — a soft emphasis over her own knowledge; a leg
+  // over ground she has NOT walked draws cold and dashed: remembered, unconfirmed
   if (S.routePath && S.routePath.length > 1) {
-    ctx.globalAlpha = m * (0.35 + 0.15 * Math.sin(S.time * 2.5));
     for (let i = 1; i < S.routePath.length; i++) {
       const idA = S.routePath[i - 1], idB = S.routePath[i];
       const A = NbyId.get(idA), B = NbyId.get(idB);
-      // the plan follows the walked way, curves and all
       const e = S.edges.find(x => (x.a === idA && x.b === idB) || (x.a === idB && x.b === idA));
-      strokePolyline(ctx, e ? edgePolyline(e) : [[A.x, A.y], [B.x, B.y]], 16 / sc, 'rgba(78,122,140,0.6)');
+      const confirmed = e ? edgeSeenFrac(e) >= 0.5 : (nodeSeen(idA) && nodeSeen(idB));
+      const poly = e ? edgePolyline(e) : [[A.x, A.y], [B.x, B.y]];
+      if (confirmed) {
+        ctx.globalAlpha = m * (0.35 + 0.15 * Math.sin(S.time * 2.5));
+        strokePolyline(ctx, poly, 16 / sc, 'rgba(78,122,140,0.6)');
+      } else {
+        ctx.globalAlpha = m * (0.28 + 0.12 * Math.sin(S.time * 2.5));
+        strokePolyline(ctx, poly, 9 / sc, 'rgba(120,150,170,0.5)', [16 / sc, 12 / sc]);
+      }
     }
     ctx.globalAlpha = 1;
   }
@@ -1858,18 +1873,21 @@ function drawMap() {
     if (!nodeKnown(n)) continue;
     const p = screenPos(n.x, n.y);
     const ghost = S.ghostNodes.has(n.id);
-    ctx.globalAlpha = (ghost ? 0.5 : 1) * m;
+    // seen once (within sight, or ever visited) resolves the node; an
+    // inherited-but-unwalked node is a dim unnamed dot on a rumor-thread
+    const seen = S.visited.has(n.id) || nodeSeen(n.id);
+    ctx.globalAlpha = (ghost ? 0.5 : seen ? 1 : 0.4) * m;
     ctx.strokeStyle = C_NODE; ctx.fillStyle = C_NODE;
     ctx.lineWidth = 2;
-    if (n.den) {
+    if (n.den && seen) {
       ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, Math.PI * 2); ctx.fill();
     } else {
       ctx.setLineDash(S.visited.has(n.id) && !ghost ? [] : [4, 3]);
-      ctx.beginPath(); ctx.arc(p.x, p.y, 10, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(p.x, p.y, seen ? 10 : 6, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath(); ctx.arc(p.x, p.y, 2.4, 0, Math.PI * 2); ctx.fill();
     }
-    if (m > 0.7 && S.visited.has(n.id)) {
+    if (m > 0.7 && seen) {
       ctx.font = `italic 11px ${FONT}`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillStyle = `rgba(74,58,38,${m})`;

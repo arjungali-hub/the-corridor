@@ -377,3 +377,16 @@ Railroad walkable; TRAINS (1700 u/s, 1300-long) kill even Aspen ->
 startEnding('dead'). Weather visuals strengthened. Overpass shows the road
 continuing beneath. Prologue forced views use the west-extended mapFitScale.
 Harness green x3.
+
+## map-central 1: exploration fog (2026-07-20)
+
+The map is now a record of what Aspen has SEEN, not what Willow knew. A
+coarse seen-grid (SEEN_CELL 120u, SIGHT_WORLD 240u) marks ground within
+sight each tick, saved in v2 (read defensively), the migration corridor
+pre-seeded in applyPostPrologue. Three map tiers in drawInkEdge/drawMap:
+walked inherited ink = full; unseen inherited = faint cold dashed rumor-
+thread with dim unnamed nodes; unseen-uninherited = grey void. Node names
+resolve on first sight (visited OR nodeSeen). Routing still plans over
+inherited-unseen edges, but such legs draw cold+dashed (remembered, not
+confirmed). Harness: corridor seen, far ground rumor, walk-to-resolve,
+seen-grid save round-trip.
