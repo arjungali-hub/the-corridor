@@ -496,3 +496,22 @@ posture still repositions unhurt and allows unlimited retries, so it remains
 not-a-mandatory-fight and cannot soft-lock — only the difficulty floor rose,
 which is the intent. Harness P7 inverted (no skirt-it route + timing stays
 viable). 261 checks green x3.
+
+## art overhaul, batch 1: palette, wolves, trees, terrain (2026-07-22)
+
+A deep visual pass. Shared LIGHT direction (upper-left) drives every cast
+shadow and rim light. New color helpers (toRGB/mixTone/tempTone) + richer,
+warmed season palettes with LIGHT/DARK/SKYLIGHT variants. Wolves rebuilt:
+one flowing bezier torso with a light→mid→belly form gradient, a rim-light
+bead on the lit back, fur-direction strokes, two-segment legs drawn far-then-
+near for real overlap, a tapered brush tail with a dark tip, a wedge head
+with pale cheek/muzzle, amber eye-glints, and filled ears with dark inners;
+soft feathered directional contact shadow. Trees rebuilt: conifers as stacked
+tapered tiers lit on one shoulder (snow-loaded in winter); deciduous as
+6-lobe canopies over a trunk hint with per-lobe radial light; bare-winter
+trees get a recursive branch skeleton; all cast a long soft shadow away from
+the light. Terrain: a vertical sunlit→cool ground wash, large painterly
+meadow blobs, directional leaning grass blades (dense in growth, sparse in
+winter), clumped wildflowers w/ stems (spring), warm rotated leaf litter
+(autumn), lee-shadowed wind drifts (winter). Harness green (draw() smoke
+across intro/prologue/Act I/scent/map/ending).
