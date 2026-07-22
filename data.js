@@ -114,9 +114,6 @@ const EDGES = [
   { id: 'longMarsh-saltLick',     a: 'longMarsh',    b: 'saltLick',     state: 'unknown', tearGroup: null },
   { id: 'saltLick-dustyRise',     a: 'saltLick',     b: 'dustyRise',    state: 'unknown', tearGroup: null },
   { id: 'stonyBench-lowFlats',    a: 'stonyBench',   b: 'lowFlats',     state: 'unknown', tearGroup: null },
-  // the southern detour that skirts the western pack's ground entirely,
-  // reaching the far-west trestle route without the contested approach
-  { id: 'stonyBench-longSlope',   a: 'stonyBench',   b: 'longSlope',    state: 'unknown', tearGroup: null },
   { id: 'lowFlats-gravelBar',     a: 'lowFlats',     b: 'gravelBar',    state: 'unknown', tearGroup: null },
   { id: 'highMeadow-stonyBench',  a: 'highMeadow',   b: 'stonyBench',   state: 'unknown', tearGroup: null },
 ];

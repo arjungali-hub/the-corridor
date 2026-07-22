@@ -481,3 +481,18 @@ as RIVAL_TONES wolves at the fog edge from sighting on. GUARDRAIL satisfied —
 timing avoids, the detour yields, a loss never injures; never a mandatory
 fight. 261 checks green x3. Next: play to the western corridor with a strong
 pack and a deliberately ruined one — both must finish.
+
+## westpack: remove the "skirt it" detour (Arjun, 2026-07-22)
+
+Design reversal of the spec's guardrail: the southern detour is removed
+(dropped the stonyBench-longSlope edge), so there is NO route to the winter
+range that avoids the western territory — every path runs through farBench/
+highMeadow, both inside r620. A ruined pack must now TIME the patrol and slip
+through, not go around. westSurfaceDetour → westSurfaceTiming ('No way around
+them. Read their marks — cross when the fresh sign is on the far side.').
+Guardrail re-reasoned: avoidance still viable (verified — a crossing with the
+patrol far away, no detection, never reaches confrontation); yielding a
+posture still repositions unhurt and allows unlimited retries, so it remains
+not-a-mandatory-fight and cannot soft-lock — only the difficulty floor rose,
+which is the intent. Harness P7 inverted (no skirt-it route + timing stays
+viable). 261 checks green x3.

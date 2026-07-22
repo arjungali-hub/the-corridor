@@ -2203,7 +2203,7 @@ function westResolvePosture() {
     westDriveBack();
     S.fear = Math.min(1, S.fear + 0.4);
     say('Stronger than us, today. She pulls the pack back.');
-    westSurfaceDetour();
+    westSurfaceTiming();
   }
 }
 
@@ -2242,15 +2242,16 @@ function westResolveClash() {
     say('A brief, ugly tangle. She drives them off a step and pulls back, bleeding.');
   }
   westDriveBack();
-  westSurfaceDetour();
+  westSurfaceTiming();
   saveGame();
 }
 
-// P7: on a loss, point the weak-pack player toward the long way around
-function westSurfaceDetour() {
-  if (S.tut.westDetour) return;
-  S.tut.westDetour = true;
-  say('There is a longer way, south and around their ground. It will cost days.');
+// P7: there is NO way around their ground — a weak pack must READ them and
+// slip through when the patrol turns away. On a loss, teach the timing.
+function westSurfaceTiming() {
+  if (S.tut.westTiming) return;
+  S.tut.westTiming = true;
+  showPrompt('No way around them. Read their marks — cross when the fresh sign is on the far side.', [], 8);
 }
 
 // ── the standoff ─────────────────────────────────────────────────────────────

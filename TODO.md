@@ -643,16 +643,20 @@ stay viable — a ruined pack must always have a survivable way through.
 - [x] 6 Relative strength: aspenStrength (self + adults 1 / yearlings .5 ×
       condition × injury, × fear factor) vs fixed 5, k .9. Fixed strength —
       the variable is Aspen's year.
-- [x] 7 The always-available detour: a winter-range route skirting the
-      territory exists (verified BFS) and is >1.3× the direct path; losing
-      surfaces 'There is a longer way, south and around their ground.'
+- [x] 7 NO skirt-it route (Arjun overrode the spec 2026-07-22): the detour
+      edge was removed; every winter-range path passes through the territory
+      (verified BFS: no territory-avoiding route). A ruined pack must TIME
+      it, not go around; losing teaches 'No way around them. Read their
+      marks — cross when the fresh sign is on the far side.'
 - [x] 8 The reveal: westCut renders as a clearcut (construction family,
       stumps/slash/skid ruts) + one-time 'This is what drove them. The same
       hands, a different corner.'
 - [x] 9 East pack stays passive — verified it never raises western exposure,
       state, lane, or rivals; separate code paths.
 
-GUARDRAIL SATISFIED: avoidance (patrol timing keeps exposure low) and
-yielding (the always-present southern detour) both remain viable; a ruined
-pack that loses the posture is repositioned unhurt and guided to the detour.
-Never a mandatory fight.
+GUARDRAIL (revised by Arjun 2026-07-22): the "skirt it" / detour option is
+REMOVED — there is no way around the territory. Avoidance now rides entirely
+on TIMING the patrol (verified: a crossing with the patrol away never forces
+a confrontation). Yielding a posture still repositions unhurt and lets her
+retry indefinitely, so it is still never a mandatory fight and cannot
+soft-lock — but a ruined pack must read the marks and slip through.
