@@ -532,3 +532,19 @@ colored ambient skylight wash, golden-hour as a vertical gradient, a softer
 warmer atmospheric vignette. Willow-lying rebuilt: curled form-shaded mass,
 fur-fold strokes, tail wrapped to the nose, resting head + ear and (in death)
 a closed-eye line + flatter cold light. Harness green x3.
+
+## art overhaul, batch 3: water shimmer, parchment, HUD, title (2026-07-22)
+
+Runtime water now lives: drifting creek glints plus a slow specular shimmer
+breathing across each pond's sunlit crescent, with a few sun-catch sparkles
+that twinkle — frozen off in winter. Parchment map rebuilt: warm vellum with
+a vertical tone shift, ~22 soft tea-stain blooms, faint horizontal laid-line
+grain, foxing speckle, darkened burnished corners, and two soft fold
+creaselines — reads like real aged paper. HUD bars: recessed track with a
+hairline rim, a vertical top-light→bottom-dark sheen on the fill and a bright
+top highlight, shadowed label. Intro screen rebuilt from a flat gradient into
+a dusk scene: graded sky, a low moon with halo/maria, twinkling stars, a
+black timber ridgeline, and a warm-glow title. That completes the pass —
+palette+light, wolves, trees, terrain, prey, all water, lighting, Willow,
+map, HUD, title. Harness 261 green x3+. The judge is the browser: every
+season, day/night, weather, and the map.

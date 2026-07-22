@@ -1412,14 +1412,39 @@ function drawWorld() {
       wx0, wy0, wx1 - wx0, wy1 - wy0);
   }
 
-  // living water glints
-  ctx.fillStyle = 'rgba(255,255,255,0.5)';
-  for (let i = 0; i < TERRAIN.creekFlow.length - 1; i++) {
-    const [ax, ay] = TERRAIN.creekFlow[i];
-    const ph = Math.sin(S.time * 2 + i * 1.7);
-    if (ph > 0.4) {
-      ctx.globalAlpha = (ph - 0.4) * 0.6;
-      ctx.beginPath(); ctx.ellipse(ax + ph * 8, ay + 20, 8, 2, 0.3, 0, Math.PI * 2); ctx.fill();
+  // living water: drifting glints down the creek, and a slow specular
+  // shimmer breathing across each pond's sunlit crescent
+  const frozen = S.era !== 'past' && seasonIndex() === 3;
+  if (!frozen) {
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    for (let i = 0; i < TERRAIN.creekFlow.length - 1; i++) {
+      const [ax, ay] = TERRAIN.creekFlow[i];
+      const ph = Math.sin(S.time * 2 + i * 1.7);
+      if (ph > 0.4) {
+        ctx.globalAlpha = (ph - 0.4) * 0.6;
+        ctx.beginPath(); ctx.ellipse(ax + ph * 8, ay + 20, 9, 2, 0.3, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+    // pond shimmer + a few sparkles that catch the sun
+    for (const p of PONDS.concat([TERRAIN.springsPond])) {
+      const sq = 0.78;
+      const shimmer = 0.12 + 0.1 * Math.sin(S.time * 1.3 + p.x * 0.01);
+      ctx.globalAlpha = shimmer;
+      ctx.fillStyle = 'rgba(224,240,246,0.9)';
+      ctx.beginPath();
+      ctx.ellipse(p.x + LIGHT.x * p.r * 0.35, p.y + LIGHT.y * p.r * 0.35 * sq, p.r * 0.5, p.r * 0.16, Math.atan2(LIGHT.y, LIGHT.x), 0, Math.PI * 2);
+      ctx.fill();
+      const srng = makePrng(hashStr('spk' + Math.round(p.x)));
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      for (let k = 0; k < 5; k++) {
+        const a = srng() * Math.PI * 2, rr = srng() * p.r * 0.7;
+        const tw = Math.sin(S.time * 4 + k * 2 + p.x);
+        if (tw > 0.6) {
+          ctx.globalAlpha = (tw - 0.6) * 1.2;
+          const sx = p.x + Math.cos(a) * rr, sy = p.y + Math.sin(a) * rr * sq;
+          ctx.beginPath(); ctx.arc(sx, sy, 1.4, 0, Math.PI * 2); ctx.fill();
+        }
+      }
     }
   }
   ctx.globalAlpha = 1;
@@ -2237,22 +2262,38 @@ function parchmentLayer() {
   _parchment = document.createElement('canvas');
   _parchment.width = canvas.width; _parchment.height = canvas.height;
   const c = _parchment.getContext('2d');
-  c.fillStyle = C_PARCHMENT;
-  c.fillRect(0, 0, canvas.width, canvas.height);
-  const cg = c.createRadialGradient(
-    canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.35,
-    canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.8);
-  cg.addColorStop(0, 'rgba(120,90,40,0)');
-  cg.addColorStop(1, 'rgba(120,90,40,0.22)');
-  c.fillStyle = cg;
-  c.fillRect(0, 0, canvas.width, canvas.height);
+  const W = canvas.width, Hh = canvas.height;
+  // a warm vellum base with a faint vertical tone shift
+  const vg = c.createLinearGradient(0, 0, 0, Hh);
+  vg.addColorStop(0, '#f0e6cf'); vg.addColorStop(0.5, C_PARCHMENT); vg.addColorStop(1, '#e2d5b8');
+  c.fillStyle = vg; c.fillRect(0, 0, W, Hh);
   const rng = makePrng(42);
-  for (let i = 0; i < 420; i++) {
-    c.fillStyle = `rgba(90,55,20,${rng() * 0.05})`;
-    c.beginPath();
-    c.arc(rng() * canvas.width, rng() * canvas.height, rng() * 1.6 + 0.4, 0, Math.PI * 2);
-    c.fill();
+  // large soft stains — tea-colored blooms, aging the sheet unevenly
+  for (let i = 0; i < 22; i++) {
+    const x = rng() * W, y = rng() * Hh, r = 80 + rng() * 260;
+    const g = c.createRadialGradient(x, y, r * 0.2, x, y, r);
+    g.addColorStop(0, `rgba(150,110,50,${0.03 + rng() * 0.04})`);
+    g.addColorStop(1, 'rgba(150,110,50,0)');
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
   }
+  // fibrous grain: faint horizontal laid lines
+  c.strokeStyle = 'rgba(120,95,55,0.04)'; c.lineWidth = 1;
+  for (let y = 0; y < Hh; y += 4) { c.beginPath(); c.moveTo(0, y + (rng() - 0.5) * 2); c.lineTo(W, y + (rng() - 0.5) * 2); c.stroke(); }
+  // fine speckle / foxing
+  for (let i = 0; i < 520; i++) {
+    c.fillStyle = `rgba(90,55,20,${rng() * 0.05})`;
+    c.beginPath(); c.arc(rng() * W, rng() * Hh, rng() * 1.6 + 0.4, 0, Math.PI * 2); c.fill();
+  }
+  // darkened, worn corners + edge burnish
+  const cg = c.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.32, W / 2, Hh / 2, Math.max(W, Hh) * 0.82);
+  cg.addColorStop(0, 'rgba(120,90,40,0)');
+  cg.addColorStop(0.75, 'rgba(120,88,40,0.10)');
+  cg.addColorStop(1, 'rgba(96,68,30,0.30)');
+  c.fillStyle = cg; c.fillRect(0, 0, W, Hh);
+  // a soft creaseline or two, as if the map were folded
+  c.strokeStyle = 'rgba(110,84,44,0.10)'; c.lineWidth = 2;
+  c.beginPath(); c.moveTo(W * 0.5 + 20, 0); c.lineTo(W * 0.5 - 20, Hh); c.stroke();
+  c.beginPath(); c.moveTo(0, Hh * 0.5 - 14); c.lineTo(W, Hh * 0.5 + 14); c.stroke();
   return _parchment;
 }
 
@@ -2676,16 +2717,32 @@ function drawCaption() {
 }
 
 function drawBar(x, y, w, label, frac, color) {
-  ctx.fillStyle = 'rgba(20,18,12,0.4)';
-  rr(ctx, x, y, w, 11, 5); ctx.fill();
-  if (frac > 0.01) {
-    ctx.fillStyle = color;
-    rr(ctx, x + 1, y + 1, Math.max(6, (w - 2) * clamp(frac, 0, 1)), 9, 4); ctx.fill();
+  const h = 12;
+  // recessed track with a hairline rim
+  ctx.fillStyle = 'rgba(16,14,10,0.5)';
+  rr(ctx, x, y, w, h, 6); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
+  rr(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 5.5); ctx.stroke();
+  const f = clamp(frac, 0, 1);
+  if (f > 0.01) {
+    const fw = Math.max(6, (w - 2) * f);
+    // a soft vertical sheen on the fill (top light → bottom dark)
+    const g = ctx.createLinearGradient(0, y + 1, 0, y + h - 1);
+    g.addColorStop(0, lightenTone(color.startsWith('#') ? color : '#b08d3f', 30));
+    g.addColorStop(0.5, color);
+    g.addColorStop(1, darkenTone(color.startsWith('#') ? color : '#b08d3f', 24));
+    ctx.fillStyle = g;
+    rr(ctx, x + 1, y + 1, fw, h - 2, 5); ctx.fill();
+    // a bright top highlight line
+    ctx.fillStyle = 'rgba(255,255,255,0.28)';
+    rr(ctx, x + 2, y + 2, fw - 2, 2, 1); ctx.fill();
   }
   ctx.font = `bold 9px ${FONT}`;
   ctx.fillStyle = '#f4efdd';
+  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2;
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + 6, y + 6);
+  ctx.fillText(label, x + 7, y + h / 2 + 0.5);
+  ctx.shadowBlur = 0;
 }
 
 function drawHUD() {
@@ -2806,28 +2863,57 @@ function drawHelp() {
 
 function drawIntro() {
   resetTransform();
-  const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  g.addColorStop(0, '#151812');
-  g.addColorStop(1, '#1e241b');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const cx = canvas.width / 2, cy = canvas.height / 2;
+  const W = canvas.width, Hh = canvas.height, cx = W / 2, cy = Hh / 2;
+  const t = Date.now() / 1000;
+  // a deep dusk sky graded down to dark timber
+  const g = ctx.createLinearGradient(0, 0, 0, Hh);
+  g.addColorStop(0, '#243043'); g.addColorStop(0.4, '#1b2620'); g.addColorStop(1, '#12160f');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, Hh);
+  // a low moon, and its cool wash
+  const moonX = W * 0.74, moonY = Hh * 0.26;
+  const halo = ctx.createRadialGradient(moonX, moonY, 4, moonX, moonY, 220);
+  halo.addColorStop(0, 'rgba(220,228,236,0.22)'); halo.addColorStop(1, 'rgba(220,228,236,0)');
+  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(moonX, moonY, 220, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#e8ecf0'; ctx.beginPath(); ctx.arc(moonX, moonY, 34, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = 'rgba(180,190,200,0.5)';
+  const mrng = makePrng(7);
+  for (let i = 0; i < 5; i++) ctx.fillRect(moonX - 24 + mrng() * 48, moonY - 24 + mrng() * 48, 3 + mrng() * 5, 3 + mrng() * 4);
+  // faint stars
+  ctx.fillStyle = 'rgba(230,235,240,0.7)';
+  const srng = makePrng(19);
+  for (let i = 0; i < 70; i++) {
+    const sx = srng() * W, sy = srng() * Hh * 0.5, tw = Math.sin(t * 2 + i);
+    ctx.globalAlpha = 0.3 + 0.4 * Math.max(0, tw);
+    ctx.fillRect(sx, sy, 1.4, 1.4);
+  }
+  ctx.globalAlpha = 1;
+  // a ridgeline of black timber along the horizon
+  ctx.fillStyle = '#0d120b';
+  ctx.beginPath(); ctx.moveTo(0, Hh);
+  const rrng = makePrng(53);
+  for (let x = 0; x <= W; x += 24) {
+    const base = Hh * 0.62 + Math.sin(x * 0.004) * 30;
+    ctx.lineTo(x, base - rrng() * 26);
+    ctx.lineTo(x + 6, base - 40 - rrng() * 34);   // tree spikes
+    ctx.lineTo(x + 12, base - rrng() * 26);
+  }
+  ctx.lineTo(W, Hh); ctx.closePath(); ctx.fill();
+
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `bold 46px ${FONT}`;
-  ctx.fillStyle = C_PARCHMENT;
-  ctx.fillText('T H E   C O R R I D O R', cx, cy - 60);
-  ctx.font = `italic 17px ${FONT}`;
-  ctx.fillStyle = '#b8ac8d';
-  ctx.fillText('one year', cx, cy - 12);
-  ctx.font = `bold 15px ${FONT}`;
-  ctx.fillStyle = C_PARCHMENT;
-  ctx.globalAlpha = 0.55 + 0.45 * Math.sin(Date.now() / 420);
-  ctx.fillText('press any key', cx, cy + 90);
+  // title, with a soft warm glow
+  ctx.shadowColor = 'rgba(210,180,120,0.5)'; ctx.shadowBlur = 18;
+  ctx.font = `bold 48px ${FONT}`; ctx.fillStyle = '#efe6cf';
+  ctx.fillText('T H E   C O R R I D O R', cx, cy - 70);
+  ctx.shadowBlur = 0;
+  ctx.font = `italic 17px ${FONT}`; ctx.fillStyle = '#b6ab8c';
+  ctx.fillText('one year', cx, cy - 24);
+  ctx.font = `bold 15px ${FONT}`; ctx.fillStyle = '#e8dfc6';
+  ctx.globalAlpha = 0.5 + 0.45 * Math.sin(t * 2.4);
+  ctx.fillText('press any key', cx, cy + 96);
   ctx.globalAlpha = 1;
   if (hasResumableSave()) {
-    ctx.font = `14px ${FONT}`;
-    ctx.fillStyle = '#b8ac8d';
-    ctx.fillText('R — resume the year from where you left off', cx, cy + 152);
+    ctx.font = `14px ${FONT}`; ctx.fillStyle = '#b6ab8c';
+    ctx.fillText('R — resume the year from where you left off', cx, cy + 158);
   }
 }
 
