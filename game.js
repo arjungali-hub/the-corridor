@@ -331,6 +331,11 @@ function newGame() {
     rumorsSeen: [],               // inherited notes she has walked to and cashed
     foundWater: [],               // clean springs a rumor resolved into being
     vantageT: 0,                  // a high place briefly widens her sight
+    // the western pack: spatial pressure on the winter-range approach
+    exposure: 0,                  // 0..1, how much they know she is here
+    westState: 'none',            // none | calm | sighting | confrontation | clash
+    westRivals: [],               // rival wolf positions, shown at sighting+
+    westLaneT: 0,                 // a won lane stays open this long
     starveT: 0,
     yearlingKnows: new Set(),
 
@@ -1384,6 +1389,9 @@ function togglePackStay() {
     return;
   }
   if (!S.tut.fTaught) return;   // no verb before it is given
+  // at the western pack's line, F is the posture: stand the pack tall and be
+  // measured against their strength (win a lane, or be driven back)
+  if (S.westState === 'confrontation' && S.mode === 'play') { westResolvePosture(); return; }
   // during a standoff, F is the display: the pack stands tall together —
   // a faster win with the family at her back, bluster without it
   if (S.standoff && S.mode === 'play') {
@@ -2011,6 +2019,231 @@ function silenceUpdate(dt) {
   } else {
     S.alarm = Math.max(0, S.alarm - dt * 0.15);
   }
+}
+
+// ── the western pack ─────────────────────────────────────────────────────────
+// A second pack, west of the road, holding the winter-range approach from
+// midyear on — a mirror of Aspen, driven out by the clearcut. Not a wall:
+// spatial pressure. Moving through their ground raises EXPOSURE; thresholds
+// escalate scent-warning → sighting → posture standoff → (rarely) clash. A
+// weak pack is never stuck — the southern detour always remains. This is a
+// separate system from the eastern standoff; that pack stays passive.
+
+function westActive() { return S && S.era !== 'past' && day() >= WEST_PACK.appearDay; }
+
+function inWestTerritory(x, y) {
+  const T = WEST_PACK.territory;
+  return dist(x, y, T.x, T.y) < T.r;
+}
+
+// P4: the patrol's presence centroid — deterministic from S.time, so the
+// rhythm is learnable. It loops the legs over `period` seconds.
+function patrolCentroid() {
+  const legs = WEST_PACK.patrol.legs, n = legs.length;
+  const phase = ((S.time % WEST_PACK.patrol.period) / WEST_PACK.patrol.period) * n;
+  const i = Math.floor(phase) % n, t = phase - Math.floor(phase);
+  const a = legs[i], b = legs[(i + 1) % n];
+  return { x: lerp(a.x, b.x, t), y: lerp(a.y, b.y, t) };
+}
+
+// P4: a mark's freshness = how recently the patrol passed near it. Fresh
+// marks (just patrolled) read bright; stale marks dim — a readout of where
+// the pack HAS been, and therefore where it is NOT now.
+function markFreshness(m) {
+  const legs = WEST_PACK.patrol.legs, n = legs.length, P = WEST_PACK.patrol.period;
+  // find the phase at which the centroid passes nearest this mark
+  let bestPh = 0, bestD = Infinity;
+  for (let s = 0; s < n * 12; s++) {
+    const phase = (s / (n * 12)) * n;
+    const i = Math.floor(phase) % n, t = phase - Math.floor(phase);
+    const a = legs[i], b = legs[(i + 1) % n];
+    const px = lerp(a.x, b.x, t), py = lerp(a.y, b.y, t);
+    const d = dist(m.x, m.y, px, py);
+    if (d < bestD) { bestD = d; bestPh = (s / (n * 12)); }
+  }
+  if (bestD > 340) return 0.15;                    // the loop never comes near — always stale
+  const nowPh = (S.time % P) / P;
+  const since = ((nowPh - bestPh + 1) % 1);        // fraction of a loop since last passed
+  return clamp(1 - since, 0.15, 1);
+}
+
+// P6: Aspen's pack strength vs their fixed 5 — the year, graded at the gate.
+function aspenStrength() {
+  let s = 1;                                        // Aspen herself
+  if (isInjured()) s -= 0.4;
+  if (S.food < 35) s -= 0.4 * (1 - S.food / 35);    // her own hunger
+  for (const w of alivePack()) {
+    let c = w.yearling ? 0.5 : 1.0;
+    c *= (S.food < 40 ? 0.5 + 0.5 * (S.food / 40) : 1.0);   // condition
+    if ((w.injuredT || 0) > 0) c *= 0.5;
+    s += c;
+  }
+  const fearFactor = 1 - 0.5 * clamp(S.fear, 0, 1); // a terrified pack bluffs weakly
+  return Math.max(0, s * fearFactor);
+}
+
+// P3: the exposure meter. Rises inside the territory by depth + time + fresh-
+// mark proximity + detection; drains outside, and slightly while hiding.
+function westExposureStep(dt) {
+  const T = WEST_PACK.territory;
+  if (!inWestTerritory(S.wolf.x, S.wolf.y)) {
+    S.exposure = Math.max(0, S.exposure - 0.16 * dt);   // drains outside
+    return;
+  }
+  const depth = clamp(1 - dist(S.wolf.x, S.wolf.y, T.x, T.y) / T.r, 0, 1);
+  let rise = 0.02;                                  // time: lingering is dangerous
+  rise += depth * 0.06;                             // depth: deeper is worse
+  // fresh-mark proximity
+  for (const m of WEST_PACK.marks) {
+    const d = dist(S.wolf.x, S.wolf.y, m.x, m.y);
+    if (d < 220) rise += (1 - d / 220) * markFreshness(m) * 0.10;
+  }
+  // detection: a rival with sight/scent on her — upwind, in the open, by day
+  const c = patrolCentroid();
+  const seen = dist(S.wolf.x, S.wolf.y, c.x, c.y) < 460;
+  let detect = 0;
+  if (seen) {
+    detect = 1;
+    if (typeof daylight === 'function') detect *= 0.5 + 0.5 * clamp(daylight(), 0, 1);
+    if (S.wind) {                                   // Aspen upwind of them = smelled
+      const dx = S.wolf.x - c.x, dy = S.wolf.y - c.y, dd = Math.hypot(dx, dy) || 1;
+      const align = (dx * Math.cos(S.wind.a) + dy * Math.sin(S.wind.a)) / dd;
+      detect *= 0.6 + 0.6 * clamp(align, -1, 1);    // downwind halves, upwind boosts
+    }
+  }
+  rise *= 1 + detect * 2.2;
+  // hiding: still, low, downwind, and no one near — bleed a little back
+  if (!S.wolf.moving && !seen) rise -= 0.05;
+  // capped & smoothed: never cross more than one threshold in a tick
+  S.exposure = clamp(S.exposure + clamp(rise, -0.05, 0.10) * dt, 0, 1);
+}
+
+function westPackUpdate(dt) {
+  if (S.era === 'past') return;
+  // P2: arrival — marks-first, midyear, caused not gradual
+  if (!westActive()) { S.exposure = 0; S.westState = 'none'; S.westRivals = []; return; }
+  if (!S.tut.westArrived) {
+    S.tut.westArrived = true;
+    say('New marks on the far side. Another pack, driven the same way we are.');
+    saveGame();
+  }
+
+  S.westLaneT = Math.max(0, (S.westLaneT || 0) - dt);
+  westExposureStep(dt);
+
+  // P5: the encounter state machine, driven by exposure. A won lane holds
+  // exposure down and the pack quiet while it lasts.
+  if (S.westLaneT > 0) { S.exposure = Math.min(S.exposure, 0.2); }
+  const e = S.exposure;
+  const prev = S.westState;
+  if (e >= 1.0) S.westState = 'clash';
+  else if (e >= 0.66) S.westState = 'confrontation';
+  else if (e >= 0.33) S.westState = 'sighting';
+  else S.westState = 'calm';
+
+  // rivals become visible from sighting on, pacing her at the vision edge
+  if (S.westState === 'sighting' || S.westState === 'confrontation') {
+    const c = patrolCentroid();
+    if (!S.westRivals.length) {
+      S.westRivals = [{ x: c.x, y: c.y, heading: 0, gait: 0, moving: true },
+                      { x: c.x + 40, y: c.y + 30, heading: 0, gait: 0, moving: true }];
+    }
+    const closeR = S.westState === 'confrontation' ? 150 : 240;
+    for (const rv of S.westRivals) {
+      const d = dist(rv.x, rv.y, S.wolf.x, S.wolf.y) || 1;
+      const want = closeR;
+      const step = (d - want) * Math.min(1, dt * 1.5);
+      rv.x += (S.wolf.x - rv.x) / d * step;
+      rv.y += (S.wolf.y - rv.y) / d * step;
+      rv.heading = Math.atan2(S.wolf.y - rv.y, S.wolf.x - rv.x);
+      rv.gait += Math.abs(step); rv.moving = true;
+    }
+  } else {
+    S.westRivals = [];
+  }
+
+  // transition voice
+  if (prev !== 'sighting' && S.westState === 'sighting') {
+    S.fear = Math.min(1, S.fear + 0.15);
+    say('Shapes at the edge of the fog, west. They have seen her.');
+  }
+  if (prev !== 'confrontation' && S.westState === 'confrontation') {
+    S.fear = Math.min(1, S.fear + 0.2);
+    playGrowl();
+    stickyPrompt('Their line. Stand the pack tall — F — or fall back.', ['F']);
+  }
+  // P5: a clash is only reached by forcing deeper with no withdraw; it is a
+  // costly failure, resolved and then she is pushed out regardless
+  if (S.westState === 'clash' && prev !== 'clash') {
+    westResolveClash();
+  }
+}
+
+// P6: the posture standoff resolves on relative strength. Win → a lane opens
+// and she passes. Lose → driven back to the entry edge, unhurt, to try
+// another way. Called by pressing F in confrontation.
+function westResolvePosture() {
+  const mine = aspenStrength();
+  clearPrompt();
+  if (mine >= WEST_PACK.strength * 0.9) {
+    S.westLaneT = 40;                               // a corridor opens for a while
+    S.exposure = 0.15;
+    S.westState = 'calm';
+    S.westRivals = [];
+    playGrowl();
+    say('They give way. Not friendship — arithmetic.');
+  } else {
+    westDriveBack();
+    S.fear = Math.min(1, S.fear + 0.4);
+    say('Stronger than us, today. She pulls the pack back.');
+    westSurfaceDetour();
+  }
+}
+
+// pushed back to the territory edge she entered from — repositioned, NOT hurt
+function westDriveBack() {
+  const T = WEST_PACK.territory;
+  let dx = S.wolf.x - T.x, dy = S.wolf.y - T.y, d = Math.hypot(dx, dy);
+  if (d < 1) { dx = 1; dy = 0; d = 1; }   // at the center: fall back east, toward the approach
+  S.wolf.x = T.x + dx / d * (T.r + 80);
+  S.wolf.y = T.y + dy / d * (T.r + 80);
+  S.exposure = 0.4;
+  S.westState = 'calm';
+  S.westRivals = [];
+}
+
+// P5: the clash — brief, non-gory, costly; whoever is weaker is likelier to
+// lose one. Winning still costs. She is forced out afterward regardless.
+function westResolveClash() {
+  const mine = aspenStrength(), theirs = WEST_PACK.strength;
+  S.fear = 1; S.shake = Math.max(S.shake, 10); playHurt();
+  const iAmWeaker = mine < theirs;
+  // a possible loss on the weaker side (Aspen's side only affects her pack)
+  if (iAmWeaker && Math.random() < 0.5) {
+    const victims = alivePack().filter(w => !w.pup);
+    if (victims.length) {
+      const w = victims[Math.floor(Math.random() * victims.length)];
+      w.state = 'dead';
+      S.history.push({ type: 'loss', day: day(), who: w.id });
+      say(`Teeth in the dark. ${w.name} does not get up. She breaks the pack away.`);
+    } else {
+      S.injuredT = INJURY_TIME;
+      say('Teeth in the dark. She is hurt, and breaks the pack away.');
+    }
+  } else {
+    S.injuredT = INJURY_TIME;
+    say('A brief, ugly tangle. She drives them off a step and pulls back, bleeding.');
+  }
+  westDriveBack();
+  westSurfaceDetour();
+  saveGame();
+}
+
+// P7: on a loss, point the weak-pack player toward the long way around
+function westSurfaceDetour() {
+  if (S.tut.westDetour) return;
+  S.tut.westDetour = true;
+  say('There is a longer way, south and around their ground. It will cost days.');
 }
 
 // ── the standoff ─────────────────────────────────────────────────────────────
@@ -3718,6 +3951,7 @@ function saveGame() {
       water: S.water, sickT: S.sickT || 0,
       snares: S.snares, roadkill: S.roadkill,
       rumorsSeen: S.rumorsSeen, foundWater: S.foundWater,
+      exposure: S.exposure, westLaneT: S.westLaneT,
       yearlingKnows: [...S.yearlingKnows],
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
       pups: S.pups,
@@ -3778,6 +4012,9 @@ function loadGame() {
   S.roadkill = d.roadkill || null;
   S.rumorsSeen = d.rumorsSeen || [];
   S.foundWater = d.foundWater || [];
+  S.exposure = d.exposure || 0;
+  S.westLaneT = d.westLaneT || 0;
+  S.westState = 'none'; S.westRivals = [];
   S.yearlingKnows = new Set(d.yearlingKnows);
   S.denId = d.denId; S.denSite = d.denSite; S.seenDens = d.seenDens || [];
   S.pups = d.pups;
@@ -3908,6 +4145,7 @@ function update(dt) {
     rancherUpdate(dt);
     silenceUpdate(dt);
     standoffUpdate(dt);
+    westPackUpdate(dt);
     lichenUpdate();
     fireUpdate(dt);
     taskUpdate(dt);

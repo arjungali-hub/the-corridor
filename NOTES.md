@@ -443,3 +443,22 @@ the southern detour that skirts the territory (Part 7). Optional shared-cause
 tear SKIPPED: no inherited edge runs cleanly through the suggested scar, and
 the spec says don't force it. Harness: footprint+violet, territory overlaps
 the approach and excludes the range, marks distinct + inside.
+
+## westpack 2-6: arrival, exposure, patrol, encounter, strength (2026-07-22)
+
+westPackUpdate(dt) wired after standoffUpdate. P2 arrival: westActive() =
+day>=155; marks-first, one-time 'New marks on the far side…', static after,
+survives save/load. P3 exposure (S.exposure 0..1): rises inside by time
+(.02) + depth (×.06) + fresh-mark proximity (×.10) + detection (×up to 3.2,
+from patrol-in-sight, daylit, upwind), drains .16/s outside and bleeds while
+hidden; clamped so one tick never crosses two thresholds. P4 patrolCentroid()
+deterministic+periodic from S.time; markFreshness() = recency the loop passed
+near a mark (readable in scent view). P5 state machine calm→sighting(.33,
+rivals appear)→confrontation(.66, F posture)→clash(1.0, costly, forced out).
+P6 aspenStrength() = self + Σ(adult 1 / yearling .5)×condition×injury, ×
+fear factor, vs fixed 5 at k .9. Win → 40s lane opens (exposure pinned low);
+lose → westDriveBack to the edge (repositioned, NOT hurt) + detour guidance;
+clash → a possible loss on the weaker side, always forced out. F at the
+western line routes to westResolvePosture. Fixed a real edge case: drive-back
+from the exact center (zero vector) now falls back east. Harness: full run
+of P2-P6, 20+ checks; ALL green.
