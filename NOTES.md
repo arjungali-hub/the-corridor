@@ -515,3 +515,20 @@ meadow blobs, directional leaning grass blades (dense in growth, sparse in
 winter), clumped wildflowers w/ stems (spring), warm rotated leaf litter
 (autumn), lee-shadowed wind drifts (winter). Harness green (draw() smoke
 across intro/prologue/Act I/scent/map/ending).
+
+## art overhaul, batch 2: prey, water, lighting, Willow (2026-07-22)
+
+Prey rebuilt like the wolves: contact shadow, two-segment legs w/ hooves
+(far-then-near), a barrel body with a lit-back/shadow-belly gradient, hide
+dappling (deer/elk) or a pale baldy belt (cattle), rump patch, tail, a
+tapering neck that dips to graze, ears, better antlers (a sweeping elk rack
+with upward tines, stubby cattle horns). Water is now paintPond(): mud bank →
+shallows → dark deep-center depth gradient, a sky-sheen crescent offset
+toward the light, rim reeds, algal scum when fouled, a cracked pale ice lid
+in winter — used for every pond AND the spring pond; the creek got a bank/
+mid/bright-ribbon three-pass with a light-offset sunlit highlight. Lighting:
+a global directional warm→cool diagonal grade from the sun corner, a season-
+colored ambient skylight wash, golden-hour as a vertical gradient, a softer
+warmer atmospheric vignette. Willow-lying rebuilt: curled form-shaded mass,
+fur-fold strokes, tail wrapped to the nose, resting head + ear and (in death)
+a closed-eye line + flatter cold light. Harness green x3.
