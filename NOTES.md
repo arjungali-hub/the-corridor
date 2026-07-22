@@ -390,3 +390,44 @@ resolve on first sight (visited OR nodeSeen). Routing still plans over
 inherited-unseen edges, but such legs draw cold+dashed (remembered, not
 confirmed). Harness: corridor seen, far ground rumor, walk-to-resolve,
 seen-grid save round-trip.
+
+## map-central 2: route persists as a bearing cue (2026-07-20)
+
+The play view now has a real porthole (drawPlayFog) fading the land to dark
+past playSightWorld() world-units x cam scale — the map is something you
+navigate BY, not glance at. routeNextNode() finds the next un-reached node on
+S.routePath; drawRouteCue paints drifting pale motes at the fog edge in that
+bearing (not a line, not an arrow — a remembered pull). The cue dies the
+instant a tear nulls the path. Harness: bearing exists + points west, dies
+with the path.
+
+## map-central 3-5 + directed exploration B1-B5 (2026-07-20/22)
+
+Block A finished. A3: playSightWorld() is world-units (canvas-independent),
+pulled down by violet (×1-0.5v), night (×0.5-1 of daylight), rain/cloud;
+floor 90u so a night road forces map-reliance. The scent view's clear radius
+was the screen-space bug (min(canvas.w,h)) — now SIGHT_WORLD×2.6×camScale.
+A4: the season-turn ritual (already partly built) now defers off the road
+(pendingSeasonRitual), holds 5.5s, ghosts Willow's WHOLE confident un-torn
+map over the live sparse one, and says 'What her mother knew. What is left
+of it.' once. A5: toggleMap ignores forcedSenseT, seasonGhostT, and the
+beat-9 pre-inherit hold — a stray SPACE can't fight the auto-raise.
+
+Block B — exploration is now directed (bearing, never waypoint). B1
+preyBearing(): food<55 → nearest distant herd-region with living prey blooms
+gold at the scent-fog edge, intensity by hunger. B2 waterBearing(): water<45
+and no clean water underfoot → nearest clean pond blooms cool; waterFouled
+is point-based so the western pool reads clean; the stacked slow multiplier
+(injury×sick×thirst×wading) is floored at 0.5 — no death spiral. B3 RUMORS
+(5): faint threads from inherited nodes into grey ground; walking to one
+cashes it — a hidden spring (real clean water via S.foundWater), +20 food, a
+30s sight-widening vantage, a den bank, or a 'changed' note that is now the
+fouled impoundment. Saved. B4: winter near the emptied den says 'Nothing
+answers the hunt here. The living land has moved west.' once; the squeeze +
+drift keep the west alive. B5: issueTask now leads with the distant spine in
+travel seasons — a 'range' task (reach the winter range, named by compass)
+or scout — with pups/hunger as interrupting counter-pulls only when dying.
+
+Harness 232 checks, green x3. Next: play a full year in the browser watching
+for whether you ever wander randomly (you should not) and whether the map
+feels like the center.

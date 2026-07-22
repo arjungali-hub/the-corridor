@@ -578,45 +578,40 @@ travel toward reasons that live in unknown ground. Strict order A1→B5;
 commit per part. Additive only — weaken no existing system.
 
 Block A — make the map central:
-- [ ] A1 Exploration fog: the map remembers only what she has SEEN. Coarse
-      seen-grid (~120u cells) marked within ~240u sight each tick, saved,
+- [x] A1 Exploration fog: the map remembers only what she has SEEN. Coarse
+      seen-grid (120u cells) marked within 240u sight each tick, saved,
       prologue route pre-seen. Three map tiers: seen = full; unseen-but-
       inherited = faint cold ghost-thread, nodes dimmed/unlabeled; unseen-
-      uninherited = grey void. Names resolve within ~200u (seenDens
-      pattern). Routing still works over inherited-unseen edges, but a
-      planned leg over unseen ground draws dashed/cold.
-- [ ] A2 The planned route persists into the porthole: a diegetic bearing-
-      only cue (drifting motes / scent-trace at the fog edge) toward the
-      next un-reached node of S.routePath in play view; dies the instant a
-      tear nulls the path.
-- [ ] A3 Fog/night force map-reliance + fix the screen-space fog bug:
-      convert the play clear radius to world units × cam scale (fair on
-      every monitor), base ~240u; night + heavy violet pull it to ~90-110u
-      at a road; rain/cloud shrink it modestly.
-- [ ] A4 Season-turn map ritual: at each howl, a ~5s forced map raise where
-      Willow's full original ink ghosts over the live map, then fades.
-      Once: 'What her mother knew. What is left of it.' Defer off the road.
-- [ ] A5 Guard the map toggle against inherit-hold and forced states
-      (forcedSenseT>0, beat-9 inherit, A4 ritual): the hold still inherits;
-      only toggleMap is suppressed.
+      uninherited = grey void. Names resolve on first sight. Routing still
+      works over inherited-unseen edges, but a planned leg over unseen
+      ground draws dashed/cold.
+- [x] A2 The planned route persists into the porthole: drifting pale motes
+      at the fog edge toward routeNextNode(); dies the instant a tear nulls
+      the path. (Also added the play-view porthole fog itself — drawPlayFog.)
+- [x] A3 Fog/night force map-reliance + fix the screen-space bug: play sight
+      is world-units × cam scale (fair on every monitor), base 240u; night +
+      violet pull it to the 90u floor at a road; rain/cloud shrink it. Scent
+      view's clear radius also converted to world units.
+- [x] A4 Season-turn map ritual: at each howl a 5.5s forced map raise where
+      Willow's full confident ink ghosts over the live map, then fades.
+      Once: 'What her mother knew. What is left of it.' Defers off the road.
+- [x] A5 Guard the map toggle against forcedSenseT, seasonGhostT, and the
+      beat-9 inherit hold: the hold still inherits; only toggleMap suppressed.
 
 Block B — make exploration directed (bearing, not waypoint):
-- [ ] B1 Deplete near, smell far: near herd thinned → a distant unvisited
-      herd reads as a faint gold bearing at the vision edge, intensity by
-      hunger; direction only, no dot, no reveal through fog. Crossing into
-      the region resolves the hunt.
-- [ ] B2 Thirst is a second compass toward clean water she hasn't reached
-      (cool bearing, distinct from gold). Fix waterFouled so the western
-      creek reads clean (test the point's own nearby footprints); floor the
-      stacked slow multiplier at ~0.5 so directed effort can always pay off.
-- [ ] B3 Rumors on the inherited map: 4-7 RUMORS (water/den/vantage/
-      carrion) as faint marks on threads into dim ground; reaching one
-      resolves it to a real feature — some to nothing or to changed (a
-      "water this way" now the fouled impoundment).
-- [ ] B4 The home range dies: tune the seasonal squeeze + violet growth +
-      route decay to compound near the den; one winter escalation line
-      ('Nothing answers the hunt here. The living land has moved west.').
-      Keep the west comparatively alive.
-- [ ] B5 Distant goals are the spine, local upkeep the detour: the top
-      surfaced task in travel seasons is distant + names a compass bearing;
-      pup tasks read as the counter-pull; B1-B3 keep a bearing always legible.
+- [x] B1 Deplete near, smell far: preyBearing() — when food < 55 a distant
+      herd-region with living prey reads as a faint gold bloom at the fog
+      edge, intensity by hunger; direction only, no dot.
+- [x] B2 Thirst is a second compass (waterBearing, cool bloom) toward clean
+      water she hasn't reached. waterFouled already point-based (western
+      pool reads clean); stacked slow multiplier floored at 0.5.
+- [x] B3 Rumors on the inherited map: 5 RUMORS (water/den/vantage/carrion)
+      as faint marks on threads into dim ground; reaching one resolves it —
+      a real spring, +food, a vantage that widens sight, a den bank, or a
+      'changed' note that is now the fouled impoundment. Saved.
+- [x] B4 The home range dies: winter escalation line 'Nothing answers the
+      hunt here. The living land has moved west.' near the emptied den; the
+      seasonal squeeze + herd drift keep the west comparatively alive.
+- [x] B5 Distant goals are the spine: in travel seasons the top task is a
+      'range' (reach the winter range, named by compass) or scout; only a
+      starving pup / starving pack interrupts as a real counter-pull.

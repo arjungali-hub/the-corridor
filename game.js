@@ -47,6 +47,7 @@ const FEAR_NEAR_MISS = 0.22;
 const FEAR_BALK     = 0.55;  // above this, packmates refuse the road
 const INHERIT_HOLD  = 3.5;   // seconds of holding, at her side, at the end
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
+const SEASON_RITUAL = 5.5;   // seconds the season-turn map ghost holds
 
 const OVERLOOK = { x: 2050, y: 1500 };  // beat 2 and beat 8 share this camera
 const WILLOW_TONE_ID = 'willow';
@@ -327,6 +328,9 @@ function newGame() {
     snares: [], snaredT: 0,       // steel by the wire, once the ledger rises
     roadkill: null,               // what the road leaves on its shoulder
     trains: [], trainCd: 25,      // what runs on the rail — lethal, even to her
+    rumorsSeen: [],               // inherited notes she has walked to and cashed
+    foundWater: [],               // clean springs a rumor resolved into being
+    vantageT: 0,                  // a high place briefly widens her sight
     starveT: 0,
     yearlingKnows: new Set(),
 
@@ -588,11 +592,14 @@ function moveAspen(dt) {
     const m = Math.hypot(vx, vy);
     const rough = seasonIndex() === 3 && S.mode === 'play' ? SPEED_SNOW : SPEED_ROUGH;
     let sp = onKnownRoute() ? SPEED_ROUTE : rough;
-    if (isInjured()) sp *= INJURY_SPEED;
-    if ((S.sickT || 0) > 0) sp *= 0.6;       // wrong water — badly slow
-    if (S.water <= 0) sp *= 0.85;            // thirst dulls everything
-    // wading: real water — the creek, the ponds — drags at her legs
-    if (waterAt(S.wolf.x, S.wolf.y)) sp *= 0.7;
+    // the penalties stack, but never past a floor: directed effort must
+    // always be able to reach clean water before starving (no death spiral)
+    let penalty = 1;
+    if (isInjured()) penalty *= INJURY_SPEED;
+    if ((S.sickT || 0) > 0) penalty *= 0.6;   // wrong water — badly slow
+    if (S.water <= 0) penalty *= 0.85;        // thirst dulls everything
+    if (waterAt(S.wolf.x, S.wolf.y)) penalty *= 0.7;   // wading drags at her legs
+    sp *= Math.max(0.5, penalty);
     tryMove(S.wolf, vx / m * sp * dt, vy / m * sp * dt, wolfBlockedAt);
     S.wolf.heading = Math.atan2(vy, vx);
     S.wolf.moving = true;
@@ -886,6 +893,86 @@ function weatherUpdate(dt) {
 // under a grey ceiling.
 function senseRadius() {
   return (WORLD.w - (WORLD.x0 || 0)) * 0.5 * (S.weather && S.weather.kind === 'cloud' ? 0.72 : 1);
+}
+
+// How far her senses reach in PLAY, in WORLD units — canvas-independent, so
+// every monitor sees the same extent regardless of screen size. Night, human
+// noise, and weather pull it in until a road crossing forces map-reliance.
+function playSightWorld() {
+  let r = SIGHT_WORLD;
+  const v = clamp(violetAt(S.wolf.x, S.wolf.y), 0, 1);
+  r *= 1 - 0.5 * v;                              // human chemical noise blinds the nose
+  if (typeof daylight === 'function') r *= 0.5 + 0.5 * clamp(daylight(), 0, 1);   // deep night halves it
+  if (S.weather) {
+    if (S.weather.kind === 'rain') r *= 0.82;
+    else if (S.weather.kind === 'cloud') r *= 0.9;
+  }
+  if ((S.vantageT || 0) > 0) r *= 1.7;           // high ground opens the land
+  return Math.max(90, r);                        // a road at night in violet ≈ 90u: move on memory
+}
+
+// B1: hunger is a compass. When the near ground is hunted out, the NEXT food
+// lives in a herd-region she has not reached — advertised only as a bearing
+// (direction, never a dot), strengthening as she starves. Crossing into the
+// region is what resolves the animals in the porthole.
+function preyBearing() {
+  if (!S || S.food > 55 || S.era === 'past') return null;
+  const counts = {};
+  for (const e of S.elk) if (!HERDS[e.herd].cattle) counts[e.herd] = (counts[e.herd] || 0) + 1;
+  const reach = playSightWorld() * 1.3;
+  let best = null, bd = Infinity;
+  for (let h = 0; h < HERDS.length; h++) {
+    if (!counts[h]) continue;                       // no living prey there
+    const H = HERDS[h];
+    const d = dist(S.wolf.x, S.wolf.y, H.anchor.x, H.anchor.y);
+    if (d < reach) continue;                         // already within her reach
+    if (d < bd) { bd = d; best = H; }
+  }
+  if (!best) return null;
+  return {
+    a: Math.atan2(best.anchor.y - S.wolf.y, best.anchor.x - S.wolf.x),
+    intensity: clamp((55 - S.food) / 55, 0, 1),
+  };
+}
+
+// B2: thirst is a second compass, often pointing a different way than food.
+// When the near water is fouled or gone and clean water lies beyond her
+// reach, it blooms cool at the fog edge — toward a clean source she can seek.
+function waterBearing() {
+  if (!S || S.water > 45 || S.era === 'past') return null;
+  const near = waterAt(S.wolf.x, S.wolf.y);
+  if (near && near.clean) return null;           // already at good water
+  const reach = playSightWorld() * 1.3;
+  let best = null, bd = Infinity;
+  for (const p of PONDS) {
+    if (waterFouled(p.x, p.y)) continue;         // only clean sources pull her
+    const d = dist(S.wolf.x, S.wolf.y, p.x, p.y);
+    if (d < reach) continue;
+    if (d < bd) { bd = d; best = p; }
+  }
+  if (!best) return null;
+  return {
+    a: Math.atan2(best.y - S.wolf.y, best.x - S.wolf.x),
+    intensity: clamp((45 - S.water) / 45, 0, 1),
+  };
+}
+
+// The next un-reached node on the active plan — what a remembered route pulls
+// her toward once she is back in the porthole, blind past the fog edge.
+function routeNextNode() {
+  if (!S.routePath || S.routePath.length < 1 || S.mode !== 'play') return null;
+  let ni = 0, bd = Infinity;
+  for (let i = 0; i < S.routePath.length; i++) {
+    const n = NbyId.get(S.routePath[i]);
+    if (!n) continue;
+    const d = dist(S.wolf.x, S.wolf.y, n.x, n.y);
+    if (d < bd) { bd = d; ni = i; }
+  }
+  // the node AFTER the nearest is the one still ahead; at the end, the target
+  const ahead = NbyId.get(S.routePath[Math.min(ni + 1, S.routePath.length - 1)]);
+  const here = NbyId.get(S.routePath[ni]);
+  if (ahead && here && ahead !== here && dist(S.wolf.x, S.wolf.y, here.x, here.y) < 90) return ahead;
+  return ahead || here;
 }
 
 // The raised map frames the whole territory, whatever the screen size.
@@ -1274,9 +1361,16 @@ function mapAllowed() {
   return S.tut.sawMap || S.tut.step >= 4;
 }
 
+// A5: the toggle is suppressed while any scripted map state owns the view —
+// a forced lesson or ritual (forcedSenseT), the season overlay (seasonGhostT),
+// and the beat-9 inherit hold — so a mistimed SPACE can't fight the auto-raise
+// or close the map mid-inherit. The inherit HOLD still registers; only the
+// toggle is ignored.
 function toggleMap() {
   if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
-  if (S.forcedSenseT > 0) return;  // a forced lesson can't be latched open
+  if (S.forcedSenseT > 0) return;
+  if ((S.seasonGhostT || 0) > 0) return;
+  if (S.mode === 'prologue' && S.beat === 9 && !S.inherited) return;   // the hold owns SPACE
   if (!mapAllowed()) return;   // no map before the map is hers
   S.mapOpen = !S.mapOpen;
 }
@@ -2066,6 +2160,9 @@ function waterAt(x, y) {
   for (const p of PONDS) {
     if (dist(x, y, p.x, p.y) < p.r) return { clean: !waterFouled(p.x, p.y), name: p.name };
   }
+  for (const p of (S.foundWater || [])) {
+    if (dist(x, y, p.x, p.y) < p.r) return { clean: true, name: p.name };
+  }
   const cf = TERRAIN.creekFlow;
   for (let i = 1; i < cf.length; i++) {
     const [ax, ay] = cf[i - 1], [bx, by] = cf[i];
@@ -2203,6 +2300,36 @@ function trainUpdate(dt) {
   }
 }
 
+// B3: reaching a rumor cashes it — into a real feature, or an empty promise,
+// or a memory the world has since changed.
+function rumorUpdate() {
+  if (S.era === 'past') return;
+  for (const r of RUMORS) {
+    if (S.rumorsSeen.includes(r.id)) continue;
+    if (dist(S.wolf.x, S.wolf.y, r.x, r.y) >= 130) continue;
+    S.rumorsSeen.push(r.id);
+    markSeen(r.x, r.y, SIGHT_WORLD);
+    if (r.resolvesTo === 'changed') {
+      say('She remembered water here. It is a dead pond now, behind a berm.');
+    } else if (r.type === 'water') {
+      S.foundWater.push({ x: r.x, y: r.y, r: 70, clean: true, name: 'the hidden spring' });
+      say('Water, where her mother said it would be. Clean, and cold.');
+    } else if (r.type === 'carrion') {
+      S.food = Math.min(100, S.food + 20);
+      say('An old kill, half-buried. Enough to matter.');
+    } else if (r.type === 'vantage') {
+      S.vantageT = 30;
+      say('High ground. For a while the land opens wide below her.');
+    } else if (r.type === 'den') {
+      const near = DEN_SITES.reduce((b, s) =>
+        dist(r.x, r.y, s.x, s.y) < dist(r.x, r.y, b.x, b.y) ? s : b, DEN_SITES[0]);
+      if (near && !S.seenDens.includes(near.id)) S.seenDens.push(near.id);
+      say('A bank where a den could go, just as she was told.');
+    }
+    saveGame();
+  }
+}
+
 function roadkillUpdate(dt) {
   if (S.roadkill) {
     if (dist(S.wolf.x, S.wolf.y, S.roadkill.x, S.roadkill.y) < 40) {
@@ -2286,6 +2413,10 @@ function taskDone(t) {
     }
     case 'cache': return t.done === true;
     case 'drink': return S.water > 60;
+    case 'range': {
+      const wr = NbyId.get('winterRange');
+      return wr && dist(S.wolf.x, S.wolf.y, wr.x, wr.y) < 500;
+    }
   }
   return true;
 }
@@ -2321,11 +2452,42 @@ function issueTask() {
   if (S.tut.step < 7) { S.taskCooldown = 10; return; }
   const mk = (kind, text, extra) => { S.task = { kind, text, t: 0, ...(extra || {}) }; };
 
+  // B5: in the travel seasons the DAY POINTS AWAY. The spine of the year is
+  // a distant, directional goal; local upkeep is the counter-pull.
+  const travel = seasonIndex() >= 2 || (S.pups && S.pups.traveling);
+
+  // a tear across the way is always first — it blocks the journey itself
   const torn = TEAR_GROUPS.find(g => groupTorn(g) && !S.bridged.has(g.key));
   if (torn) {
     mk('patch', `find a way around ${TEAR_NAMES[torn.key] || 'the tear'}`, { key: torn.key });
     return;
   }
+
+  // genuine emergencies still interrupt the spine (the pups or she are dying)
+  if (S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food < 25) {
+    mk('pups', 'the pups are starving — carry food home now', {}); return;
+  }
+  if (S.food < 28) { mk('hunt', 'the pack is starving — bring something down', {}); return; }
+
+  // THE SPINE: reach the winter range (a bearing, not a marker), or scout
+  // unwalked ground — the reason to be heading somewhere else entirely
+  if (travel) {
+    const wr = NbyId.get('winterRange');
+    if (wr && (!nodeSeen('winterRange') || dist(S.wolf.x, S.wolf.y, wr.x, wr.y) > 600)) {
+      mk('range', `${compassTo(wr.x, wr.y)} — reach the winter range`, {}); return;
+    }
+    const scoutsT = S.edges.filter(e => !e.torn && e.state === 'unknown'
+      && (S.visited.has(e.a) || S.visited.has(e.b)));
+    if (scoutsT.length) {
+      const e = scoutsT[Math.floor(Math.random() * scoutsT.length)];
+      const far = S.visited.has(e.a) ? e.b : e.a;
+      const fn = NbyId.get(far);
+      mk('scout', `walk new ground, ${compassTo(fn.x, fn.y)}, toward ${fn.name}`, { key: e.id, far });
+      return;
+    }
+  }
+
+  // the counter-pulls: softer local upkeep, the tug back toward the anchor
   if (S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food < 40) {
     mk('pups', 'the pups are hungry — carry food home', {}); return;
   }
@@ -3555,6 +3717,7 @@ function saveGame() {
       fear: S.fear, food: S.food,
       water: S.water, sickT: S.sickT || 0,
       snares: S.snares, roadkill: S.roadkill,
+      rumorsSeen: S.rumorsSeen, foundWater: S.foundWater,
       yearlingKnows: [...S.yearlingKnows],
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
       pups: S.pups,
@@ -3613,6 +3776,8 @@ function loadGame() {
   S.sickT = d.sickT || 0;
   S.snares = d.snares || [];
   S.roadkill = d.roadkill || null;
+  S.rumorsSeen = d.rumorsSeen || [];
+  S.foundWater = d.foundWater || [];
   S.yearlingKnows = new Set(d.yearlingKnows);
   S.denId = d.denId; S.denSite = d.denSite; S.seenDens = d.seenDens || [];
   S.pups = d.pups;
@@ -3725,6 +3890,21 @@ function update(dt) {
     snareUpdate(dt);
     roadkillUpdate(dt);
     trainUpdate(dt);
+    rumorUpdate();
+    S.vantageT = Math.max(0, (S.vantageT || 0) - dt);
+
+    // B4: the home range dies. In winter, when she paces the emptied ground
+    // near the den with nothing answering the hunt, the land itself tells her
+    // the living world has gone west — once.
+    if (!S.tut.westCall && seasonIndex() === 3 && S.food < 50
+        && dist(S.wolf.x, S.wolf.y, DEN.x, DEN.y) < 1300) {
+      const preyNear = S.elk.some(e => !HERDS[e.herd].cattle
+        && dist(S.wolf.x, S.wolf.y, e.x, e.y) < 1100);
+      if (!preyNear) {
+        S.tut.westCall = true;
+        say('Nothing answers the hunt here. The living land has moved west.');
+      }
+    }
     rancherUpdate(dt);
     silenceUpdate(dt);
     standoffUpdate(dt);
@@ -3775,9 +3955,20 @@ function update(dt) {
     if (si !== S.lastSeason) {
       S.lastSeason = si;
       playHowl();
-      S.forcedSenseT = 10;
-      S.seasonGhostT = 10;
-      setCaption(seasonName() + '.', 3.5, 'what the year has taken');
+      S.pendingSeasonRitual = true;   // fires at the next safe (off-road) frame
+    }
+    // the ritual: raise the map and ghost in Willow's whole confident map
+    // over Aspen's sparse, torn, hard-won one — but never mid-crossing
+    if (S.pendingSeasonRitual && !onRoad(S.wolf.x, S.wolf.y) && S.forcedSenseT <= 0) {
+      S.pendingSeasonRitual = false;
+      S.forcedSenseT = SEASON_RITUAL;
+      S.seasonGhostT = SEASON_RITUAL;
+      if (!S.tut.seasonRitual) {
+        S.tut.seasonRitual = true;
+        setCaption(seasonName() + '.', 4, 'What her mother knew. What is left of it.');
+      } else {
+        setCaption(seasonName() + '.', 3.5);   // wordless after the first
+      }
     }
     S.seasonGhostT = Math.max(0, (S.seasonGhostT || 0) - dt);
 

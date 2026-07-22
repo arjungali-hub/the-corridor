@@ -1316,7 +1316,54 @@ function drawWorld() {
 
   drawWeather();
   drawFireAir();
+  drawRouteCue();
   drawLightAndAir();
+  drawPlayFog();
+}
+
+// The porthole: past her senses the land goes dark. A world-unit sight
+// distance (fair on every monitor) scaled to the screen, soft-edged.
+function drawPlayFog() {
+  if (S.mode !== 'play' && S.mode !== 'prologue') return;
+  if (S.senseBlend > 0.02) return;   // the raised map is its own view
+  resetTransform();
+  const wp = screenPos(S.wolf.x, S.wolf.y);
+  const R = playSightWorld() * S.cam.scale;
+  const v = clamp(violetAt(S.wolf.x, S.wolf.y), 0, 1);
+  const fog = ctx.createRadialGradient(wp.x, wp.y, R * 0.7, wp.x, wp.y, R * 1.8);
+  const fr = Math.round(lerp(16, 40, v)), fg = Math.round(lerp(18, 26, v)), fb = Math.round(lerp(20, 40, v));
+  fog.addColorStop(0, `rgba(${fr},${fg},${fb},0)`);
+  fog.addColorStop(1, `rgba(${fr},${fg},${fb},0.9)`);
+  ctx.fillStyle = fog;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}
+
+// A2: the remembered route, once she is back in the porthole — a bearing-only
+// pull at the fog edge toward the next un-reached node. Not an arrow, not a
+// line: drifting pale motes, like a scent she is following from memory.
+function drawRouteCue() {
+  if (S.mode !== 'play' || S.senseBlend > 0.2) return;
+  const next = routeNextNode();
+  if (!next) return;
+  const d = dist(S.wolf.x, S.wolf.y, next.x, next.y);
+  if (d < 60) return;
+  resetTransform();
+  const wp = screenPos(S.wolf.x, S.wolf.y);
+  const R = playSightWorld() * S.cam.scale;
+  const a = Math.atan2(next.y - S.wolf.y, next.x - S.wolf.x);
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 7; i++) {
+    const phase = (S.time * 0.5 + i / 7) % 1;
+    const rr = R * (0.62 + phase * 0.5);
+    const spread = (i - 3) * 0.09;
+    const mx = wp.x + Math.cos(a + spread) * rr;
+    const my = wp.y + Math.sin(a + spread) * rr;
+    const fade = (1 - phase) * (1 - Math.abs(i - 3) / 4);
+    ctx.fillStyle = `rgba(150,180,196,${0.32 * fade})`;
+    ctx.beginPath(); ctx.arc(mx, my, 3 + phase * 2, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
 }
 
 // the burning east: a wall of amber air and drifting smoke
@@ -1494,9 +1541,11 @@ function drawScent() {
   ctx.fillStyle = ng;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // the edges of her senses cloud over — and the human noise closes them in
+  // the edges of her senses cloud over — and the human noise closes them in.
+  // In WORLD units × cam scale, so every monitor smells the same distance
+  // (the nose reaches farther than the eye).
   const v = clamp(violetAt(S.wolf.x, S.wolf.y), 0, 1);
-  const R = Math.min(canvas.width, canvas.height) * (0.52 - 0.24 * v);
+  const R = SIGHT_WORLD * 2.6 * (1 - 0.42 * v) * S.cam.scale;
   const fog = ctx.createRadialGradient(wp0.x, wp0.y, R * 0.55, wp0.x, wp0.y, R * 1.5);
   const fr = Math.round(lerp(14, 58, v)), fg = Math.round(lerp(14, 30, v)), fb = Math.round(lerp(22, 86, v));
   fog.addColorStop(0, `rgba(${fr},${fg},${fb},0)`);
@@ -1523,6 +1572,26 @@ function drawScent() {
     }
     ctx.stroke();
   }
+
+  // B1: hunger's compass — a faint gold bloom at the fog edge in the bearing
+  // of distant living prey. Direction, never a dot; it does not reveal the
+  // animals, only which way the living land lies.
+  const edgeBloom = (b, rgb) => {
+    const R = Math.min(canvas.width, canvas.height) * 0.42;
+    const gx = wp0.x + Math.cos(b.a) * R, gy = wp0.y + Math.sin(b.a) * R;
+    const pulse = 0.6 + 0.4 * Math.sin(S.time * 1.6);
+    const bloom = ctx.createRadialGradient(gx, gy, 4, gx, gy, 120);
+    bloom.addColorStop(0, `rgba(${rgb},${0.3 * b.intensity * pulse})`);
+    bloom.addColorStop(1, `rgba(${rgb},0)`);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = bloom;
+    ctx.beginPath(); ctx.arc(gx, gy, 120, 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+  };
+  const pb = preyBearing();
+  if (pb) edgeBloom(pb, '240,195,90');       // gold: distant living prey
+  const wb = waterBearing();
+  if (wb) edgeBloom(wb, '110,170,200');      // cool: clean water she hasn't reached
 
   drawCallout('scent');
 }
@@ -1824,14 +1893,42 @@ function drawMap() {
   // the season ritual: her mother's original, whole map ghosts in over the
   // scarred truth of now, holds, and fades
   if (S.seasonGhostT > 0) {
-    const elapsed = 10 - S.seasonGhostT;
-    const ga = Math.min(1, elapsed) * Math.min(1, S.seasonGhostT / 3) * 0.45 * m;
+    const elapsed = SEASON_RITUAL - S.seasonGhostT;
+    const ga = Math.min(1, elapsed * 1.5) * Math.min(1, S.seasonGhostT / 2) * 0.5 * m;
     if (ga > 0.01) {
       ctx.globalAlpha = ga;
+      // Willow's WHOLE original map, at full confidence, un-torn, labelled —
+      // her memory as it was, over the scarred present
       for (const d of EDGES) {
         if (d.state !== 'inherited' || d.dynamic) continue;
         const e = S.edges.find(x => x.id === d.id);
-        if (e) strokePolyline(ctx, edgePolyline(e), 3 / sc, C_INK_LIGHT, [12 / sc, 6 / sc]);
+        if (e) {
+          strokePolyline(ctx, edgePolyline(e), 5 / sc, C_INK_DARK);
+          strokePolyline(ctx, edgePolyline(e), 2.4 / sc, C_INK_LIGHT);
+        }
+      }
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  // B3: rumors — faded notes toward places Willow never took her. A dim
+  // thread from an inherited node into grey ground, with a word at its end.
+  // Once walked to and cashed, the note is gone (the ground is real now).
+  if (typeof RUMORS !== 'undefined' && S.era !== 'past') {
+    for (const r of RUMORS) {
+      if (S.rumorsSeen.includes(r.id)) continue;
+      const from = NbyId.get(r.from);
+      if (!from) continue;
+      ctx.globalAlpha = (0.22 + 0.1 * Math.sin(S.time * 1.5)) * m;
+      strokePolyline(ctx, [[from.x, from.y], [r.x, r.y]], 1.6 / sc, C_INK_LIGHT, [6 / sc, 9 / sc]);
+      ctx.globalAlpha = 0.5 * m;
+      ctx.fillStyle = C_INK_LIGHT;
+      ctx.beginPath(); ctx.arc(r.x, r.y, 3 / sc, 0, Math.PI * 2); ctx.fill();
+      if (m > 0.7) {
+        ctx.font = `italic ${10 / sc}px ${FONT}`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+        ctx.fillStyle = `rgba(120,104,74,${0.7 * m})`;
+        ctx.fillText(r.label, r.x, r.y + 6 / sc);
       }
       ctx.globalAlpha = 1;
     }

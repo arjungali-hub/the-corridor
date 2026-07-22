@@ -244,6 +244,23 @@ const PONDS = [
   { x: -1550, y: 1750, r: 110, clean: true, name: 'the cold pool' },     // the far west's own
 ];
 
+// Rumors: faded notes on Willow's inherited map toward places she never took
+// Aspen. A dim thread into grey ground is a promise; walking to it cashes it
+// — into a real feature, or nothing, or something that has since changed.
+// (from: the node the thread hangs off; resolvesTo: real | nothing | changed)
+const RUMORS = [
+  { id: 'r-spring',  x: 3560, y: 700,  type: 'water',   from: 'blackPines', resolvesTo: 'real',
+    label: 'water, this way' },
+  { id: 'r-bank',    x: 1150, y: 3380, type: 'den',     from: 'lowFlats',   resolvesTo: 'real',
+    label: 'a bank to dig' },
+  { id: 'r-vantage', x: -1200, y: 1700, type: 'vantage', from: 'coldRise',  resolvesTo: 'real',
+    label: 'high ground' },
+  { id: 'r-carrion', x: 4350, y: 2500, type: 'carrion', from: 'saltLick',   resolvesTo: 'real',
+    label: 'bones, maybe meat' },
+  { id: 'r-oldwater', x: 2700, y: 2560, type: 'water',  from: 'cutbank',    resolvesTo: 'changed',
+    label: 'water, this way' },   // now the fouled impoundment — memory was wrong
+];
+
 const DEN_SITES = [
   { id: 'oldDen',   x: 2600, y: 1800, name: 'The Old Den' },
   { id: 'ridgeDen', x: 1960, y: 1200, name: 'Ridge Hollow' },
