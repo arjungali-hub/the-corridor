@@ -462,3 +462,22 @@ clash → a possible loss on the weaker side, always forced out. F at the
 western line routes to westResolvePosture. Fixed a real edge case: drive-back
 from the exact center (zero vector) now falls back east. Harness: full run
 of P2-P6, 20+ checks; ALL green.
+
+## westpack 7-9 + rendering (2026-07-22)
+
+P7: the stonyBench-longSlope edge (added P1) completes a winter-range route
+that skirts the territory entirely (oldFord→willowSlough→culvert→stonyBench→
+longSlope→railGap→coldRise→winterRange, all nodes outside r620) — verified by
+BFS, and it is >1.3× the direct path (days, distance, hunger); a lost posture
+already surfaces the guidance line. P8: westCut renders in the base layer as a
+clearcut (bared ground, pale stump-rings, slash, skid ruts dragged east) —
+kin to construction; reaching it fires 'This is what drove them. The same
+hands, a different corner.' once. P9: verified the eastern pack (SCENT_RED /
+standoffUpdate) never touches S.exposure/westState/westLaneT/westRivals —
+separate systems, its passivity intact. Rendering: western marks drawn
+freshness-lit in scent view (brighter/larger than the eastern marks, a fresh
+one steams) so the patrol pattern reads beyond the sight fog; westRivals drawn
+as RIVAL_TONES wolves at the fog edge from sighting on. GUARDRAIL satisfied —
+timing avoids, the detour yields, a loss never injures; never a mandatory
+fight. 261 checks green x3. Next: play to the western corridor with a strong
+pack and a deliberately ruined one — both must finish.

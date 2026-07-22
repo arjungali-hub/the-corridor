@@ -454,6 +454,35 @@ function buildBaseLayer() {
       b.fillStyle = '#d96a2b'; b.fillRect(sx + 3, sy, 8, 5);
     }
 
+    // the western clearcut: the wound that drove the western pack — a raw
+    // felled patch of stumps, slash, and skid ruts, kin to the construction
+    {
+      const wc = obstacleRect('westCut');
+      b.fillStyle = '#9c8a63';
+      b.fillRect(wc.x0, wc.y0, wc.x1 - wc.x0, wc.y1 - wc.y0);
+      const wrng = makePrng(57);
+      // skid ruts dragged out to the east
+      b.strokeStyle = 'rgba(110,90,58,0.5)'; b.lineWidth = 5;
+      for (let gy = wc.y0 + 30; gy < wc.y1; gy += 40) {
+        b.beginPath(); b.moveTo(wc.x0 + 10, gy); b.lineTo(wc.x1 + 60, gy - 12); b.stroke();
+      }
+      // stumps: pale rings on the bared ground
+      for (let i = 0; i < 22; i++) {
+        const sx = wc.x0 + 14 + wrng() * (wc.x1 - wc.x0 - 28);
+        const sy = wc.y0 + 14 + wrng() * (wc.y1 - wc.y0 - 28);
+        b.fillStyle = '#c8b487'; b.beginPath(); b.arc(sx, sy, 4 + wrng() * 3, 0, Math.PI * 2); b.fill();
+        b.strokeStyle = 'rgba(90,72,44,0.6)'; b.lineWidth = 1.4;
+        b.beginPath(); b.arc(sx, sy, 4 + wrng() * 3, 0, Math.PI * 2); b.stroke();
+      }
+      // slash piles of cut branches
+      b.strokeStyle = 'rgba(70,58,38,0.55)'; b.lineWidth = 2;
+      for (let i = 0; i < 14; i++) {
+        const px = wc.x0 + wrng() * (wc.x1 - wc.x0), py = wc.y0 + wrng() * (wc.y1 - wc.y0), a = wrng() * Math.PI;
+        b.beginPath(); b.moveTo(px - Math.cos(a) * 10, py - Math.sin(a) * 10);
+        b.lineTo(px + Math.cos(a) * 10, py + Math.sin(a) * 10); b.stroke();
+      }
+    }
+
     // the gravel pit: benched excavation, spoil, dust
     const gp = OBSTACLES.gravelPit;
     b.fillStyle = 'rgba(60,55,45,0.25)';
@@ -1218,9 +1247,16 @@ function drawWorld() {
     }
   }
 
-  // rivals, when a standoff is live
+  // rivals, when a standoff is live (eastern pack)
   if (S.standoff) {
     for (const rv of S.standoff.rivals) {
+      drawWolfBody(rv.x, rv.y, rv.heading, 10.5, RIVAL_TONES, rv.moving, rv.gait, false);
+    }
+  }
+
+  // the western pack's wolves, pacing at the fog edge from sighting on
+  if (S.westRivals && S.westRivals.length) {
+    for (const rv of S.westRivals) {
       drawWolfBody(rv.x, rv.y, rv.heading, 10.5, RIVAL_TONES, rv.moving, rv.gait, false);
     }
   }
@@ -1516,6 +1552,30 @@ function drawScent() {
         ctx.stroke();
       }
     }
+    // the WESTERN pack's marks — freshness-lit, so the pattern of bright
+    // (just-patrolled) vs dim reads where the pack has been, and where it is
+    // not. Drawn brighter/larger than the eastern marks so they carry beyond
+    // the sight fog: a scent problem before a sight problem.
+    if (typeof westActive === 'function' && westActive()) {
+      for (const m of WEST_PACK.marks) {
+        if (violetAt(m.x, m.y) > 0.6) continue;
+        const fresh = markFreshness(m);
+        ctx.strokeStyle = `rgba(224,74,58,${0.35 + 0.55 * fresh})`;
+        ctx.lineWidth = 4 + 2 * fresh;
+        ctx.lineCap = 'round';
+        for (const off of [-7, 5]) {
+          ctx.beginPath();
+          ctx.moveTo(m.x - 14 + off, m.y - 16);
+          ctx.lineTo(m.x + 12 + off, m.y + 16);
+          ctx.stroke();
+        }
+        if (fresh > 0.7) {   // a fresh mark still steams
+          ctx.fillStyle = `rgba(255,120,90,${(fresh - 0.7) * 0.6})`;
+          ctx.beginPath(); ctx.arc(m.x, m.y, 22, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+    }
+
     // Sedge's one mark at the world's edge, legible only in the cold
     if (S.sedgeMark && seasonIndex() === 3) {
       const sm = S.sedgeMark;

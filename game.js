@@ -2131,6 +2131,13 @@ function westPackUpdate(dt) {
   S.westLaneT = Math.max(0, (S.westLaneT || 0) - dt);
   westExposureStep(dt);
 
+  // P8: the reveal — reaching the scar that displaced them completes the
+  // mirror wordlessly: another pack's version of her own highway
+  if (!S.tut.westScarSeen && nearFootprint({ footprint: 'westCut' }, 180)) {
+    S.tut.westScarSeen = true;
+    say('This is what drove them. The same hands, a different corner.');
+  }
+
   // P5: the encounter state machine, driven by exposure. A won lane holds
   // exposure down and the pack quiet while it lasts.
   if (S.westLaneT > 0) { S.exposure = Math.min(S.exposure, 0.2); }
