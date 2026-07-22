@@ -615,3 +615,36 @@ Block B — make exploration directed (bearing, not waypoint):
 - [x] B5 Distant goals are the spine: in travel seasons the top task is a
       'range' (reach the winter range, named by compass) or scout; only a
       starving pup / starving pack interrupts as a real counter-pull.
+
+## Part 19 — The western pack (Arjun, 2026-07-22)
+
+A second rival pack, west of the road, blocking the winter-range approach —
+a mirror of Aspen, displaced by a human scar. Spatial PRESSURE, never a
+mandatory fight. Strict order 1→9; commit per part. Additive only.
+GUARDRAIL: avoidance (patrol timing) and yielding (the detour) must ALWAYS
+stay viable — a ruined pack must always have a survivable way through.
+
+- [ ] 1 Data: OBSTACLES.westCut (a clearcut that drove them) + its violet;
+      WEST_PACK {appearDay 155, territory (480,1300) r620 over the
+      farBench/highMeadow approach but NOT winterRange, 5-7 marks in their
+      OWN array (east SCENT_RED untouched), strength 5, patrol period 90}.
+- [ ] 2 Arrival: marks-first at appearDay, one-time line 'New marks on the
+      far side…', permanent static presence after (westPackUpdate).
+- [ ] 3 Exposure (0..1): rises inside the territory by depth + time + fresh-
+      mark proximity + detection (upwind/daylit/in-sight); falls outside and
+      while hidden (still, low, downwind); capped/smoothed, no double-cross.
+- [ ] 4 Reading them: deterministic patrol centroid from S.time; mark fresh-
+      ness = recency of patrol passing; readable in scent view beyond the
+      sight fog; timing a patrol-away window keeps exposure low.
+- [ ] 5 Encounter machine: calm → sighting(.33) → confrontation(.66,
+      posture F) → clash(1.0, rare/costly). Win opens a lane; losing the
+      posture repositions to the entry edge (no injury); reuse standoff.
+- [ ] 6 Relative strength: aspenStrength (adults 1 / yearlings .5 ×
+      condition × injury + self, × packFear) vs fixed 5; k~0.9. Their
+      strength never declines — the variable is you.
+- [ ] 7 The always-available detour: a winter-range route skirting the
+      territory (add stonyBench-longSlope), longer/hungrier; losing surfaces
+      guidance toward it.
+- [ ] 8 The reveal: reaching westCut renders the scar (construction family)
+      + one-time 'This is what drove them. The same hands, a different corner.'
+- [ ] 9 Keep the east pack passive — verify no shared exposure/posture path.

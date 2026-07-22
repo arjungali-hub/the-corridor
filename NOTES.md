@@ -431,3 +431,15 @@ or scout — with pups/hunger as interrupting counter-pulls only when dying.
 Harness 232 checks, green x3. Next: play a full year in the browser watching
 for whether you ever wander randomly (you should not) and whether the map
 feels like the center.
+
+## westpack 1: data (2026-07-22)
+
+The western pack's ground: OBSTACLES.westCut (a clearcut at 260-620,1500-1900
+— the human act that drove them) + its violet source. WEST_PACK: appearDay
+155, territory (480,1300) r620 over the farBench/highMeadow pinch but clear
+of winterRange, strength 5, 6 marks in their OWN array (SCENT_RED untouched),
+patrol {period 90, 4 legs}. Added the stonyBench-longSlope edge — the seed of
+the southern detour that skirts the territory (Part 7). Optional shared-cause
+tear SKIPPED: no inherited edge runs cleanly through the suggested scar, and
+the spec says don't force it. Harness: footprint+violet, territory overlaps
+the approach and excludes the range, marks distinct + inside.

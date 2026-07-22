@@ -114,6 +114,9 @@ const EDGES = [
   { id: 'longMarsh-saltLick',     a: 'longMarsh',    b: 'saltLick',     state: 'unknown', tearGroup: null },
   { id: 'saltLick-dustyRise',     a: 'saltLick',     b: 'dustyRise',    state: 'unknown', tearGroup: null },
   { id: 'stonyBench-lowFlats',    a: 'stonyBench',   b: 'lowFlats',     state: 'unknown', tearGroup: null },
+  // the southern detour that skirts the western pack's ground entirely,
+  // reaching the far-west trestle route without the contested approach
+  { id: 'stonyBench-longSlope',   a: 'stonyBench',   b: 'longSlope',    state: 'unknown', tearGroup: null },
   { id: 'lowFlats-gravelBar',     a: 'lowFlats',     b: 'gravelBar',    state: 'unknown', tearGroup: null },
   { id: 'highMeadow-stonyBench',  a: 'highMeadow',   b: 'stonyBench',   state: 'unknown', tearGroup: null },
 ];
@@ -172,6 +175,9 @@ const OBSTACLES = {
   // A gravel pit, opened in the saddle between the elk meadow and the ridge:
   // the hunting loop's own wound.
   gravelPit: { x0: 2080, y0: 800, x1: 2320, y1: 1040 },
+  // A raw clearcut out west — the human act that drove the western pack from
+  // their own range, the same way the highway drove Aspen from hers.
+  westCut: { x0: 260, y0: 1500, x1: 620, y1: 1900 },
   // A ranch fence along the northeast — the rancher's edge of the world.
   fence: { x0: 4400, y0: 300, x1: 5100, y1: 900 },
 };
@@ -276,8 +282,34 @@ const SCENT_VIOLET = [
   { x: 4560, y: 3000, r: 620 },
   { x: 2200, y: 920,  r: 420 },   // the gravel pit's dust and diesel
   { x: 2700, y: 2800, r: 460 },   // the impoundment's chemical rot
+  { x: 440,  y: 1700, r: 460 },   // the western clearcut's cut-pine and machines
 ];
-// Red = rival pack marks, along the northeast edge of the territory.
+// Red = rival pack marks, along the northeast edge of the territory. This is
+// the EASTERN pack — passive, avoidable ground that only causes fear. Left
+// exactly as it was; the western pack below is a separate system entirely.
 const SCENT_RED = [
   { x: 4700, y: 600 }, { x: 4400, y: 360 }, { x: 4960, y: 920 }, { x: 5040, y: 1440 },
 ];
+
+// The WESTERN pack: a mirror of Aspen, driven from its own range by the
+// clearcut (westCut), holding the winter-range approach corridor from
+// midyear on. Not a wall — spatial pressure to be read, timed, or ceded to.
+// Their territory overlaps the farBench/highMeadow pinch but NOT the winter
+// range itself (sanctuary stays clean); their strength is fixed (the
+// variable that decides the gate is Aspen's own year).
+const WEST_PACK = {
+  appearDay: 155,                              // marks appear midyear (tune 150–170)
+  territory: { x: 480, y: 1300, r: 620 },      // on the approach, west of the road
+  strength: 5,                                 // a healthy 5-wolf pack; Aspen's is 5 at full
+  // their own marks — a SEPARATE array so the eastern pack is never touched
+  marks: [
+    { x: 480, y: 1300 }, { x: 700, y: 1180 }, { x: 300, y: 1420 },
+    { x: 250, y: 1050 }, { x: 640, y: 1520 }, { x: 400, y: 980 },
+  ],
+  // a fixed, learnable patrol: the presence centroid loops these legs over
+  // `period` real seconds, deterministic from S.time
+  patrol: {
+    period: 90,
+    legs: [ { x: 250, y: 1050 }, { x: 700, y: 1180 }, { x: 640, y: 1520 }, { x: 300, y: 1420 } ],
+  },
+};
