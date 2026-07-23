@@ -121,12 +121,21 @@ const BASE_SCALE = 0.5;   // half-resolution terrain: painterly, and 4× cheaper
 function paintPond(b, x, y, r, squash, si, past, foul) {
   const prng = makePrng(hashStr('pond' + Math.round(x) + '_' + Math.round(y)));
   const iced = !past && si === 3;
+  // one gently irregular radius profile, reused at every ring so the shape is
+  // consistent; drawn as a smooth closed curve (no jagged straight segments)
+  const NR = 12, prof = [];
+  for (let i = 0; i < NR; i++) prof.push(0.9 + prng() * 0.16);
   const lobe = (rad) => {
+    const p = (i) => {
+      const a = (i / NR) * Math.PI * 2, rr = rad * prof[((i % NR) + NR) % NR];
+      return [x + Math.cos(a) * rr, y + Math.sin(a) * rr * squash];
+    };
     b.beginPath();
-    for (let i = 0; i <= 14; i++) {
-      const a = (i / 14) * Math.PI * 2, rr = rad * (0.86 + prng() * 0.26);
-      const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr * squash;
-      i ? b.lineTo(px, py) : b.moveTo(px, py);
+    let a0 = p(0), aPrev = p(NR - 1);
+    b.moveTo((aPrev[0] + a0[0]) / 2, (aPrev[1] + a0[1]) / 2);
+    for (let i = 0; i < NR; i++) {
+      const cur = p(i), nxt = p(i + 1);
+      b.quadraticCurveTo(cur[0], cur[1], (cur[0] + nxt[0]) / 2, (cur[1] + nxt[1]) / 2);
     }
     b.closePath();
   };
@@ -818,30 +827,36 @@ function drawTree(b, x, y, r, frng, si, past) {
     return;
   }
 
-  // deciduous: a cluster of foliage lobes for a fuller, rounder canopy
-  b.fillStyle = '#5a4636';   // a hint of trunk under the canopy
-  b.fillRect(x - r * 0.08, y - r * 0.1, r * 0.16, r * 0.7);
-  const lobes = [[0, -0.15, 1], [-0.5, 0.05, 0.68], [0.5, 0.05, 0.68], [-0.28, -0.5, 0.6], [0.3, -0.42, 0.62], [0, 0.35, 0.6]];
-  for (const [ox, oy, ls] of lobes) {
-    const cx = x + ox * r, cy = y + oy * r, lr = r * ls;
-    const g = b.createRadialGradient(cx + LIGHT.x * lr * 0.4, cy + LIGHT.y * lr * 0.4, lr * 0.1, cx, cy, lr);
-    g.addColorStop(0, lightenTone(toneL, 8));
-    g.addColorStop(0.6, tone);
-    g.addColorStop(1, darkenTone(tone, 20));
-    b.fillStyle = g;
-    b.beginPath();
-    for (let i = 0; i <= 9; i++) {
-      const a = (i / 9) * Math.PI * 2, rr2 = lr * (0.82 + frng() * 0.34);
-      const px = cx + Math.cos(a) * rr2, py = cy + Math.sin(a) * rr2;
-      i === 0 ? b.moveTo(px, py) : b.lineTo(px, py);
-    }
-    b.closePath(); b.fill();
+  // deciduous: one clean, rounded crown over a short trunk — smooth-edged,
+  // shaded like a single ball of foliage catching the light on one side
+  b.fillStyle = '#5a4636';
+  b.fillRect(x - r * 0.09, y - r * 0.05, r * 0.18, r * 0.72);
+  // a softly irregular but ROUNDED outline (bezier through gentle points)
+  const crownR = r * 0.98, cy = y - r * 0.1;
+  const pts = [];
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2, rr2 = crownR * (0.92 + frng() * 0.12);
+    pts.push([x + Math.cos(a) * rr2, cy + Math.sin(a) * rr2 * 0.94]);
   }
+  const g = b.createRadialGradient(x + LIGHT.x * crownR * 0.45, cy + LIGHT.y * crownR * 0.45, crownR * 0.15, x, cy, crownR);
+  g.addColorStop(0, lightenTone(toneL, 10));
+  g.addColorStop(0.55, tone);
+  g.addColorStop(1, darkenTone(tone, 22));
+  b.fillStyle = g;
+  b.beginPath();
+  b.moveTo((pts[0][0] + pts[9][0]) / 2, (pts[0][1] + pts[9][1]) / 2);
+  for (let i = 0; i < pts.length; i++) {
+    const cur = pts[i], nxt = pts[(i + 1) % pts.length];
+    b.quadraticCurveTo(cur[0], cur[1], (cur[0] + nxt[0]) / 2, (cur[1] + nxt[1]) / 2);
+  }
+  b.closePath(); b.fill();
+  // a soft internal shadow crescent away from the light, for volume
+  b.fillStyle = darkenTone(tone, 16); b.globalAlpha = 0.35;
+  b.beginPath(); b.ellipse(x - LIGHT.x * crownR * 0.35, cy - LIGHT.y * crownR * 0.35, crownR * 0.6, crownR * 0.5, 0, 0, Math.PI * 2); b.fill();
+  b.globalAlpha = 1;
   if (winter) {
-    b.fillStyle = 'rgba(250,252,254,0.5)';
-    for (const [ox, oy, ls] of lobes) {
-      b.beginPath(); b.arc(x + ox * r + LIGHT.x * r * 0.3, y + oy * r + LIGHT.y * r * 0.3, r * ls * 0.5, 0, Math.PI * 2); b.fill();
-    }
+    b.fillStyle = 'rgba(250,252,254,0.55)';
+    b.beginPath(); b.ellipse(x + LIGHT.x * crownR * 0.3, cy + LIGHT.y * crownR * 0.3, crownR * 0.6, crownR * 0.5, 0, 0, Math.PI * 2); b.fill();
   }
 }
 
@@ -900,36 +915,35 @@ function drawWolfBody(x, y, heading, size, tone, moving, gait, limp) {
 
   const ph = gait * 0.085;
   const stride = moving ? size * 0.5 : 0;
-  // Legs sit UNDER the body: roots pulled in toward the wider midbody and
-  // feet tucked just inside the silhouette, so from above they read as legs
-  // beneath the wolf, not stubs poking out the sides. They swing fore/aft
-  // (along the body), never splayed outward.
+  // Legs live UNDER the body — every leg is drawn BEFORE the torso, so the
+  // body always covers the upper leg; only the paw peeks just past the belly
+  // edge. Two rows: the far side sits higher (mostly hidden), the near side
+  // shows a little paw below. They swing fore/aft, never splayed outward.
   const legOrder = [
-    { lx: 0.62, ly: -0.3, off: Math.PI, near: false },
-    { lx: -0.5, ly: -0.3, off: 0, near: false },
-    { lx: 0.62, ly: 0.3, off: 0, near: true },
-    { lx: -0.5, ly: 0.3, off: Math.PI, near: true },
+    { lx: 0.6, row: -1, off: Math.PI },
+    { lx: -0.5, row: -1, off: 0 },
+    { lx: 0.6, row: 1, off: 0 },
+    { lx: -0.5, row: 1, off: Math.PI },
   ];
-  const drawLeg = (L, near) => {
+  const drawLeg = (L) => {
+    const near = L.row > 0;
     let st = stride;
     if (limp && L.lx > 0 && !near) st *= 0.35;
     const swing = Math.sin(ph + L.off) * st;
-    const hipX = L.lx * size, hipY = L.ly * size * 0.5;
-    // knee/foot extend mostly fore-aft (x); only a little perpendicular, so
-    // the paw lands just at the body's lower edge rather than out to the side
-    const kneeX = L.lx * size + swing * 0.5, kneeY = L.ly * size * 0.72;
-    const footX = L.lx * size + swing, footY = L.ly * size * 0.9;
+    const hipX = L.lx * size, hipY = L.row * size * 0.28;
+    // the paw lands just past the body edge on the near row, tucked in on the far
+    const footX = L.lx * size + swing, footY = L.row * size * (near ? 0.62 : 0.4);
     ctx.strokeStyle = near ? shade : darkenTone(belly.startsWith('#') ? belly : '#666c72', 8);
-    ctx.lineWidth = size * (near ? 0.26 : 0.22);
+    ctx.lineWidth = size * (near ? 0.24 : 0.2);
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(hipX, hipY);
-    ctx.quadraticCurveTo(kneeX, kneeY, footX, footY);
+    ctx.quadraticCurveTo(L.lx * size + swing * 0.5, L.row * size * 0.5, footX, footY);
     ctx.stroke();
     ctx.fillStyle = tone.dark;                       // paw
-    ctx.beginPath(); ctx.ellipse(footX, footY, size * 0.12, size * 0.09, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(footX, footY, size * 0.11, size * 0.08, 0, 0, Math.PI * 2); ctx.fill();
   };
-  for (const L of legOrder) if (!L.near) drawLeg(L, false);
+  for (const L of legOrder) drawLeg(L);   // all legs, then the body covers them
 
   // brush tail — a tapered plume with a dark tip, swaying
   const sway = Math.sin(S.time * 2.6 + ph * 0.4) * size * (moving ? 0.55 : 0.22);
@@ -983,8 +997,6 @@ function drawWolfBody(x, y, heading, size, tone, moving, gait, limp) {
   ctx.bezierCurveTo(-size * 0.2, -size * 0.54, size * 0.7, -size * 0.46, size * 1.35, -size * 0.22);
   ctx.stroke();
   ctx.globalAlpha = 1;
-
-  for (const L of legOrder) if (L.near) drawLeg(L, true);
 
   // scruff/ruff at the shoulders, then neck and a proper wedge head
   ctx.fillStyle = mid;
@@ -1153,112 +1165,53 @@ function drawPrey(e) {
   const H = HERDS[e.herd];
   const tone = HERD_TONES[e.herd];
   const s = H.size;
-  const cattle = !!H.cattle;
-  // soft directional contact shadow
-  const sh = ctx.createRadialGradient(
-    e.x - LIGHT.x * s * 0.6, e.y - LIGHT.y * s * 0.4 + s * 0.5, s * 0.3,
-    e.x - LIGHT.x * s * 0.6, e.y - LIGHT.y * s * 0.4 + s * 0.5, s * 2.2);
-  sh.addColorStop(0, 'rgba(18,22,14,0.28)'); sh.addColorStop(1, 'rgba(18,22,14,0)');
-  ctx.fillStyle = sh;
-  ctx.beginPath(); ctx.ellipse(e.x - LIGHT.x * s * 0.6, e.y - LIGHT.y * s * 0.3 + s * 0.5, s * 2.0, s * 0.95, e.heading, 0, Math.PI * 2); ctx.fill();
-
+  ctx.fillStyle = 'rgba(20,25,15,0.25)';
+  ctx.beginPath(); ctx.ellipse(e.x + 4, e.y + 6, s * 1.9, s * 0.95, 0, 0, Math.PI * 2); ctx.fill();
   ctx.save();
   ctx.translate(e.x, e.y);
   ctx.rotate(e.heading);
-  const la = Math.atan2(LIGHT.y, LIGHT.x) - e.heading;
-  const llx = Math.cos(la), lly = Math.sin(la);
-
   const ph = e.gait * 0.07;
-  const moving = e.fleeing || e.gait % 1 > 0;
-  const stride = e.fleeing ? s * 0.75 : s * 0.2;
-  // far legs, then near legs — two-segment with hooves
-  const legDefs = [
-    { lx: 0.72, side: -1, off: Math.PI, near: false },
-    { lx: -0.72, side: -1, off: 0, near: false },
-    { lx: 0.72, side: 1, off: 0, near: true },
-    { lx: -0.72, side: 1, off: Math.PI, near: true },
-  ];
-  const drawLeg = (L) => {
-    const ly = L.side * s * 0.42;
-    const swing = Math.sin(ph + L.off) * stride;
-    const kneeX = L.lx * s * 0.9 + swing * 0.4, kneeY = ly * 1.4;
-    const footX = L.lx * s + swing, footY = ly * 1.9;
-    ctx.strokeStyle = L.near ? tone.dark : darkenTone(tone.dark, 6);
-    ctx.lineWidth = s * (L.near ? 0.15 : 0.13); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath(); ctx.moveTo(L.lx * s * 0.7, ly * 0.7); ctx.quadraticCurveTo(kneeX, kneeY, footX, footY); ctx.stroke();
-    ctx.fillStyle = '#26201a'; ctx.beginPath(); ctx.ellipse(footX, footY, s * 0.09, s * 0.07, 0, 0, Math.PI * 2); ctx.fill();   // hoof
-  };
-  for (const L of legDefs) if (!L.near) drawLeg(L);
-
-  // barrel body with a lit back / shadowed belly gradient
-  ctx.fillStyle = tone.body;
-  ctx.beginPath(); ctx.ellipse(-s * 0.1, 0, s * 1.18, s * 0.64, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.save();
-  ctx.beginPath(); ctx.ellipse(-s * 0.1, 0, s * 1.18, s * 0.64, 0, 0, Math.PI * 2); ctx.clip();
-  const bg = ctx.createLinearGradient(-llx * s, -lly * s, llx * s, lly * s);
-  bg.addColorStop(0, lightenTone(tone.body, 26)); bg.addColorStop(0.5, tone.body); bg.addColorStop(1, tone.dark);
-  ctx.globalAlpha = 0.85; ctx.fillStyle = bg; ctx.fillRect(-s * 1.4, -s * 0.8, s * 2.8, s * 1.6);
-  ctx.globalAlpha = 1;
-  // dappling / hide texture for deer and elk (not cattle)
-  if (!cattle) {
-    const drng = makePrng(Math.round(e.x) ^ Math.round(s * 31));
-    ctx.fillStyle = 'rgba(240,232,208,0.16)';
-    for (let i = 0; i < 12; i++) {
-      ctx.beginPath(); ctx.arc(-s * 0.7 + drng() * s * 1.4, (drng() - 0.5) * s * 0.7, s * 0.06 + drng() * s * 0.05, 0, Math.PI * 2); ctx.fill();
-    }
-  } else {
-    // black-baldy: a pale belt/face patch
-    ctx.fillStyle = 'rgba(226,222,214,0.5)';
-    ctx.beginPath(); ctx.ellipse(-s * 0.7, 0, s * 0.5, s * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  const moving = e.fleeing || e.gait % 1 > 0;   // legs settle when grazing
+  const stride = e.fleeing ? s * 0.7 : s * 0.2;
+  for (let i = 0; i < 4; i++) {
+    const lx = i < 2 ? s * 0.75 : -s * 0.7;
+    const ly = (i % 2 ? 1 : -1) * s * 0.42;
+    const off = (i === 0 || i === 3) ? 0 : Math.PI;
+    ctx.strokeStyle = tone.dark;
+    ctx.lineWidth = s * 0.16;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(lx * 0.7, ly * 0.7);
+    ctx.lineTo(lx + Math.sin(ph + off) * stride, ly * 1.15);
+    ctx.stroke();
   }
-  ctx.restore();
-  // pale rump patch
+  ctx.fillStyle = tone.body;
+  ctx.beginPath(); ctx.ellipse(-s * 0.1, 0, s * 1.15, s * 0.62, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = tone.rump;
-  ctx.beginPath(); ctx.ellipse(-s * 1.0, 0, s * 0.32, s * 0.42, 0, 0, Math.PI * 2); ctx.fill();
-  // a short tail
-  ctx.strokeStyle = tone.dark; ctx.lineWidth = s * 0.12; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-s * 1.15, 0); ctx.lineTo(-s * 1.35, s * 0.18); ctx.stroke();
-
-  for (const L of legDefs) if (L.near) drawLeg(L);
-
+  ctx.beginPath(); ctx.ellipse(-s * 0.95, 0, s * 0.34, s * 0.4, 0, 0, Math.PI * 2); ctx.fill();
   // neck + head, dipping when grazing
-  const grazeDip = e.fleeing ? 0 : 0.28 + 0.22 * Math.sin(S.time * 0.6 + s);
+  const grazeDip = e.fleeing ? 0 : 0.25 + 0.2 * Math.sin(S.time * 0.6 + s);
   ctx.fillStyle = tone.body;
-  ctx.beginPath();
-  ctx.moveTo(s * 0.7, -s * 0.4);
-  ctx.quadraticCurveTo(s * 1.15, -s * 0.34 + grazeDip * s * 0.3, s * (1.35 - grazeDip * 0.2), grazeDip * s * 0.5);
-  ctx.quadraticCurveTo(s * 1.15, s * 0.34 + grazeDip * s * 0.3, s * 0.7, s * 0.4);
-  ctx.closePath(); ctx.fill();
-  // head
-  const hx = s * (1.5 - grazeDip * 0.25), hy = grazeDip * s * 0.6;
-  ctx.fillStyle = tone.body;
-  ctx.beginPath(); ctx.ellipse(hx, hy, s * 0.36, s * 0.22, grazeDip * 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = tone.dark;   // muzzle
-  ctx.beginPath(); ctx.ellipse(hx + s * 0.28, hy + grazeDip * s * 0.14, s * 0.14, s * 0.1, grazeDip * 0.5, 0, Math.PI * 2); ctx.fill();
-  // ears
-  ctx.fillStyle = tone.body;
-  for (const sgn of [1, -1]) {
-    ctx.beginPath(); ctx.ellipse(hx - s * 0.1, hy + sgn * s * 0.22, s * 0.13, s * 0.07, sgn * 0.6, 0, Math.PI * 2); ctx.fill();
-  }
+  ctx.beginPath(); ctx.ellipse(s * 0.9, 0, s * 0.5, s * 0.3, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s * (1.35 - grazeDip * 0.2), 0, s * 0.34, s * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = tone.dark;
+  ctx.beginPath(); ctx.arc(s * (1.62 - grazeDip * 0.2), 0, s * 0.1, 0, Math.PI * 2); ctx.fill();
   if (e.bull) {
-    // a broader elk rack: sweeping beams with upward tines
-    ctx.strokeStyle = '#6e5a3e'; ctx.lineWidth = s * 0.11; ctx.lineCap = 'round';
+    ctx.strokeStyle = tone.dark;
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
     for (const sgn of [1, -1]) {
       ctx.beginPath();
-      ctx.moveTo(hx - s * 0.1, hy + sgn * s * 0.12);
-      ctx.quadraticCurveTo(hx - s * 0.7, hy + sgn * s * 0.7, hx - s * 1.15, hy + sgn * s * 0.55);
+      ctx.moveTo(s * 1.2, sgn * s * 0.14);
+      ctx.quadraticCurveTo(s * 0.7, sgn * s * 0.65, s * 0.2, sgn * s * 0.8);
       ctx.stroke();
-      for (let tine = 0; tine < 4; tine++) {
-        const tt = tine / 4;
-        const bx = hx - s * (0.2 + tt * 0.9), by = hy + sgn * s * (0.28 + tt * 0.42);
-        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + s * 0.06, by + sgn * s * 0.32); ctx.stroke();
+      for (let tine = 0; tine < 3; tine++) {
+        const tx = s * (0.95 - tine * 0.28);
+        ctx.beginPath();
+        ctx.moveTo(tx, sgn * s * (0.34 + tine * 0.13));
+        ctx.lineTo(tx - s * 0.1, sgn * s * (0.6 + tine * 0.15));
+        ctx.stroke();
       }
-    }
-  } else if (cattle) {
-    // stubby cattle horns
-    ctx.strokeStyle = '#d8cfb8'; ctx.lineWidth = s * 0.1; ctx.lineCap = 'round';
-    for (const sgn of [1, -1]) {
-      ctx.beginPath(); ctx.moveTo(hx - s * 0.05, hy + sgn * s * 0.14); ctx.quadraticCurveTo(hx + s * 0.2, hy + sgn * s * 0.3, hx + s * 0.28, hy + sgn * s * 0.12); ctx.stroke();
     }
   }
   ctx.restore();
@@ -1811,10 +1764,18 @@ function drawPlayFog() {
   const wp = screenPos(S.wolf.x, S.wolf.y);
   const R = playSightWorld() * S.cam.scale;
   const v = clamp(violetAt(S.wolf.x, S.wolf.y), 0, 1);
-  const fog = ctx.createRadialGradient(wp.x, wp.y, R * 0.7, wp.x, wp.y, R * 1.8);
-  const fr = Math.round(lerp(16, 40, v)), fg = Math.round(lerp(18, 26, v)), fb = Math.round(lerp(20, 40, v));
+  const dl = typeof daylight === 'function' ? clamp(daylight(), 0, 1) : 1;
+  // A soft haze that closes her vision, not a black void: a dusky green-slate
+  // that harmonizes with the land, deepening at night and in human noise.
+  // In daylight it stays a gentle veil; the darkness is reserved for night.
+  const fr = Math.round(lerp(46, 26, v)) - Math.round((1 - dl) * 18);
+  const fg = Math.round(lerp(56, 34, v)) - Math.round((1 - dl) * 20);
+  const fb = Math.round(lerp(48, 42, v)) - Math.round((1 - dl) * 6);
+  const maxA = 0.5 + 0.34 * (1 - dl) + 0.12 * v;   // ~0.5 by day → ~0.85 deep night
+  const fog = ctx.createRadialGradient(wp.x, wp.y, R * 0.85, wp.x, wp.y, R * 2.1);
   fog.addColorStop(0, `rgba(${fr},${fg},${fb},0)`);
-  fog.addColorStop(1, `rgba(${fr},${fg},${fb},0.9)`);
+  fog.addColorStop(0.6, `rgba(${fr},${fg},${fb},${maxA * 0.5})`);
+  fog.addColorStop(1, `rgba(${fr},${fg},${fb},${maxA})`);
   ctx.fillStyle = fog;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
