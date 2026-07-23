@@ -944,15 +944,16 @@ function drawWolfBody(x, y, heading, size, tone, moving, gait, limp) {
   ctx.ellipse(-size * 2.35, sway * 0.9, size * 0.34, size * 0.24, sway * 0.1, 0, Math.PI * 2);
   ctx.fill();
 
-  // torso as one flowing silhouette (haunch → back → shoulder), then form-shade
+  // torso as one flowing silhouette (haunch → back → shoulder), then form-
+  // shade. Lean and elongated — a wolf is long and narrow, not a barrel.
   ctx.fillStyle = mid;
   ctx.beginPath();
-  ctx.moveTo(-size * 1.15, 0);
-  ctx.bezierCurveTo(-size * 1.2, -size * 0.72, -size * 0.2, -size * 0.82, size * 0.5, -size * 0.72);
-  ctx.bezierCurveTo(size * 1.05, -size * 0.64, size * 1.25, -size * 0.4, size * 1.45, -size * 0.2);
-  ctx.bezierCurveTo(size * 1.6, 0, size * 1.6, 0, size * 1.45, size * 0.2);
-  ctx.bezierCurveTo(size * 1.25, size * 0.4, size * 1.05, size * 0.64, size * 0.5, size * 0.72);
-  ctx.bezierCurveTo(-size * 0.2, size * 0.82, -size * 1.2, size * 0.72, -size * 1.15, 0);
+  ctx.moveTo(-size * 1.2, 0);
+  ctx.bezierCurveTo(-size * 1.22, -size * 0.48, -size * 0.2, -size * 0.56, size * 0.5, -size * 0.5);
+  ctx.bezierCurveTo(size * 1.05, -size * 0.44, size * 1.28, -size * 0.28, size * 1.5, -size * 0.15);
+  ctx.bezierCurveTo(size * 1.64, 0, size * 1.64, 0, size * 1.5, size * 0.15);
+  ctx.bezierCurveTo(size * 1.28, size * 0.28, size * 1.05, size * 0.44, size * 0.5, size * 0.5);
+  ctx.bezierCurveTo(-size * 0.2, size * 0.56, -size * 1.22, size * 0.48, -size * 1.2, 0);
   ctx.closePath(); ctx.fill();
 
   // sunlit back (rim toward the light) and shadowed belly (away)
@@ -976,10 +977,10 @@ function drawWolfBody(x, y, heading, size, tone, moving, gait, limp) {
   ctx.restore();
 
   // a crisp rim-light bead along the lit edge of the back
-  ctx.strokeStyle = back; ctx.globalAlpha = 0.5; ctx.lineWidth = size * 0.14; ctx.lineCap = 'round';
+  ctx.strokeStyle = back; ctx.globalAlpha = 0.5; ctx.lineWidth = size * 0.12; ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(-size * 1.0, -size * 0.6);
-  ctx.bezierCurveTo(-size * 0.2, -size * 0.78, size * 0.7, -size * 0.66, size * 1.3, -size * 0.32);
+  ctx.moveTo(-size * 1.05, -size * 0.42);
+  ctx.bezierCurveTo(-size * 0.2, -size * 0.54, size * 0.7, -size * 0.46, size * 1.35, -size * 0.22);
   ctx.stroke();
   ctx.globalAlpha = 1;
 
@@ -987,22 +988,22 @@ function drawWolfBody(x, y, heading, size, tone, moving, gait, limp) {
 
   // scruff/ruff at the shoulders, then neck and a proper wedge head
   ctx.fillStyle = mid;
-  ctx.beginPath(); ctx.ellipse(size * 1.02, 0, size * 0.58, size * 0.5, 0, 0, Math.PI * 2); ctx.fill();
-  // head: a rounded skull tapering to the muzzle
+  ctx.beginPath(); ctx.ellipse(size * 1.02, 0, size * 0.5, size * 0.38, 0, 0, Math.PI * 2); ctx.fill();
+  // head: a narrower skull tapering to the muzzle
   ctx.beginPath();
-  ctx.moveTo(size * 1.25, -size * 0.4);
-  ctx.quadraticCurveTo(size * 1.75, -size * 0.4, size * 2.05, -size * 0.16);
-  ctx.quadraticCurveTo(size * 2.32, 0, size * 2.05, size * 0.16);
-  ctx.quadraticCurveTo(size * 1.75, size * 0.4, size * 1.25, size * 0.4);
-  ctx.quadraticCurveTo(size * 1.05, 0, size * 1.25, -size * 0.4);
+  ctx.moveTo(size * 1.28, -size * 0.32);
+  ctx.quadraticCurveTo(size * 1.78, -size * 0.32, size * 2.08, -size * 0.13);
+  ctx.quadraticCurveTo(size * 2.34, 0, size * 2.08, size * 0.13);
+  ctx.quadraticCurveTo(size * 1.78, size * 0.32, size * 1.28, size * 0.32);
+  ctx.quadraticCurveTo(size * 1.1, 0, size * 1.28, -size * 0.32);
   ctx.closePath(); ctx.fill();
   // lit crown of the head
   ctx.fillStyle = back; ctx.globalAlpha = 0.4;
-  ctx.beginPath(); ctx.ellipse(size * 1.5 + lx * size * 0.15, ly * size * 0.18, size * 0.34, size * 0.22, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(size * 1.52 + lx * size * 0.15, ly * size * 0.15, size * 0.3, size * 0.18, 0, 0, Math.PI * 2); ctx.fill();
   ctx.globalAlpha = 1;
   // pale cheek/muzzle
   ctx.fillStyle = back;
-  ctx.beginPath(); ctx.ellipse(size * 1.95, size * 0.04, size * 0.3, size * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(size * 1.97, size * 0.03, size * 0.28, size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
   // nose
   ctx.fillStyle = '#181816';
   ctx.beginPath(); ctx.ellipse(size * 2.24, 0, size * 0.11, size * 0.09, 0, 0, Math.PI * 2); ctx.fill();
@@ -1027,66 +1028,124 @@ function drawWolfBody(x, y, heading, size, tone, moving, gait, limp) {
   ctx.restore();
 }
 
-// Willow lying in the den — breathing, until she isn't. Curled, form-shaded,
-// with the tail wrapped to the nose; in death the light goes flat and cold.
+// Willow curled in the den — a lean spine spiralled nose-to-tail, breathing
+// until she isn't. Read as a real curled wolf, not a round mass.
 function drawWillowLying(w) {
   const tone = w.alive ? WOLF_TONES.willow : WOLF_TONES.willowDead;
-  const size = 13;
-  // soft contact shadow
-  const sh = ctx.createRadialGradient(w.x - LIGHT.x * size, w.y - LIGHT.y * size * 0.5 + size * 0.6, size * 0.5,
-    w.x - LIGHT.x * size, w.y - LIGHT.y * size * 0.5 + size * 0.6, size * 2.6);
-  sh.addColorStop(0, 'rgba(16,20,12,0.32)'); sh.addColorStop(1, 'rgba(16,20,12,0)');
+  const size = 12;
+  // soft contact shadow, hugging the curl
+  const sh = ctx.createRadialGradient(w.x - LIGHT.x * size, w.y - LIGHT.y * size * 0.5 + size * 0.4, size * 0.5,
+    w.x - LIGHT.x * size, w.y - LIGHT.y * size * 0.5 + size * 0.4, size * 2.4);
+  sh.addColorStop(0, 'rgba(16,20,12,0.30)'); sh.addColorStop(1, 'rgba(16,20,12,0)');
   ctx.fillStyle = sh;
-  ctx.beginPath(); ctx.ellipse(w.x - LIGHT.x * size * 0.6, w.y + size * 0.6, size * 2.5, size * 1.3, 0.2, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(w.x - LIGHT.x * size * 0.5, w.y + size * 0.5, size * 2.2, size * 1.15, 0.2, 0, Math.PI * 2); ctx.fill();
 
   ctx.save();
   ctx.translate(w.x, w.y);
   ctx.rotate(0.22);
-  const breath = w.alive ? 1 + 0.04 * Math.sin(S.time * 1.3) : 1;
-  ctx.scale(1, breath);
+  const breath = w.alive ? 1 + 0.03 * Math.sin(S.time * 1.3) : 1;
+  ctx.scale(breath, breath);
 
-  // curled body mass
-  ctx.fillStyle = tone.base;
-  ctx.beginPath(); ctx.ellipse(0, 0, size * 1.95, size * 1.05, 0, 0, Math.PI * 2); ctx.fill();
-  // form shading: lit crown of the curl, cool shadow in the fold
-  ctx.save();
-  ctx.beginPath(); ctx.ellipse(0, 0, size * 1.95, size * 1.05, 0, 0, Math.PI * 2); ctx.clip();
-  const g = ctx.createLinearGradient(LIGHT.x * size * 1.6, LIGHT.y * size * 1.6, -LIGHT.x * size * 1.6, -LIGHT.y * size * 1.6);
+  // The curled spine: a spiral of points from the haunch (thick) around to
+  // the neck (thin). Build a tapering ribbon outline from it.
+  const N = 26, turns = 1.35;
+  const spineR0 = size * 1.55, spineR1 = size * 0.55;   // outer→inner radius of the curl
+  const a0 = -0.5, a1 = a0 + turns * Math.PI * 2;
+  const spine = [];
+  for (let i = 0; i <= N; i++) {
+    const t = i / N;
+    const a = a0 + (a1 - a0) * t;
+    const rad = spineR0 * (1 - t) + spineR1 * t;
+    const halfW = size * (0.62 * (1 - t) + 0.14 * t);   // haunch thick → neck thin
+    spine.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad, w: halfW, a });
+  }
+  const outline = () => {
+    ctx.beginPath();
+    // outer edge forward
+    for (let i = 0; i <= N; i++) {
+      const p = spine[i], nx = Math.cos(p.a + Math.PI / 2), ny = Math.sin(p.a + Math.PI / 2);
+      const px = p.x + nx * p.w, py = p.y + ny * p.w;
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    // inner edge back
+    for (let i = N; i >= 0; i--) {
+      const p = spine[i], nx = Math.cos(p.a + Math.PI / 2), ny = Math.sin(p.a + Math.PI / 2);
+      ctx.lineTo(p.x - nx * p.w, p.y - ny * p.w);
+    }
+    ctx.closePath();
+  };
+
+  ctx.fillStyle = tone.base; outline(); ctx.fill();
+  // form shading across the curl (lit outer flank, shadow toward the fold)
+  ctx.save(); outline(); ctx.clip();
+  const g = ctx.createLinearGradient(LIGHT.x * size * 2, LIGHT.y * size * 2, -LIGHT.x * size * 2, -LIGHT.y * size * 2);
   g.addColorStop(0, tone.light); g.addColorStop(0.5, tone.base); g.addColorStop(1, tone.dark);
-  ctx.globalAlpha = w.alive ? 0.8 : 0.6; ctx.fillStyle = g;
-  ctx.fillRect(-size * 2.2, -size * 1.4, size * 4.4, size * 2.8);
+  ctx.globalAlpha = w.alive ? 0.85 : 0.6; ctx.fillStyle = g;
+  ctx.fillRect(-size * 2.4, -size * 2.4, size * 4.8, size * 4.8);
   ctx.globalAlpha = 1;
-  // fur-fold strokes following the curl
-  ctx.strokeStyle = darkenTone(tone.base, 14); ctx.globalAlpha = 0.3; ctx.lineWidth = size * 0.06;
-  const frng = makePrng(41);
-  for (let i = 0; i < 8; i++) { const a = frng() * Math.PI * 2, rr = size * (0.4 + frng() * 1.3); ctx.beginPath(); ctx.arc(0, 0, rr, a, a + 0.5); ctx.stroke(); }
+  // fur strokes flowing along the spine
+  ctx.strokeStyle = darkenTone(tone.base, 16); ctx.globalAlpha = 0.28; ctx.lineWidth = size * 0.05;
+  for (let i = 2; i < N; i += 2) {
+    const p = spine[i], nx = Math.cos(p.a + Math.PI / 2), ny = Math.sin(p.a + Math.PI / 2);
+    ctx.beginPath(); ctx.moveTo(p.x - nx * p.w * 0.6, p.y - ny * p.w * 0.6); ctx.lineTo(p.x + nx * p.w * 0.6, p.y + ny * p.w * 0.6); ctx.stroke();
+  }
   ctx.globalAlpha = 1;
   ctx.restore();
-
-  // tail wrapped around toward the head
-  ctx.strokeStyle = tone.base; ctx.lineWidth = size * 0.5; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-size * 1.5, size * 0.4);
-  ctx.quadraticCurveTo(-size * 1.2, size * 1.5, size * 0.4, size * 1.35);
-  ctx.quadraticCurveTo(size * 1.4, size * 1.1, size * 1.4, size * 0.6);
-  ctx.stroke();
-  ctx.strokeStyle = darkenTone(tone.base, 24); ctx.lineWidth = size * 0.22;
-  ctx.beginPath(); ctx.moveTo(-size * 1.4, size * 0.5); ctx.quadraticCurveTo(-size * 1.0, size * 1.35, size * 0.4, size * 1.2); ctx.stroke();
-
-  // head resting, tucked toward the flank/tail
-  ctx.fillStyle = tone.base;
-  ctx.beginPath(); ctx.ellipse(size * 1.45, size * 0.35, size * 0.6, size * 0.44, 0.45, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = tone.light;
-  ctx.beginPath(); ctx.ellipse(size * 1.82, size * 0.62, size * 0.32, size * 0.19, 0.5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#181816';   // nose
-  ctx.beginPath(); ctx.arc(size * 2.0, size * 0.78, size * 0.09, 0, Math.PI * 2); ctx.fill();
-  // ear
-  ctx.fillStyle = tone.dark;
-  ctx.beginPath(); ctx.moveTo(size * 1.2, size * 0.05); ctx.quadraticCurveTo(size * 1.05, size * -0.3, size * 1.32, size * -0.22); ctx.quadraticCurveTo(size * 1.4, size * -0.05, size * 1.3, size * 0.1); ctx.closePath(); ctx.fill();
-  // a closed-eye line if she has passed
-  if (!w.alive) {
-    ctx.strokeStyle = 'rgba(40,38,34,0.7)'; ctx.lineWidth = size * 0.06; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(size * 1.5, size * 0.28); ctx.lineTo(size * 1.68, size * 0.34); ctx.stroke();
+  // a rim-light bead along the lit outer edge of the back
+  ctx.strokeStyle = tone.light; ctx.globalAlpha = w.alive ? 0.45 : 0.25; ctx.lineWidth = size * 0.1; ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let i = 0; i <= N; i++) {
+    const p = spine[i], nx = Math.cos(p.a + Math.PI / 2), ny = Math.sin(p.a + Math.PI / 2);
+    const px = p.x + nx * p.w, py = p.y + ny * p.w;
+    if (px * LIGHT.x + py * LIGHT.y > 0) { i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+    else ctx.moveTo(px, py);
   }
+  ctx.stroke(); ctx.globalAlpha = 1;
+
+  // the brush tail sweeping from the haunch across to shelter the nose
+  const h = spine[0];
+  ctx.strokeStyle = tone.base; ctx.lineWidth = size * 0.42; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(h.x, h.y);
+  ctx.quadraticCurveTo(h.x + size * 0.8, h.y + size * 1.4, size * 0.2, size * 1.35);
+  ctx.stroke();
+  ctx.strokeStyle = darkenTone(tone.base, 26); ctx.lineWidth = size * 0.16;
+  ctx.beginPath(); ctx.moveTo(h.x, h.y + size * 0.1); ctx.quadraticCurveTo(h.x + size * 0.7, h.y + size * 1.35, size * 0.2, size * 1.28); ctx.stroke();
+
+  // the head at the neck end (inner tip), resting low on folded paws
+  const nk = spine[N];
+  const hx = nk.x + Math.cos(nk.a) * size * 0.5, hy = nk.y + Math.sin(nk.a) * size * 0.5;
+  const hrot = nk.a + Math.PI * 0.5;
+  ctx.save(); ctx.translate(hx, hy); ctx.rotate(hrot);
+  // paws under the chin
+  ctx.strokeStyle = tone.dark; ctx.lineWidth = size * 0.16; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(-size * 0.1, size * 0.4); ctx.lineTo(size * 0.5, size * 0.5); ctx.stroke();
+  // skull → muzzle
+  ctx.fillStyle = tone.base;
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.34, -size * 0.28);
+  ctx.quadraticCurveTo(size * 0.2, -size * 0.34, size * 0.5, -size * 0.12);
+  ctx.quadraticCurveTo(size * 0.72, 0, size * 0.5, size * 0.12);
+  ctx.quadraticCurveTo(size * 0.2, size * 0.34, -size * 0.34, size * 0.28);
+  ctx.quadraticCurveTo(-size * 0.5, 0, -size * 0.34, -size * 0.28);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = tone.light;   // pale cheek
+  ctx.beginPath(); ctx.ellipse(size * 0.42, size * 0.04, size * 0.24, size * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#181816';    // nose
+  ctx.beginPath(); ctx.arc(size * 0.62, 0, size * 0.08, 0, Math.PI * 2); ctx.fill();
+  // ears, laid back
+  ctx.fillStyle = tone.dark;
+  for (const sgn of [1, -1]) {
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.3, sgn * size * 0.18);
+    ctx.quadraticCurveTo(-size * 0.5, sgn * size * 0.36, -size * 0.34, sgn * size * 0.4);
+    ctx.quadraticCurveTo(-size * 0.2, sgn * size * 0.3, -size * 0.16, sgn * size * 0.16);
+    ctx.closePath(); ctx.fill();
+  }
+  // eye — a soft closed line always (she is resting / gone)
+  ctx.strokeStyle = 'rgba(40,38,34,0.6)'; ctx.lineWidth = size * 0.05; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(size * 0.08, -size * 0.06); ctx.lineTo(size * 0.24, -size * 0.02); ctx.stroke();
+  ctx.restore();
+
   ctx.restore();
 }
 
