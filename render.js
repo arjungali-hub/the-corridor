@@ -899,31 +899,35 @@ function drawWolfBody(x, y, heading, size, tone, moving, gait, limp) {
   const back = tone.light;
 
   const ph = gait * 0.085;
-  const stride = moving ? size * 0.55 : 0;
-  // far legs first (darker, behind the body), then near legs — real overlap
+  const stride = moving ? size * 0.5 : 0;
+  // Legs sit UNDER the body: roots pulled in toward the wider midbody and
+  // feet tucked just inside the silhouette, so from above they read as legs
+  // beneath the wolf, not stubs poking out the sides. They swing fore/aft
+  // (along the body), never splayed outward.
   const legOrder = [
-    { lx: 0.9, ly: -0.42, off: Math.PI, near: false },
-    { lx: -0.72, ly: -0.42, off: 0, near: false },
-    { lx: 0.9, ly: 0.42, off: 0, near: true },
-    { lx: -0.72, ly: 0.42, off: Math.PI, near: true },
+    { lx: 0.62, ly: -0.3, off: Math.PI, near: false },
+    { lx: -0.5, ly: -0.3, off: 0, near: false },
+    { lx: 0.62, ly: 0.3, off: 0, near: true },
+    { lx: -0.5, ly: 0.3, off: Math.PI, near: true },
   ];
   const drawLeg = (L, near) => {
     let st = stride;
     if (limp && L.lx > 0 && !near) st *= 0.35;
     const swing = Math.sin(ph + L.off) * st;
-    const lift = moving ? Math.max(0, Math.cos(ph + L.off)) * size * 0.12 : 0;
-    const hipX = L.lx * size * 0.6, hipY = L.ly * size * 0.62;
-    const kneeX = L.lx * size * 0.75 + swing * 0.5, kneeY = L.ly * size * 0.9 - lift * 0.4;
-    const footX = L.lx * size * 0.82 + swing, footY = L.ly * size * 1.18 - lift;
+    const hipX = L.lx * size, hipY = L.ly * size * 0.5;
+    // knee/foot extend mostly fore-aft (x); only a little perpendicular, so
+    // the paw lands just at the body's lower edge rather than out to the side
+    const kneeX = L.lx * size + swing * 0.5, kneeY = L.ly * size * 0.72;
+    const footX = L.lx * size + swing, footY = L.ly * size * 0.9;
     ctx.strokeStyle = near ? shade : darkenTone(belly.startsWith('#') ? belly : '#666c72', 8);
-    ctx.lineWidth = size * (near ? 0.3 : 0.26);
+    ctx.lineWidth = size * (near ? 0.26 : 0.22);
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     ctx.beginPath();
     ctx.moveTo(hipX, hipY);
     ctx.quadraticCurveTo(kneeX, kneeY, footX, footY);
     ctx.stroke();
     ctx.fillStyle = tone.dark;                       // paw
-    ctx.beginPath(); ctx.ellipse(footX, footY, size * 0.16, size * 0.12, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(footX, footY, size * 0.12, size * 0.09, 0, 0, Math.PI * 2); ctx.fill();
   };
   for (const L of legOrder) if (!L.near) drawLeg(L, false);
 
