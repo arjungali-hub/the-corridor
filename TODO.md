@@ -751,3 +751,58 @@ direction; sight radius still drives bearings and scent reach.
       each trunk (s*0.42) blocks wolves AND prey in the present via inTreeAt.
       Render draws from the same list. inForestCore removed.
 - [x] Cattle are CATTLE, not calves — they're big. Fix the naming.
+
+## Part 23 — Established fixes, ship-readiness work order (Arjun, 2026-07-25)
+
+Settled fixes (no playtest dependency). Strict order 1→9; 1–2 release-blocking.
+Additive only — preserve every system. Harness + NOTES + commit per part.
+
+- [x] 1 Train telegraph (RELEASE-BLOCKING): a spawned train now enters a WARNING
+      phase (warnT, warning) — parked off-map, harmless — for TRAIN_WARN (3.2s):
+      playTrainHorn (a lower/longer sawtooth diesel variant of the beat-8 horn,
+      via masterGain) fires at spawn + a nearer blast 1s before launch; render
+      throws a headlight glow+beam that races down the rail ahead of the parked
+      train (headY from warnT) and jitters ballast dust, both scaling with warnT;
+      S.shake trembles when the head bears down near her. Only after warnT>=3.2
+      does it launch and strike. Death + 'dead' ending unchanged. Harness:
+      spawn-warns; no strike (and train parked) during the warning; still kills
+      after; measured invariant — strike time from spawn >= TRAIN_WARN.
+- [ ] 2 Resume AudioContext (RELEASE-BLOCKING): getAudioCtx never calls resume,
+      so Safari/iOS + much of Chrome ship silent. On the first user gesture
+      (intro keydown / beginFromIntro), if ac.state === 'suspended' call
+      ac.resume(); once-only, never throws. Harness: suspended context + first
+      keydown => resume() called. Manual: Safari specifically.
+- [ ] 3 Loading state: inline a dependency-free title + "loading…" on #191b16 in
+      index.html, shown pre-JS; game clears it on first successful draw().
+- [ ] 4 Error boundary: window.onerror + unhandledrejection stop the loop, draw
+      an in-fiction card ("The land slipped away. Press R to return."), log the
+      real error, wire R to reload. Tiny + defensive. Harness: a deliberate throw
+      in update() halts the loop and takes the card path (remove throw after).
+- [ ] 5 Save migration: migrateSave(save) in loadGame defaults every field added
+      since the base schema (missing key => its newGame default); no version bump
+      for additive changes; a structurally-unusable save fails safe to newGame.
+      Harness: an 'old' save missing thirst/exposure/foundPaths/rumorsTold/wind
+      loads without throw, defaults sane; a corrupt save falls back to newGame.
+- [ ] 6 Ending card integrity: replace the false "average corridor closes within
+      one generation" line with a true, unsourced-stat-free line; add ONE sourced
+      Banff impact card (crossings+fencing cut collisions >80%, elk/deer ~96%,
+      250k+ crossings) naming Banff on-screen; link Y2Y / ARC. Grep for any other
+      unsourced statistic. Manual: each ending reads cleanly.
+- [ ] 7 Mobile gate: touch + no-fine-pointer at boot => a kind dusk card ("The
+      Corridor is a keyboard game — please visit on a computer to play."); game
+      does not start. No touch controls for v1. Desktop unaffected.
+- [ ] 8 OG/social meta in <head>: og:title/description/image(absolute)/type +
+      twitter:card summary_large_image. Manual: link unfurls.
+- [ ] 9 Accessibility slate (each additive, all best-practice):
+  - [ ] 9a Key remapping row from the intro, persisted to localStorage under a
+        key SEPARATE from the run save (survives New Year).
+  - [ ] 9b Hold->toggle option for SPACE inherit-hold and sustained-hold verbs.
+  - [ ] 9c Scent colorblind safety ALWAYS-ON: marks pulse (discrete throbs),
+        trails flow (directional dashes) — a shape/motion channel independent of
+        gold-vs-red hue.
+  - [ ] 9d Text scale multiplier in options; captions + suggestion line persist
+        long enough to read at 1.5x.
+  - [ ] 9e True pause: ESC freezes update() wholesale, resumes on any key, quiet
+        "paused" overlay (distinct from the map, which doesn't pause the world).
+  - [ ] 9f Flash ceiling: audit headlights, fire glow, train headlight, strike
+        flashes to keep peak luminance jumps under strobe territory.

@@ -689,3 +689,23 @@ prompt walks her through holding the pack (F -> stay) then calling it back on (F
 again -> follow); fLessonDone only after both. Replaces the one-line tell.
 
 Harness 277 green, x3.
+
+## established fix 1 — the train telegraph (2026-07-25)
+
+The train was the game's only outright death (the 'dead' ending) and it arrived
+with no real warning — spawned already moving, ~1s of travel could reach a wolf
+on the near ballast. Now every spawned train carries warnT + warning and enters
+a WARNING PHASE: it stays parked off the map (harmless) for TRAIN_WARN = 3.2s
+while it announces itself, then launches and can strike. Because it cannot move
+— and the strike is gated on !warning — nothing on the rail can be hit with less
+than 3.2s of notice (harness measures the strike time from spawn and asserts
+>= TRAIN_WARN).
+
+Three cues, all riding warnT: (1) playTrainHorn — a lower, longer, sawtooth
+minor-chord variant of beat 8's diesel horn (distinct so it's learnable), routed
+through masterGain; fires at spawn and again 1s before launch. (2) A headlight
+glow + forward beam that, during the warning, races down the rail AHEAD of the
+parked train (headY = t.y + dir*(warnT/TRAIN_WARN)*4200) and after launch rides
+the leading edge. (3) Ballast dust jitter near the head + an S.shake tremble when
+the head bears down within 1100u of Aspen. The death and its ending copy are
+untouched — this only guarantees she was warned. Harness 281 green, x3.

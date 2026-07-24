@@ -32,6 +32,8 @@ const SENSE_OUT     = 0.5;   // the locked 0.5 s blend back
 const SCALE_WORLD   = 1.1;
 const SCALE_MAP     = 0.17;  // the map pulls well back — a document, not a lens
 const APRON         = 600;   // land drawn beyond the walkable world — no black void
+const TRAIN_WARN    = 3.2;    // a train telegraphs (horn, headlight, tremble) this
+                             // long before it can strike — the only outright death
 const SCALE_VISTA   = 0.5;
 const YEAR_DAYS     = 360;
 const WINTER_START  = 271;
@@ -2672,16 +2674,33 @@ function trainUpdate(dt) {
     S.trains.push({
       y: south ? -APRON - 1600 : WORLD.h + APRON + 1600,
       vy: (south ? 1 : -1) * 1700,
+      dir: south ? 1 : -1,
       len: 1300,
+      warnT: 0, warning: true,   // it telegraphs before it can kill
       met: new Set(),
     });
     playRumble();
+    playTrainHorn();             // the first horn — the train is still off the map
   }
   const rl = OBSTACLES.rail;
   const cx = (rl.x0 + rl.x1) / 2;
   for (let i = S.trains.length - 1; i >= 0; i--) {
     const t = S.trains[i];
+    // WARNING PHASE: the train stays off the map (harmless) while its horn,
+    // headlight, and the ground's tremble announce it. Only when the warning
+    // has run its full course does it launch and become lethal — so nothing on
+    // the rail can be struck without >= TRAIN_WARN seconds of notice.
+    if (t.warning) {
+      const was = t.warnT;
+      t.warnT += dt;
+      if (was < TRAIN_WARN - 1 && t.warnT >= TRAIN_WARN - 1) playTrainHorn();   // a nearer, final blast
+      if (t.warnT >= TRAIN_WARN) t.warning = false;
+      continue;
+    }
     t.y += t.vy * dt;
+    // the ground shakes underfoot as the head bears down near her
+    const dHead = Math.abs(t.y - S.wolf.y);
+    if (dHead < 1100) S.shake = Math.max(S.shake, 4 * (1 - dHead / 1100));
     const y0 = Math.min(t.y, t.y - Math.sign(t.vy) * t.len);
     const y1 = Math.max(t.y, t.y - Math.sign(t.vy) * t.len);
     const wolves = [{ ref: S.wolf, id: 'aspen' }, ...alivePack().map(w => ({ ref: w, id: w.id }))];
@@ -4033,6 +4052,24 @@ function playHorn() {
     g.gain.exponentialRampToValueAtTime(0.001, now + 1.1);
     o.connect(g); g.connect(masterGain);
     o.start(now); o.stop(now + 1.15);
+  }
+}
+
+// The rail's own horn — a variant of beat 8's diesel: lower, longer, a hollow
+// minor chord on sawtooths, so it reads as the oncoming train and nothing else.
+// This is the warning that makes the train's death a chosen risk.
+function playTrainHorn() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  for (const f of [77.8, 98, 130.8]) {   // ~D#1 / G1 / C2
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sawtooth'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.12, now + 0.08);
+    g.gain.setValueAtTime(0.12, now + 1.3);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.9);
+    o.connect(g); g.connect(masterGain);
+    o.start(now); o.stop(now + 2.0);
   }
 }
 
