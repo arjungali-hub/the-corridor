@@ -646,3 +646,46 @@ fainter (strength 0.55) mote bearing toward winterRange, nudging her to raise
 the map and plan. A real planned route overrides it. objectiveText + the
 goalSet map marker still carry the worded/visual spine as before. A3's "fog
 forces map reliance" is intentionally relaxed under the no-fog direction.
+
+## playtest batch — trees, found ways, suggestions, Bram, F taught (2026-07-24)
+
+Nine-item batch (Part 22). Small ones: cattle are "cattle" not "calves"; the
+creek runs in from the north apron (to y=-600) like the road; the train-death
+ending (endKind 'dead') drops "N of N came through" for "the pack scatters into
+a land it cannot read. None come through." and suppresses the legacy line (the
+map died with her); the prologue point-out is a ring only (no caret), and Alder
+and Fen are named separately.
+
+Individual trees. TERRAIN.forests still names groves, but the actual trees are a
+shared const TREES (~310, deliberately scarce) built in game.js from those zones
++ 60 lone trees, carved off nodes/dens/herd-anchors/ponds/road. Each trunk
+(s*0.42) blocks wolves AND prey in the present via inTreeAt (blockedAt +
+wolfBlockedAt); past era runs clear. Render draws from TREES with a per-tree
+position-seeded prng. inForestCore (the old solid-core approach) is gone.
+
+Found ways around tears. The freeform bridge already detected a walk from one
+side of a rip to the other; now it keeps that walked leg — S.foundPaths[key],
+oriented chain[0]->chain[last], simplified to ~45px points. doBridge(g, path)
+stores it and marks the ends visited; recomputeGhosts and computeRoute treat a
+found tear as connecting its two ends (cost = walked length); render inks it on
+the map and route legs follow it (routeLegPoly, land + map). Saved as plain
+data; reset each newGame. So the short way you actually walk becomes the new
+path, instead of the long graph detour via distant nodes.
+
+Suggestions (tasks are gone). S.suggestion, picked by context — starving family
+(the real counter-pull) > travel spine (B5) > thirst > hunger > den > a rotating
+explore nudge — shown as a '›' line under the objective. Never freezes the day,
+never required, expires on its dur and re-picks; there is always one. Names a
+compass DIRECTION (compass()/exploreDir()/goalDir()), never a point. hud.day-
+gated; bars drop to y=78 when it shows.
+
+Bram earns his years. At Aspen's side (<320) on a cooldown he surfaces the next
+rumor (need-first: carrion when hungry, water when thirsty, else nearest) onto
+the map — S.rumorsTold; render now gates B3 rumors on that instead of showing
+them all inherited. A dead/absent Bram tells nothing. Saved.
+
+F is taught, not told. ~6s into spring (fLesson) F becomes usable and a sticky
+prompt walks her through holding the pack (F -> stay) then calling it back on (F
+again -> follow); fLessonDone only after both. Replaces the one-line tell.
+
+Harness 277 green, x3.

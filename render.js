@@ -2062,12 +2062,12 @@ function drawMap() {
     }
   }
 
-  // B3: rumors — faded notes toward places Willow never took her. A dim
-  // thread from an inherited node into grey ground, with a word at its end.
-  // Once walked to and cashed, the note is gone (the ground is real now).
+  // B3: rumors — the old ground Bram remembers, told to her at his side and set
+  // on the map. A dim thread from an inherited node into grey country, a word at
+  // its end. Only what he has surfaced shows; once walked to and cashed, it goes.
   if (typeof RUMORS !== 'undefined' && S.era !== 'past') {
     for (const r of RUMORS) {
-      if (S.rumorsSeen.includes(r.id)) continue;
+      if (S.rumorsSeen.includes(r.id) || !S.rumorsTold.includes(r.id)) continue;
       const from = NbyId.get(r.from);
       if (!from) continue;
       ctx.globalAlpha = (0.22 + 0.1 * Math.sin(S.time * 1.5)) * m;
@@ -2437,12 +2437,17 @@ function drawHUD() {
     ctx.font = `italic 12px ${FONT}`;
     ctx.fillStyle = onMap ? 'rgba(91,70,50,0.85)' : 'rgba(235,228,208,0.85)';
     ctx.fillText(objectiveText(), 20, 38);
+    // a suggestion: help, never an order — a direction to try, not a task
+    if (S.suggestion) {
+      ctx.fillStyle = onMap ? 'rgba(120,82,40,0.9)' : 'rgba(226,206,150,0.92)';
+      ctx.fillText('› ' + S.suggestion.text, 20, 56);
+    }
   }
   ctx.shadowBlur = 0;
 
   // food and water always show; the others only when they have something in
   // them (an empty bar is clutter, not information)
-  let by = 60;
+  let by = S.suggestion ? 78 : 60;
   if (S.hud.food) { drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f'); by += 16; }
   if (S.hud.food) { drawBar(20, by, 140, 'WATER', S.water / 100, S.water < 25 ? '#b0473a' : '#5f7d92'); by += 16; }
   if (S.hud.fear && S.fear > 0.01) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }

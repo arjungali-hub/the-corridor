@@ -718,24 +718,25 @@ direction; sight radius still drives bearings and scent reach.
 
 ## Part 22 — Playtest batch (Arjun, 2026-07-24)
 
-- [ ] Bram earns his memory: he actively tells Aspen rumors — where food, water,
-      or a carcass is — and saying it ADDS that rumor to the map. (Right now
-      'Bram remembers the far side' is flavor that does nothing.) He is the
-      in-world SOURCE of map knowledge, tied to the rumor/mark system.
+- [x] Bram earns his memory: at Aspen's side he surfaces rumors (water/carcass/
+      den/vantage) onto the map, one at a time on a cooldown, need-first. B3's
+      rumors are no longer inherited-visible — bramTellsRumor is the source;
+      render gates on S.rumorsTold. A lost Bram tells nothing.
 - [x] The river (creek) continues north into the distance the way the road does
       — extended creekFlow to y=-600 (the apron), like the road.
 - [x] Train-death ending: when the pack is lost to a train, the end screen must
       NOT read "5 of 5 survived". endKind 'dead' now reads "Without her map, the
       pack scatters into a land it cannot read. None come through." and drops the
       legacy line (the map died with her).
-- [ ] Suggestions replace tasks. Like tasks but: they do NOT freeze the day
-      ('the day holds' gone), are never required, and expire on their own after
-      a while if ignored (your problem). There is ALWAYS a suggestion. They can
-      be creative (e.g. 'find a carcass and bring it home to feed the pack') but
-      must NOT name a specific point — only a DIRECTION to explore. Do B5 (the
-      travel-season spine) as a suggestion.
-- [ ] F (pack follows/holds) is TAUGHT, not told: a short spring scene after
-      Willow's death and before free play, where the verb is demonstrated/earned.
+- [x] Suggestions replace tasks. S.suggestion, picked by context (starving pack,
+      travel spine, thirst, hunger, den, or a rotating explore nudge), shown as a
+      '›' line under the objective. Never freezes the day, never required, expires
+      on a timer and re-picks. Always present. Names a compass DIRECTION, never a
+      point. B5's travel spine rides here (west, before the snow).
+- [x] F (pack follows/holds) is TAUGHT, not told: at ~6s into spring the lesson
+      opens (fLesson), F becomes usable, and a sticky prompt walks her through
+      holding the pack (F) then calling it back on (F again); only then is
+      fLessonDone. Replaces the old one-line tell.
 - [x] Prologue pack intro: use only a CIRCLE on the introduced wolf, not the
       circle + caret (the on-screen point-out is now a ring only). Alder and Fen
       introduced SEPARATELY, each circled, so you learn which is which.

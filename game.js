@@ -368,6 +368,7 @@ function newGame() {
     seasonGhostT: 0,   // the season ritual: her mother's map, ghosted over now
     sedgeMark: null,   // where Sedge went, if hunger took her
     lastSeason: 0, bondT: 0, bondC: null,
+    suggestion: null,   // the current non-binding nudge (replaces tasks)
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
@@ -380,7 +381,9 @@ function newGame() {
     snares: [], snaredT: 0,       // steel by the wire, once the ledger rises
     roadkill: null,               // what the road leaves on its shoulder
     trains: [], trainCd: 25,      // what runs on the rail — lethal, even to her
-    rumorsSeen: [],               // inherited notes she has walked to and cashed
+    rumorsSeen: [],               // rumors she has walked to and cashed
+    rumorsTold: [],               // rumors Bram has surfaced onto the map
+    bramRumorCd: 35,              // cooldown before Bram remembers the next one
     foundWater: [],               // clean springs a rumor resolved into being
     vantageT: 0,                  // a high place briefly widens her sight
     // the western pack: spatial pressure on the winter-range approach
@@ -2703,6 +2706,33 @@ function trainUpdate(dt) {
   }
 }
 
+// Bram earns his years: at Aspen's side, he remembers the old ground and tells
+// her where water, a carcass, or a bank lies — and saying it puts that note on
+// her map (B3's rumors are no longer inherited-visible; he surfaces them). Need
+// comes first; then the nearest thing he can recall.
+function bramTellsRumor(dt) {
+  if (S.era === 'past') return;
+  const b = S.pack.find(w => w.id === 'bram');
+  if (!b || b.state === 'dead' || b.state === 'gone') return;
+  if (dist(b.x, b.y, S.wolf.x, S.wolf.y) > 320) return;   // he speaks at her side
+  S.bramRumorCd -= dt;
+  if (S.bramRumorCd > 0) return;
+  const untold = RUMORS.filter(r => !S.rumorsTold.includes(r.id) && !S.rumorsSeen.includes(r.id));
+  if (!untold.length) { S.bramRumorCd = 999; return; }
+  let pick = null;
+  if (S.food < 55) pick = untold.find(r => r.type === 'carrion');
+  if (!pick && S.water < 55) pick = untold.find(r => r.type === 'water');
+  if (!pick) pick = untold.reduce((a, r) =>
+    dist(r.x, r.y, S.wolf.x, S.wolf.y) < dist(a.x, a.y, S.wolf.x, S.wolf.y) ? r : a, untold[0]);
+  S.rumorsTold.push(pick.id);
+  const dir = compass(Math.atan2(pick.y - S.wolf.y, pick.x - S.wolf.x));
+  const what = { water: 'clean water', carrion: 'an old kill, maybe still meat on it',
+    den: 'a bank a den could go in', vantage: 'high ground to read the land from' }[pick.type] || 'something';
+  say(`Bram remembers ${what}, off to the ${dir}. It is on your map now.`);
+  S.bramRumorCd = 55 + Math.random() * 35;
+  saveGame();
+}
+
 // B3: reaching a rumor cashes it — into a real feature, or an empty promise,
 // or a memory the world has since changed.
 function rumorUpdate() {
@@ -2804,6 +2834,68 @@ function objectiveText() {
   if (si === 1) return (S.pups && S.pups.count > 0) ? 'keep the pups fed — the land is drying' : 'the land is drying';
   if (si === 2) return day() < PUPS_TRAVEL_DAY ? 'scout the way west — teach the young' : 'west, before the snow';
   return 'reach the Winter Range';
+}
+
+// Suggestions: what the old tasks became. Help, never orders — they never
+// freeze the day, are never required, name only a DIRECTION (never a point),
+// and quietly expire if ignored. There is always one; ignoring it is her
+// choice, and its consequence. B5's travel spine rides here too.
+function compass(a) {
+  // +x is east, +y is south (down); north is up
+  const dirs = ['east', 'south-east', 'south', 'south-west', 'west', 'north-west', 'north', 'north-east'];
+  return dirs[((Math.round(a / (Math.PI / 4)) % 8) + 8) % 8];
+}
+function exploreDir() {
+  let best = null, bd = Infinity;
+  for (const n of NODES) {
+    if (n.dynamic || S.visited.has(n.id)) continue;
+    const d = dist(S.wolf.x, S.wolf.y, n.x, n.y);
+    if (d < bd) { bd = d; best = n; }
+  }
+  const t = best || NbyId.get('winterRange');
+  return compass(Math.atan2(t.y - S.wolf.y, t.x - S.wolf.x));
+}
+function goalDir() {
+  const wr = NbyId.get('winterRange');
+  return compass(Math.atan2(wr.y - S.wolf.y, wr.x - S.wolf.x));
+}
+function pickSuggestion() {
+  const si = seasonIndex();
+  const pups = S.pups && !S.pups.traveling && S.pups.count > 0;
+  // the real counter-pull: nothing outranks a starving family
+  if (S.food < 22 || (pups && S.pups.food < 25)) {
+    const pb = preyBearing();
+    return { text: `Hunger is close at home. Hunt to the ${pb ? compass(pb.a) : exploreDir()}, and carry a carcass back in your belly.`, dur: 65 };
+  }
+  // travel seasons — the spine, as a suggestion (B5)
+  if (si >= 2 && S.tut.goalSet) {
+    return { text: `West, before the snow — the winter range lies to the ${goalDir()}.`, dur: 105 };
+  }
+  if (S.water < 42) {
+    const wb = waterBearing();
+    if (wb) return { text: `Thirst will come. Clean water lies somewhere to the ${compass(wb.a)}.`, dur: 85 };
+  }
+  if (S.food < 55) {
+    const pb = preyBearing();
+    return { text: `This ground is hunted thin. Try the ${pb ? compass(pb.a) : exploreDir()} — and bring meat home for the pack.`, dur: 90 };
+  }
+  if (si === 0 && !S.denId) {
+    return { text: `The pups will come with the late spring. Walk the land and weigh where they should be born.`, dur: 110 };
+  }
+  // always something: a rotating nudge outward
+  const opts = [
+    () => ({ text: `Grey ground lies to the ${exploreDir()}. Walk it into your own ink.`, dur: 90 }),
+    () => ({ text: `Carry a carcass home in your belly — the pack eats what you bring.`, dur: 75 }),
+    () => ({ text: `Push into new country to the ${exploreDir()}; a wider map is a fuller year.`, dur: 90 }),
+    () => ({ text: `Follow your nose to the living land, and lead the pack to it.`, dur: 80 }),
+  ];
+  return opts[Math.floor(Math.random() * opts.length)]();
+}
+function suggestionUpdate(dt) {
+  if (S.mode !== 'play' || !S.hud.day) { S.suggestion = null; return; }
+  if (!S.suggestion) { S.suggestion = pickSuggestion(); S.suggestion.t = 0; return; }
+  S.suggestion.t += dt;
+  if (S.suggestion.t > S.suggestion.dur) { S.suggestion = pickSuggestion(); S.suggestion.t = 0; }
 }
 
 // ── the long tutorial (in-game path; the prologue teaches the early verbs) ───
@@ -3973,7 +4065,8 @@ function saveGame() {
       fear: S.fear, food: S.food,
       water: S.water, sickT: S.sickT || 0,
       snares: S.snares, roadkill: S.roadkill,
-      rumorsSeen: S.rumorsSeen, foundWater: S.foundWater,
+      rumorsSeen: S.rumorsSeen, rumorsTold: S.rumorsTold, bramRumorCd: S.bramRumorCd,
+      foundWater: S.foundWater,
       exposure: S.exposure, westLaneT: S.westLaneT,
       yearlingKnows: [...S.yearlingKnows],
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
@@ -4034,6 +4127,8 @@ function loadGame() {
   S.snares = d.snares || [];
   S.roadkill = d.roadkill || null;
   S.rumorsSeen = d.rumorsSeen || [];
+  S.rumorsTold = d.rumorsTold || [];
+  S.bramRumorCd = typeof d.bramRumorCd === 'number' ? d.bramRumorCd : 35;
   S.foundWater = d.foundWater || [];
   S.exposure = d.exposure || 0;
   S.westLaneT = d.westLaneT || 0;
@@ -4119,6 +4214,7 @@ function update(dt) {
     // never waits — not for tasks, not for anything
     S.clock.min += dt * MIN_PER_SEC;
     if (day() !== S.lastDay) { S.lastDay = day(); applyDecay(); herdDriftUpdate(); }
+    suggestionUpdate(dt);
 
     if (S.pendingForcedSense && !onRoad(S.wolf.x, S.wolf.y)) {
       S.pendingForcedSense = false;
@@ -4149,6 +4245,7 @@ function update(dt) {
     roadkillUpdate(dt);
     trainUpdate(dt);
     rumorUpdate();
+    bramTellsRumor(dt);
     S.vantageT = Math.max(0, (S.vantageT || 0) - dt);
 
     // B4: the home range dies. In winter, when she paces the emptied ground
@@ -4178,13 +4275,24 @@ function update(dt) {
       say('Bram remembers the far side. From before.');
     }
 
-    // the verb of leadership arrives a little into spring, when the pack
-    // has settled at her heels — hers now, not her mother's
-    if (!S.tut.fTaught && S.tut.step >= 6) {
-      S.tut.fTeachT = (S.tut.fTeachT || 0) + dt;
-      if (S.tut.fTeachT > 14) {
-        S.tut.fTaught = true;
-        showPrompt('The pack is hers to lead now. F — they hold this ground, or follow.', ['F'], 8);
+    // F — the verb of leadership — is TAUGHT a little into spring, not told:
+    // the pack is hers now, and she is walked through holding it and calling it
+    // on with her own body before the year truly opens.
+    if (!S.tut.fLessonDone && S.tut.step >= 6) {
+      const T = S.tut;
+      T.fTeachT = (T.fTeachT || 0) + dt;
+      if (!T.fLesson && T.fTeachT > 6) {
+        T.fLesson = 1;
+        T.fTaught = true;   // the verb works now — the lesson IS doing it
+        setCaption('The pack is yours now.', 4, "Willow led them nine years; today you lead");
+        stickyPrompt('Ask them to hold this ground — press F.', ['F']);
+      } else if (T.fLesson === 1 && alivePack().some(w => w.state === 'stay')) {
+        T.fLesson = 2;
+        stickyPrompt('They hold. Now call them back to your heels — press F again.', ['F']);
+      } else if (T.fLesson === 2 && !alivePack().some(w => w.state === 'stay')) {
+        T.fLessonDone = true;
+        clearPrompt();
+        say('They are yours to lead now. F holds them, or calls them on.');
       }
     }
 
