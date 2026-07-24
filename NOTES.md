@@ -623,3 +623,26 @@ SPACE; beat-3->4 walk single-steps and breaks the instant beat>=4 (the elk now
 sits on the path, so a coarse loop ran her into beats 5-6 before we saw 4); the
 held-wolf test pins fear off (a held wolf DOES flee real terror — correct — but
 that confounds the hold check). 259 green, x12.
+
+## map centrality without fog (2026-07-24)
+
+Direction chosen by Arjun: the map is central through knowledge the world does
+NOT show — no fog/darkness (the porthole stays removed). Audited Part 18 Block
+A/B — all present and working; only two things had quietly broken when the
+porthole and the task system were removed:
+
+drawRouteCue was invisible. Its motes used `globalCompositeOperation =
+'lighter'` at ~0.32 alpha — designed to glow against the dark porthole. With
+the world fully lit, additive light over bright terrain does nothing. Extracted
+`driftMotes(a, R, rgb, strength)`: each mote now paints a soft dark halo
+(source-over) under a brighter core, so the remembered route reads over any
+ground. The B1/B2 bearing blooms were NOT affected — they live in the scent
+view, which still lays a near-black `rgba(10,10,20,0.82)` backdrop.
+
+B5's spine got a bearing back. The old "range" task named the winter range by
+compass; with tasks gone, drawRouteCue now falls back — when no route is
+planned and it's a travel season (seasonIndex>=2 && S.tut.goalSet) — to a
+fainter (strength 0.55) mote bearing toward winterRange, nudging her to raise
+the map and plan. A real planned route overrides it. objectiveText + the
+goalSet map marker still carry the worded/visual spine as before. A3's "fog
+forces map reliance" is intentionally relaxed under the no-fog direction.

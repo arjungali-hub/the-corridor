@@ -694,3 +694,24 @@ New "look here" system: `pointOut(tag, dur)` + `resolvePointTarget()` set
 bobbing caret over it (or an edge chevron toward it if off the close-in camera).
 Vista hold: `S.vistaWait` pins the matte fully-in until any key calls
 `releaseVista()`, which lowers it and hands the beat forward.
+
+## Part 21 — Map centrality, no-fog reconciliation (Arjun, 2026-07-24)
+
+Direction (Arjun): the map stays central through knowledge the world does NOT
+reveal — NO fog/darkness (the porthole was removed and stays removed). Audited
+Part 18 Block A/B: all A1–A5 / B1–B5 present and working; the map keeps its own
+vignette (senseRadius, "what she cannot call to mind stays void"), the seen
+tiers, the goal marker, rumors, and the season ritual. Two casualties of the
+porthole + task removals, both fixed additively:
+
+- [x] A2 route cue was washed out: the drifting motes used additive `lighter`
+      blending tuned to glow on the dark porthole. With the world fully lit they
+      vanished. `driftMotes()` now gives each mote a soft dark halo (source-over)
+      so the remembered route reads over any terrain.
+- [x] B5 lost its compass: the "range" spine was a task (removed). With no route
+      planned, in travel seasons (si>=2, goalSet) a fainter goal bearing now
+      drifts toward the Winter Range — nudging her to raise the map and choose a
+      way. Suppressed the moment a route is planned (the route motes take over).
+
+A3's "fog forces map-reliance" is intentionally relaxed under the no-fog
+direction; sight radius still drives bearings and scent reach.

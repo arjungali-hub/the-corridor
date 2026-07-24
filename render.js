@@ -1441,31 +1441,47 @@ function drawWorld() {
 // fully visible. (playSightWorld() still drives scent reach and bearing cues.)
 function drawPlayFog() {}
 
-// A2: the remembered route, once she is back in the porthole — a bearing-only
-// pull at the fog edge toward the next un-reached node. Not an arrow, not a
-// line: drifting pale motes, like a scent she is following from memory.
-function drawRouteCue() {
-  if (S.mode !== 'play' || S.senseBlend > 0.2) return;
-  const next = routeNextNode();
-  if (!next) return;
-  const d = dist(S.wolf.x, S.wolf.y, next.x, next.y);
-  if (d < 60) return;
-  resetTransform();
+// Drifting pale motes at the sight edge in a bearing — a scent she follows
+// from memory, not an arrow or a line. Each mote gets a soft dark halo so it
+// reads over the fully-lit world (there is no porthole dark to glow against).
+function driftMotes(a, R, rgb, strength) {
   const wp = screenPos(S.wolf.x, S.wolf.y);
-  const R = playSightWorld() * S.cam.scale;
-  const a = Math.atan2(next.y - S.wolf.y, next.x - S.wolf.x);
-  ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
   for (let i = 0; i < 7; i++) {
     const phase = (S.time * 0.5 + i / 7) % 1;
     const rr = R * (0.62 + phase * 0.5);
     const spread = (i - 3) * 0.09;
     const mx = wp.x + Math.cos(a + spread) * rr;
     const my = wp.y + Math.sin(a + spread) * rr;
-    const fade = (1 - phase) * (1 - Math.abs(i - 3) / 4);
-    ctx.fillStyle = `rgba(150,180,196,${0.32 * fade})`;
-    ctx.beginPath(); ctx.arc(mx, my, 3 + phase * 2, 0, Math.PI * 2); ctx.fill();
+    const fade = (1 - phase) * (1 - Math.abs(i - 3) / 4) * strength;
+    if (fade <= 0.01) continue;
+    const rad = 3 + phase * 2;
+    ctx.fillStyle = `rgba(24,30,34,${0.30 * fade})`;   // halo for contrast
+    ctx.beginPath(); ctx.arc(mx, my, rad + 2.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = `rgba(${rgb},${0.9 * fade})`;
+    ctx.beginPath(); ctx.arc(mx, my, rad, 0, Math.PI * 2); ctx.fill();
   }
+}
+
+// A2 / B5: the remembered route pulls first — motes toward the next un-reached
+// node. With no route planned, in travel seasons the distant Winter Range keeps
+// a fainter bearing of its own: the year's spine, nudging her to raise the map
+// and choose a way there (it replaced the removed 'range' task's compass).
+function drawRouteCue() {
+  if (S.mode !== 'play' || S.senseBlend > 0.2) return;
+  let next = routeNextNode();
+  let rgb = '208,226,236', strength = 1;
+  if (!next && S.era !== 'past' && seasonIndex() >= 2 && S.tut.goalSet) {
+    next = NbyId.get('winterRange');
+    rgb = '212,216,226'; strength = 0.55;
+  }
+  if (!next) return;
+  const d = dist(S.wolf.x, S.wolf.y, next.x, next.y);
+  if (d < 60) return;
+  resetTransform();
+  const R = playSightWorld() * S.cam.scale;
+  const a = Math.atan2(next.y - S.wolf.y, next.x - S.wolf.x);
+  ctx.save();
+  driftMotes(a, R, rgb, strength);
   ctx.restore();
 }
 
