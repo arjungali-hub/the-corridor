@@ -1757,28 +1757,10 @@ function drawWorld() {
 
 // The porthole: past her senses the land goes dark. A world-unit sight
 // distance (fair on every monitor) scaled to the screen, soft-edged.
-function drawPlayFog() {
-  if (S.mode !== 'play' && S.mode !== 'prologue') return;
-  if (S.senseBlend > 0.02) return;   // the raised map is its own view
-  resetTransform();
-  const wp = screenPos(S.wolf.x, S.wolf.y);
-  const R = playSightWorld() * S.cam.scale;
-  const v = clamp(violetAt(S.wolf.x, S.wolf.y), 0, 1);
-  const dl = typeof daylight === 'function' ? clamp(daylight(), 0, 1) : 1;
-  // A soft haze that closes her vision, not a black void: a dusky green-slate
-  // that harmonizes with the land, deepening at night and in human noise.
-  // In daylight it stays a gentle veil; the darkness is reserved for night.
-  const fr = Math.round(lerp(46, 26, v)) - Math.round((1 - dl) * 18);
-  const fg = Math.round(lerp(56, 34, v)) - Math.round((1 - dl) * 20);
-  const fb = Math.round(lerp(48, 42, v)) - Math.round((1 - dl) * 6);
-  const maxA = 0.5 + 0.34 * (1 - dl) + 0.12 * v;   // ~0.5 by day → ~0.85 deep night
-  const fog = ctx.createRadialGradient(wp.x, wp.y, R * 0.85, wp.x, wp.y, R * 2.1);
-  fog.addColorStop(0, `rgba(${fr},${fg},${fb},0)`);
-  fog.addColorStop(0.6, `rgba(${fr},${fg},${fb},${maxA * 0.5})`);
-  fog.addColorStop(1, `rgba(${fr},${fg},${fb},${maxA})`);
-  ctx.fillStyle = fog;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-}
+// The play-view porthole darkness was removed by request — the world stays
+// fully visible. (playSightWorld() still drives the scent-view reach and the
+// bearing cues; only the on-screen darkening is gone.)
+function drawPlayFog() {}
 
 // A2: the remembered route, once she is back in the porthole — a bearing-only
 // pull at the fog edge toward the next un-reached node. Not an arrow, not a
