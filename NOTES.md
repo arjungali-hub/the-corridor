@@ -748,3 +748,16 @@ the harness drives input through the single stored keydown handler, so adding a
 second would have broken every key() call. Harness: a deliberate throw inside
 update() via frame(0) trips the boundary; an unhandled rejection trips it too.
 284 green, x3.
+
+## established fix 5 — save migration (2026-07-25)
+
+Fields have been appended across many batches under the same v2 schema; a save
+written by an older build can read a new field as undefined and crash a resumed
+year. migrateSave(d) now runs first inside loadGame and fills any absent key
+with its default (from an explicit defaults map, only `=== undefined` so valid
+0/false/''/null survive). And the whole load body is wrapped in try/catch: a
+structurally-unusable save (e.g. a non-iterable edges) is caught, clearSave() +
+newGame() run, and loadGame returns false — the caller then starts fresh, no
+crash. No version bump (additive migration forward). Harness: an old save with
+only {v,clockMin,wolf} loads with water=90/exposure=0/foundPaths={}/rumorsTold=
+[]/wind set; a corrupt {v:2,edges:12345} fails safe to intro. 287 green, x3.

@@ -782,11 +782,12 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       keydown handler (no second listener, so the harness key() path is intact).
       Harness: a throw inside update() via frame(0) trips the boundary; an
       unhandled rejection trips it too.
-- [ ] 5 Save migration: migrateSave(save) in loadGame defaults every field added
-      since the base schema (missing key => its newGame default); no version bump
-      for additive changes; a structurally-unusable save fails safe to newGame.
-      Harness: an 'old' save missing thirst/exposure/foundPaths/rumorsTold/wind
-      loads without throw, defaults sane; a corrupt save falls back to newGame.
+- [x] 5 Save migration: migrateSave(d) fills any absent field with its default
+      (keeping valid falsy values); the whole load body is wrapped in try/catch
+      so a structurally-unusable save calls clearSave()+newGame() and returns
+      false (fail safe). No version bump. Harness: an old save missing water/
+      exposure/foundPaths/rumorsTold/wind loads with sane defaults; a corrupt
+      save (edges: 12345) fails safe to intro.
 - [ ] 6 Ending card integrity: replace the false "average corridor closes within
       one generation" line with a true, unsourced-stat-free line; add ONE sourced
       Banff impact card (crossings+fencing cut collisions >80%, elk/deer ~96%,

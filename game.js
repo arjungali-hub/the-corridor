@@ -4136,6 +4136,26 @@ function saveGame() {
   } catch (_) { /* storage full or blocked — the game just doesn't persist */ }
 }
 
+// Old saves (fields have been appended across many batches under the same v2)
+// must not crash a new build: fill any field absent from the loaded save with
+// its default, keeping valid falsy values (0, false, '', null) intact.
+function migrateSave(d) {
+  const def = {
+    clockMin: 8 * 60, wolf: { x: DEN.x, y: DEN.y }, injuredT: 0,
+    edges: [], visited: ['den'], bridged: [], foundPaths: {}, seen: null,
+    firstTear: false, pack: [], fear: 0, food: 70, water: 90, sickT: 0,
+    snares: [], roadkill: null, rumorsSeen: [], rumorsTold: [], bramRumorCd: 35,
+    foundWater: [], exposure: 0, westLaneT: 0, yearlingKnows: [],
+    denId: null, denSite: null, seenDens: [], pups: null,
+    weather: null, wind: { a: 0 }, overpassCross: 0, herdAnchors: null,
+    sedgeMark: null, conflict: 0, gift: { given: false, taken: false },
+    alarm: 0, lichenJoined: false, fire: { state: 'none', t: 0 }, standoffCd: 0,
+    hud: {}, tut: {}, callouts: [], elkRespawn: [], history: [], time: 0,
+  };
+  for (const k in def) if (d[k] === undefined) d[k] = def[k];
+  return d;
+}
+
 function loadGame() {
   if (!storageOk()) return false;
   let raw;
@@ -4145,6 +4165,8 @@ function loadGame() {
   try { d = JSON.parse(raw); } catch (_) { return false; }
   if (!d || d.v !== 2) return false;
 
+  try {
+  migrateSave(d);
   newGame();
   S.era = 'present';
   S.clock.min = d.clockMin; S.lastDay = day();
@@ -4216,6 +4238,13 @@ function loadGame() {
   recomputeGhosts();
   S.mode = 'play';
   return true;
+  } catch (err) {
+    // a structurally-unusable save must fail safe to a fresh start, not a crash
+    try { console.warn('[The Corridor] save unreadable; starting fresh:', err); } catch (_) {}
+    clearSave();
+    newGame();
+    return false;
+  }
 }
 
 function clearSave() {
