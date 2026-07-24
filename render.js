@@ -1096,12 +1096,9 @@ function drawWorld() {
     ctx.globalAlpha = 0.4 + 0.12 * Math.sin(S.time * 2);
     ctx.lineDashOffset = -S.time * 50;
     for (let i = 1; i < S.routePath.length; i++) {
-      const idA = S.routePath[i - 1], idB = S.routePath[i];
-      const A = NbyId.get(idA), B = NbyId.get(idB);
-      // follow the drawn edge's own curve, not a straight chord between centres
-      const e = S.edges.find(x => (x.a === idA && x.b === idB) || (x.a === idB && x.b === idA));
-      const poly = e ? edgePolyline(e) : [[A.x, A.y], [B.x, B.y]];
-      strokePolyline(ctx, poly, 7, 'rgba(78,122,140,0.75)', [26, 22]);
+      // follow the drawn edge's own curve (or a found short-way around a tear),
+      // not a straight chord between centres
+      strokePolyline(ctx, routeLegPoly(S.routePath[i - 1], S.routePath[i]), 7, 'rgba(78,122,140,0.75)', [26, 22]);
     }
     ctx.lineDashOffset = 0;
     const t = routeTargetPos();
@@ -1765,6 +1762,21 @@ function edgePolyline(e) {
   return pts;
 }
 
+// The polyline for one route leg between two nodes: the drawn edge's curve if
+// they share one, else the found short-way around a tear (oriented idA->idB),
+// else a straight chord.
+function routeLegPoly(idA, idB) {
+  const e = S.edges.find(x => (x.a === idA && x.b === idB) || (x.a === idB && x.b === idA));
+  if (e) return edgePolyline(e);
+  const g = foundTearBetween(idA, idB);
+  if (g && S.foundPaths[g.key]) {
+    const pts = S.foundPaths[g.key];
+    return g.chain[0] === idB ? pts.slice().reverse() : pts;
+  }
+  const A = NbyId.get(idA), B = NbyId.get(idB);
+  return [[A.x, A.y], [B.x, B.y]];
+}
+
 function drawInkEdge(e, m) {
   const sc = S.cam.scale;
   if (e.torn) return;
@@ -2002,10 +2014,10 @@ function drawMap() {
   if (S.routePath && S.routePath.length > 1) {
     for (let i = 1; i < S.routePath.length; i++) {
       const idA = S.routePath[i - 1], idB = S.routePath[i];
-      const A = NbyId.get(idA), B = NbyId.get(idB);
       const e = S.edges.find(x => (x.a === idA && x.b === idB) || (x.a === idB && x.b === idA));
-      const confirmed = e ? edgeSeenFrac(e) >= 0.5 : (nodeSeen(idA) && nodeSeen(idB));
-      const poly = e ? edgePolyline(e) : [[A.x, A.y], [B.x, B.y]];
+      const foundG = e ? null : foundTearBetween(idA, idB);
+      const confirmed = e ? edgeSeenFrac(e) >= 0.5 : (!!foundG || (nodeSeen(idA) && nodeSeen(idB)));
+      const poly = routeLegPoly(idA, idB);
       if (confirmed) {
         ctx.globalAlpha = m * (0.35 + 0.15 * Math.sin(S.time * 2.5));
         strokePolyline(ctx, poly, 16 / sc, 'rgba(78,122,140,0.6)');
@@ -2018,6 +2030,16 @@ function drawMap() {
   }
 
   for (const e of S.edges) drawInkEdge(e, m);
+
+  // the short ways she found around tears — her own ink, a new path the map did
+  // not hold before
+  for (const g of TEAR_GROUPS) {
+    if (!S.foundPaths[g.key]) continue;
+    ctx.globalAlpha = m;
+    strokePolyline(ctx, S.foundPaths[g.key], 6 / sc, C_INK_DARK);
+    strokePolyline(ctx, S.foundPaths[g.key], 2.6 / sc, C_INK_LIGHT);
+    ctx.globalAlpha = 1;
+  }
 
   // the season ritual: her mother's original, whole map ghosts in over the
   // scarred truth of now, holds, and fades

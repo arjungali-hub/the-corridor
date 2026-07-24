@@ -322,6 +322,7 @@ function newGame() {
     })),
     visited: new Set(['den']),
     bridged: new Set(),
+    foundPaths: {},   // tear key -> the short way she actually walked around it
     ghostNodes: new Set(),
     ghostEdges: new Set(),
     firstTear: false,
@@ -723,6 +724,13 @@ function recomputeGhosts() {
       const nb = e.a === nid ? e.b : e.b === nid ? e.a : null;
       if (nb && !reach.has(nb)) { reach.add(nb); queue.push(nb); }
     }
+    // a found short-way around a tear reconnects its two ends
+    for (const g of TEAR_GROUPS) {
+      if (!S.foundPaths[g.key]) continue;
+      const a = g.chain[0], b = g.chain[g.chain.length - 1];
+      const nb = a === nid ? b : b === nid ? a : null;
+      if (nb && !reach.has(nb)) { reach.add(nb); queue.push(nb); }
+    }
   }
   for (const e of S.edges) {
     if (e.torn || e.state === 'unknown') continue;
@@ -881,11 +889,55 @@ function newInkPath(a, b) {
   return false;
 }
 
-function doBridge(g) {
+// A bridge records that she found a way past the tear. If she went the SHORT
+// way — right around the rip, on her own feet — that walked path (foundPath) is
+// kept and becomes a new inked route on the map, connecting the tear's two
+// ends. The graph detour (checkBridges) has no foundPath: its new path is the
+// detour edges she inked.
+function doBridge(g, foundPath) {
   S.bridged.add(g.key);
+  if (foundPath && foundPath.length >= 2) {
+    S.foundPaths[g.key] = foundPath;
+    S.visited.add(g.chain[0]); S.visited.add(g.chain[g.chain.length - 1]);
+  }
   playPatchChime();
   S.history.push({ type: 'bridge', day: day(), group: g.key });
-  say('A new way around. She will remember it.');
+  say(foundPath ? 'A new way around, right past the tear. She will remember it.'
+                : 'A new way around. She will remember it.');
+  recomputeGhosts();
+}
+
+function simplifyPath(seg) {
+  if (!seg.length) return [];
+  const out = [seg[0]];
+  for (let i = 1; i < seg.length; i++) {
+    const last = out[out.length - 1];
+    if (i === seg.length - 1 || dist(seg[i].x, seg[i].y, last.x, last.y) > 45) out.push(seg[i]);
+  }
+  return out.map(p => [Math.round(p.x), Math.round(p.y)]);
+}
+function pathLen(pts) {
+  let L = 0;
+  for (let i = 1; i < pts.length; i++) L += Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+  return L;
+}
+// the found short-way around a tear, keyed by its two chain endpoints
+function foundTearBetween(idA, idB) {
+  for (const g of TEAR_GROUPS) {
+    if (!S.foundPaths[g.key]) continue;
+    const a = g.chain[0], b = g.chain[g.chain.length - 1];
+    if ((a === idA && b === idB) || (a === idB && b === idA)) return g;
+  }
+  return null;
+}
+
+function checkBridges() {
+  for (const g of TEAR_GROUPS) {
+    if (!groupTorn(g) || S.bridged.has(g.key)) continue;
+    const a = g.chain[0], b = g.chain[g.chain.length - 1];
+    if (a === b) continue;
+    if (newInkPath(a, b)) doBridge(g);
+  }
 }
 
 function checkBridges() {
@@ -923,14 +975,19 @@ function freeformBridgeCheck() {
     const A = NbyId.get(g.chain[0]), B = NbyId.get(g.chain[g.chain.length - 1]);
     if (!A || !B || A === B) continue;
     let ai = -1, bi = -1;
+    const leg = (lo, hi, rev) => {
+      const seg = S.trail.slice(Math.min(lo, hi), Math.max(lo, hi) + 1).map(p => ({ x: p.x, y: p.y }));
+      if (rev) seg.reverse();   // always store the path oriented chain[0] -> chain[last]
+      return simplifyPath(seg);
+    };
     for (let i = 0; i < S.trail.length; i++) {
       const p = S.trail[i];
       if (dist(p.x, p.y, A.x, A.y) < 170) {
-        if (bi >= 0 && trailLegClear(g, bi, i)) { doBridge(g); break; }
+        if (bi >= 0 && trailLegClear(g, bi, i)) { doBridge(g, leg(bi, i, true)); break; }
         ai = i;
       }
       if (dist(p.x, p.y, B.x, B.y) < 170) {
-        if (ai >= 0 && trailLegClear(g, ai, i)) { doBridge(g); break; }
+        if (ai >= 0 && trailLegClear(g, ai, i)) { doBridge(g, leg(ai, i, false)); break; }
         bi = i;
       }
     }
@@ -1114,6 +1171,18 @@ function computeRoute(targetId) {
       if (!nb || done.has(nb)) continue;
       const A = NbyId.get(e.a), B = NbyId.get(e.b);
       const alt = best + dist(A.x, A.y, B.x, B.y);
+      if (alt < (distMap.has(nb) ? distMap.get(nb) : Infinity)) {
+        distMap.set(nb, alt);
+        prev.set(nb, u);
+      }
+    }
+    // a found short-way around a tear is a real leg, at its own walked length
+    for (const g of TEAR_GROUPS) {
+      if (!S.foundPaths[g.key]) continue;
+      const a = g.chain[0], b = g.chain[g.chain.length - 1];
+      const nb = a === u ? b : b === u ? a : null;
+      if (!nb || done.has(nb)) continue;
+      const alt = best + pathLen(S.foundPaths[g.key]);
       if (alt < (distMap.has(nb) ? distMap.get(nb) : Infinity)) {
         distMap.set(nb, alt);
         prev.set(nb, u);
@@ -3893,7 +3962,7 @@ function saveGame() {
         lastUsedDay: e.lastUsedDay, inkLo: e.inkLo, inkHi: e.inkHi,
         covBits: e.covBits,
       })),
-      visited: [...S.visited], bridged: [...S.bridged],
+      visited: [...S.visited], bridged: [...S.bridged], foundPaths: S.foundPaths,
       seen: S.seen ? Array.from(S.seen) : null,
       firstTear: S.firstTear,
       pack: S.pack.map(w => ({
@@ -3945,6 +4014,7 @@ function loadGame() {
     if (e) Object.assign(e, se);
   }
   S.visited = new Set(d.visited); S.bridged = new Set(d.bridged);
+  S.foundPaths = d.foundPaths || {};
   if (d.seen && d.seen.length === GRID_W * GRID_H) S.seen = Uint8Array.from(d.seen);
   S.firstTear = d.firstTear;
   for (const sw of d.pack) {

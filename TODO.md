@@ -739,9 +739,11 @@ direction; sight radius still drives bearings and scent reach.
 - [x] Prologue pack intro: use only a CIRCLE on the introduced wolf, not the
       circle + caret (the on-screen point-out is now a ring only). Alder and Fen
       introduced SEPARATELY, each circled, so you learn which is which.
-- [ ] Routes go straight around a tear, not out and back: instead of routing to
-      a far side node and returning, a torn leg should curve the SHORT way around
-      the rip, and walking it inks a NEW path on the map (the found detour).
+- [x] Routes go straight around a tear, not out and back: walking the short way
+      right past a rip now records that path (S.foundPaths[key]) via the freeform
+      bridge; it inks as new map ground, reconnects the tear's ends for
+      recomputeGhosts + computeRoute, and the route follows it (routeLegPoly).
+      Saved/loaded; reset each year (tears re-tear, ways re-found).
 - [x] Trees are individual obstacles, not a blocked core in the middle of a
       canopy zone. Shared TREES list (~310, scarce) built in game.js from the
       forest zones + lone trees, carved off nodes/dens/herd-anchors/ponds/road;
