@@ -34,6 +34,9 @@ window.addEventListener('keydown', (ev) => {
     return;
   }
 
+  // a held prologue vista lowers on any key — and that key does nothing else
+  if (S && S.vistaWait && !ev.repeat) { releaseVista(); return; }
+
   if (k === 'r') { requestNewYear(); return; }
   if (k === 'm') { toggleMute(); return; }
   if (k === 'h' && S && S.tut && S.tut.taughtHelp

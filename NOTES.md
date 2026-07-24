@@ -577,3 +577,49 @@ fixed 70s spell. Balk recovery is likewise fear-only now. (3) The R/H teach
 prompts shortened to 3.5s so they fade on their own. Harness updated (fear-
 bar freeze, held-wolf-holds-while-another-follows) + a latent car-strike
 flake in the season-defer test fixed; green x6.
+
+## playtest batch — trees, prologue visibility, vista hold (2026-07-23)
+
+Ten-item playtest pass (Part 20).
+
+Trees as obstacles. `inForestCore(x,y,pad)` blocks the dense trunk core of
+each TERRAIN.forests clump at r*0.5 — the canopy edge (outer half) stays
+walkable. Present era only (the scripted prologue paths are never obstructed),
+wired into both `blockedAt` (prey) and `wolfBlockedAt` after their past-era
+early return. Probed every node/den/pond/herd-anchor and every graph edge
+against the cores: three canopies straddled trails, so they were nudged clear
+in data.js (2900,400->490; 960,3240->3300; 700,1700->790,1700). northRidge
+sits 172 from a core (clears the 130 radius). No via waypoints exist, so the
+"curve" of a route is just edgePolyline's hand-wobble.
+
+Curved routes. The map route already drew each leg through `edgePolyline(e)`;
+the on-LAND route drew straight chords between node centres. Fixed — the land
+route now looks up the edge and follows the same polyline, so the two agree.
+
+Prologue "look here". New `pointOut(tag, dur)` + `resolvePointTarget(tag)` set
+`S.pointAt` to a live position every prologue frame (tags: aspen, willow, elk,
+a pack id, or 'yearlings' -> midpoint). Render draws a bobbing caret over it,
+or, if it has drifted off the close-in 2.2x camera, an edge chevron toward it.
+Used in beat 1 (Aspen named FIRST, then Bram/Sedge/yearlings each pointed
+out), beat 3 (Willow), beat 4 (the elk). The beat-4 elk now spawns 160px ahead
+of Aspen toward the ford (guaranteed on-camera) instead of relative to Willow.
+
+Vista holds for a keypress. `S.vistaWait` pins the vista matte fully-in (floor
+= vistaTMax-0.7) and keeps input locked; any key calls `releaseVista()`, which
+drops vistaT into its fade-out, unlocks, clears the caption, and hands the beat
+forward (beat 2 -> 3; beat 8 -> 9 via beatT). main.js consumes that key so it
+does nothing else. Applies to the overlook (beat 2) AND THE CUT (beat 8). The
+beat-8 hand-off is gated on `!S.vistaWait` so it can't fire while held.
+
+Beat-6 lean-in is SPACE, not F. `toggleMap()` has a beat-6 branch that sets
+`S.tut._bond` and swallows the map; togglePackStay no longer sets _bond in the
+prologue (F is dead there until spring). Overlook guide chevron shrunk (dist
+130->104, thinner strokes). Map's "what she remembers" caption hidden while
+`S.mode === 'prologue'` (the map is Willow's, not hers yet). Q added to the
+help overlay unconditionally in play; HUD already hides empty fear/pup bars.
+
+Harness: beat-2/beat-8 drives press a key to lower the held vista; beat-6 uses
+SPACE; beat-3->4 walk single-steps and breaks the instant beat>=4 (the elk now
+sits on the path, so a coarse loop ran her into beats 5-6 before we saw 4); the
+held-wolf test pins fear off (a held wolf DOES flee real terror — correct — but
+that confounds the hold check). 259 green, x12.

@@ -295,7 +295,6 @@ function newGame() {
     showHelp: false,
     confirmNewYearT: 0,
     routeTo: null, routePath: null, routeT: 0,   // the way she has in mind
-    task: null, taskCooldown: 30,                // small demands; time holds for them
     zoneAnchor: null,                            // F pins the pack's zone here
 
     // the rancher: a hidden, permanent ledger — never shown, always kept
@@ -353,7 +352,7 @@ function newGame() {
     beat: 0, beatT: 0,
     willow: null,      // { x, y, heading, gait, moving, alive, lying, path: [] }
     caption: null,     // { text, sub, t, dur }
-    inputLockT: 0, vistaT: 0, vistaTMax: 0,
+    inputLockT: 0, vistaT: 0, vistaTMax: 0, vistaWait: false,
     inheritHold: 0, inherited: false, inheritBloom: 0,
     ghostPulse: 0, bondGlow: 0,
     prologueElk: false, truckSent: false,
@@ -446,6 +445,37 @@ function isInjured() { return S.injuredT > 0; }
 function say(text) { S.msg = text; S.msgT = 7; }
 function setCaption(text, dur, sub) { S.caption = { text, sub: sub || '', t: 0, dur: dur || 4 }; }
 
+// A prologue "look here" marker: names a creature and points at it while it is
+// introduced. The tag is resolved to a live position every frame so the caret
+// tracks a moving animal; render draws a caret over it, or an edge chevron if
+// it has drifted off-screen.
+// A held overlook/CUT vista lowers on any key: it drops through its fade-out
+// and hands the beat forward.
+function releaseVista() {
+  if (!S.vistaWait) return;
+  S.vistaWait = false;
+  S.vistaT = Math.min(S.vistaT, 1.0);       // count down through the fade-out
+  S.inputLockT = Math.min(S.inputLockT, 1.0);
+  S.caption = null;
+  if (S.mode === 'prologue') {
+    if (S.beat === 2) { S.beat = 3; S.beatT = 0; }
+    else if (S.beat === 8) { S.beatT = 999; }   // lets the beat-9 hand-off fire
+  }
+}
+
+function pointOut(tag, dur) { S.pointTag = tag; S.pointTagT = dur || 3.4; }
+function resolvePointTarget(tag) {
+  if (tag === 'aspen') return S.wolf;
+  if (tag === 'willow') return S.willow;
+  if (tag === 'elk') return S.elk[0];
+  if (tag === 'yearlings') {
+    const ys = S.pack.filter(p => p.yearling && p.state !== 'gone' && p.state !== 'dead');
+    if (ys.length) return { x: (ys[0].x + (ys[1] || ys[0]).x) / 2, y: (ys[0].y + (ys[1] || ys[0]).y) / 2 };
+    return null;
+  }
+  return S.pack.find(p => p.id === tag) || null;
+}
+
 // ── movement & collision ─────────────────────────────────────────────────────
 
 // The overpass opens when the machines finish it: from then on its band of
@@ -522,6 +552,7 @@ function blockedAt(x, y, r, canPassGap, margin) {
   }
   if (bridgeWallAt(x, y, r)) return true;
   if (S.era === 'past') return false;  // none of it has been built yet
+  if (inForestCore(x, y, r)) return true;
   for (const key of ['construction', 'subdivision', 'gravelPit']) {
     const c = obstacleRect(key);
     if (x > c.x0 - r && x < c.x1 + r && y > c.y0 - r && y < c.y1 + r) return true;
@@ -530,6 +561,17 @@ function blockedAt(x, y, r, canPassGap, margin) {
   if (dist(x, y, ms.x, ms.y) < ms.r + r) return true;
   const f = OBSTACLES.fence;
   if (distSeg(x, y, f.x0, f.y0, f.x1, f.y1).d < r + 5) return true;
+  return false;
+}
+
+// The dense core of a forest clump blocks travel — you skirt the trunks; the
+// canopy edge (outer half) stays walkable. Present era only, so the scripted
+// prologue paths are never obstructed.
+function inForestCore(x, y, pad) {
+  if (!S || S.era === 'past') return false;
+  for (const f of TERRAIN.forests) {
+    if (dist(x, y, f.x, f.y) < f.r * 0.5 + pad) return true;
+  }
   return false;
 }
 
@@ -548,6 +590,7 @@ function wolfBlockedAt(x, y, margin) {
     if (x > h.x0 - 8 - WOLF_R && x < h.x1 + 8 + WOLF_R) return true;
   }
   if (S.era === 'past') return false;
+  if (inForestCore(x, y, WOLF_R)) return true;
   for (const key of ['construction', 'subdivision', 'gravelPit']) {
     const c = obstacleRect(key);
     if (x > c.x0 - WOLF_R && x < c.x1 + WOLF_R && y > c.y0 - WOLF_R && y < c.y1 + WOLF_R) return true;
@@ -1383,6 +1426,8 @@ function toggleMap() {
   if (S.forcedSenseT > 0) return;
   if ((S.seasonGhostT || 0) > 0) return;
   if (S.mode === 'prologue' && S.beat === 9 && !S.inherited) return;   // the hold owns SPACE
+  // beat 6 is the play-fight: SPACE is the lean-in, not the map
+  if (S.mode === 'prologue' && S.beat === 6) { S.tut._bond = true; return; }
   if (!mapAllowed()) return;   // no map before the map is hers
   S.mapOpen = !S.mapOpen;
 }
@@ -1391,8 +1436,7 @@ function togglePackStay() {
   // in the prologue, F is the bond gesture in beat 6, and from beat 7 —
   // once taught — the real verb, tested under Willow's eye
   if (S.mode === 'prologue') {
-    // in the prologue F is only the lean-in: the pack is Willow's to lead
-    if (S.beat === 6) S.tut._bond = true;
+    // the pack is Willow's to lead here; the beat-6 lean-in is SPACE, not F
     return;
   }
   if (!S.tut.fTaught) return;   // no verb before it is given
@@ -2633,188 +2677,8 @@ function totalCount() {
   return n;
 }
 
-// ── tasks: the small demands of a day ────────────────────────────────────────
-// Roughly half of play carries a task. While one is open, the calendar holds
-// still — the day is spent on the thing itself. When none is open, days flow.
-
-// Urges, not assignments: no timers, no chimes. An urge clears because the
-// world changed — the kill was made, the way was found, the pups ate. The
-// only clocked endings are the world's own (a lost wolf gives up waiting;
-// ravens finish an unclaimed carcass).
-
-function taskDone(t) {
-  switch (t.kind) {
-    case 'patch': return S.bridged.has(t.key);
-    case 'pups': return !S.pups || S.pups.count <= 0 || S.pups.traveling || S.pups.food > 70;
-    case 'hunt': return S.food > 60;
-    case 'den-look': return S.seenDens.includes(t.key) || S.denId !== null;
-    case 'scout': {
-      const e = S.edges.find(x => x.id === t.key);
-      return e.passCount > 0 || S.visited.has(t.far);
-    }
-    case 'renew': {
-      const e = S.edges.find(x => x.id === t.key);
-      return e.torn || e.lastUsedDay >= t.sinceDay || e.state === 'current-solid';
-    }
-    case 'findwolf': {
-      const w = S.pack.find(x => x.id === t.key);
-      return !w || w.state === 'dead' || w.state === 'gone' || !w.lost;
-    }
-    case 'cache': return t.done === true;
-    case 'drink': return S.water > 60;
-    case 'range': {
-      const wr = NbyId.get('winterRange');
-      return wr && dist(S.wolf.x, S.wolf.y, wr.x, wr.y) < 500;
-    }
-  }
-  return true;
-}
-
-function compassTo(x, y) {
-  const dx = x - S.wolf.x, dy = y - S.wolf.y;
-  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'east' : 'west') : (dy > 0 ? 'south' : 'north');
-}
-
-// the stranger tasks move through stages as she works them
-function taskProgress(t) {
-  if (t.kind === 'findwolf') {
-    const w = S.pack.find(x => x.id === t.key);
-    if (w && w.lost && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 150) {
-      // rejoin in the pack's CURRENT stance — if they were told to hold, she
-      // holds too, so the roster and the ground never disagree
-      w.lost = false; w.lostT = 0; w.state = S.zoneAnchor ? 'stay' : 'follow';
-      say(`${w.name} falls in at her shoulder as if nothing happened.`);
-    }
-  } else if (t.kind === 'cache') {
-    const n = NbyId.get(t.key);
-    if (!t.got && n && dist(S.wolf.x, S.wolf.y, n.x, n.y) < 130) {
-      t.got = true;
-      say('She takes what she can carry. Home, now.');
-    } else if (t.got && !t.done && S.denSite
-        && dist(S.wolf.x, S.wolf.y, S.denSite.x, S.denSite.y) < 100) {
-      t.done = true;
-      S.food = Math.min(100, S.food + 18);
-      say('The carry is home. It will matter.');
-    }
-  }
-}
-
-function issueTask() {
-  if (S.tut.step < 7) { S.taskCooldown = 10; return; }
-  const mk = (kind, text, extra) => { S.task = { kind, text, t: 0, ...(extra || {}) }; };
-
-  // B5: in the travel seasons the DAY POINTS AWAY. The spine of the year is
-  // a distant, directional goal; local upkeep is the counter-pull.
-  const travel = seasonIndex() >= 2 || (S.pups && S.pups.traveling);
-
-  // a tear across the way is always first — it blocks the journey itself
-  const torn = TEAR_GROUPS.find(g => groupTorn(g) && !S.bridged.has(g.key));
-  if (torn) {
-    mk('patch', `find a way around ${TEAR_NAMES[torn.key] || 'the tear'}`, { key: torn.key });
-    return;
-  }
-
-  // genuine emergencies still interrupt the spine (the pups or she are dying)
-  if (S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food < 25) {
-    mk('pups', 'the pups are starving — carry food home now', {}); return;
-  }
-  if (S.food < 28) { mk('hunt', 'the pack is starving — bring something down', {}); return; }
-
-  // THE SPINE: reach the winter range (a bearing, not a marker), or scout
-  // unwalked ground — the reason to be heading somewhere else entirely
-  if (travel) {
-    const wr = NbyId.get('winterRange');
-    if (wr && (!nodeSeen('winterRange') || dist(S.wolf.x, S.wolf.y, wr.x, wr.y) > 600)) {
-      mk('range', `${compassTo(wr.x, wr.y)} — reach the winter range`, {}); return;
-    }
-    const scoutsT = S.edges.filter(e => !e.torn && e.state === 'unknown'
-      && (S.visited.has(e.a) || S.visited.has(e.b)));
-    if (scoutsT.length) {
-      const e = scoutsT[Math.floor(Math.random() * scoutsT.length)];
-      const far = S.visited.has(e.a) ? e.b : e.a;
-      const fn = NbyId.get(far);
-      mk('scout', `walk new ground, ${compassTo(fn.x, fn.y)}, toward ${fn.name}`, { key: e.id, far });
-      return;
-    }
-  }
-
-  // the counter-pulls: softer local upkeep, the tug back toward the anchor
-  if (S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food < 40) {
-    mk('pups', 'the pups are hungry — carry food home', {}); return;
-  }
-  if (S.food < 45) { mk('hunt', 'the pack is hungry — bring something down', {}); return; }
-  if (S.water < 35) { mk('drink', 'thirst — find clean water', {}); return; }
-  if (!S.denId) {
-    const unseen = DEN_SITES.find(s => !S.seenDens.includes(s.id));
-    if (unseen) { mk('den-look', `go and look at ${unseen.name}`, { key: unseen.id }); return; }
-  }
-
-  // sometimes the day asks something stranger
-  const roll = Math.random();
-  if (roll < 0.2 && S.denId) {
-    // a packmate has wandered off and must be found
-    const cand = alivePack().filter(w => !w.pup && !w.balked && !w.lost);
-    const spots = NODES.filter(n => !n.dynamic && S.visited.has(n.id)
-      && dist(n.x, n.y, S.wolf.x, S.wolf.y) > 1100);
-    if (cand.length && spots.length) {
-      const w = cand[Math.floor(Math.random() * cand.length)];
-      const n = spots[Math.floor(Math.random() * spots.length)];
-      w.lost = true; w.state = 'stay'; w.x = n.x + 40; w.y = n.y + 30; w.tx = undefined;
-      mk('findwolf', `${w.name} is lost somewhere ${compassTo(n.x, n.y)} — find ${w.name}`, { key: w.id });
-      say(`${w.name} is missing.`);
-      return;
-    }
-  }
-  if (roll >= 0.2 && roll < 0.4 && S.denId && S.denSite) {
-    // a winter-kill worth carrying home
-    const spots = NODES.filter(n => !n.dynamic && S.visited.has(n.id)
-      && dist(n.x, n.y, S.denSite.x, S.denSite.y) > 800);
-    if (spots.length) {
-      const n = spots[Math.floor(Math.random() * spots.length)];
-      mk('cache', `a carcass near ${n.name}, ${compassTo(n.x, n.y)} — carry what she can home`,
-        { key: n.id, got: false, done: false });
-      return;
-    }
-  }
-
-  // walk new ground: an unknown edge leading out of somewhere she has stood
-  const scouts = S.edges.filter(e => !e.torn && e.state === 'unknown'
-    && (S.visited.has(e.a) || S.visited.has(e.b)));
-  if (scouts.length) {
-    const e = scouts[Math.floor(Math.random() * scouts.length)];
-    const far = S.visited.has(e.a) ? e.b : e.a;
-    const fn = NbyId.get(far);
-    mk('scout', `walk new ground, ${compassTo(fn.x, fn.y)}, toward ${fn.name}`, { key: e.id, far });
-    return;
-  }
-  // (no 'renew' urge: route decay is the player's own discovered dilemma —
-  // the map going quiet where she doesn't walk IS the prompt)
-  S.taskCooldown = 15;
-}
-
-function taskUpdate(dt) {
-  if (S.task) {
-    S.task.t += dt;
-    taskProgress(S.task);
-    if (taskDone(S.task)) {
-      // the world changed; the urge simply isn't there anymore
-      S.task = null;
-      S.taskCooldown = 18 + Math.random() * 22;
-    } else if (S.task.kind === 'findwolf' && S.task.t > 240) {
-      // the moment passes — but a missing wolf is NOT thereby found
-      S.task = null;
-      S.taskCooldown = 24 + Math.random() * 20;
-      say('The trail is cold. Somewhere out there, one of hers is waiting.');
-    } else if (S.task.kind === 'cache' && !S.task.got && S.task.t > 300) {
-      S.task = null;
-      S.taskCooldown = 24 + Math.random() * 20;
-      say('The ravens finished the carcass. Nothing left to carry.');
-    }
-  } else {
-    S.taskCooldown -= dt;
-    if (S.taskCooldown <= 0) issueTask();
-  }
-}
+// (The task/urge system was removed. What the year asks is carried by the
+// world itself — hunger, thirst, the pups, the tears, the pull west.)
 
 // What the year asks of her right now — shown quietly under the day counter.
 function objectiveText() {
@@ -3145,7 +3009,13 @@ function nodePt(id, ink, extra) {
 
 function prologueUpdate(dt) {
   S.beatT += dt;
-  S.vistaT = Math.max(0, S.vistaT - dt);
+  // a vista held for a keypress fades fully in, then waits; otherwise it lowers
+  if (S.vistaWait) {
+    S.vistaT = Math.max((S.vistaTMax || 3.4) - 0.7, S.vistaT - dt);
+    S.inputLockT = Math.max(S.inputLockT, 0.5);   // stay put until she looks away
+  } else {
+    S.vistaT = Math.max(0, S.vistaT - dt);
+  }
   S.bondGlow = Math.max(0, S.bondGlow - dt * 0.6);
   S.ghostPulse = Math.max(0, S.ghostPulse - dt);
   S.inheritBloom = Math.max(0, S.inheritBloom - dt * 0.25);
@@ -3168,6 +3038,14 @@ function prologueUpdate(dt) {
   if (S.beat === 2 && dist(S.wolf.x, S.wolf.y, OVERLOOK.x, OVERLOOK.y) > 260) S.guide = OVERLOOK;
   if (S.beat === 9 && dist(S.wolf.x, S.wolf.y, DEN.x, DEN.y) > 300) S.guide = { x: DEN.x, y: DEN.y };
 
+  // the "look here" caret follows the introduced creature until its time runs out
+  S.pointAt = null;
+  if ((S.pointTagT || 0) > 0) {
+    S.pointTagT -= dt;
+    const t = resolvePointTarget(S.pointTag);
+    if (t) S.pointAt = { x: t.x, y: t.y };
+  }
+
   const w = S.willow;
   const T = S.tut;
 
@@ -3175,28 +3053,33 @@ function prologueUpdate(dt) {
     // Beat 1 — waking in the den: movement and scent, in the calmest place
     case 1:
       if (S.beatT > 5 && !S.prompt && T.moved < 120) stickyPrompt('Walk.', ['W', 'A', 'S', 'D']);
-      // before the world, the family: the pack is named as it wakes
+      // before the world, the family: you first, then the pack, each named and
+      // pointed out as it wakes
       if (T.moved >= 120 && !T._b1pack) {
         T._b1pack = true;
         T._b1packT = 0;
         clearPrompt();
-        setCaption('The pack wakes with her.', 3.2);
+        setCaption('You are Aspen.', 3.4, "Willow's daughter, three springs old");
+        pointOut('aspen', 3.2);
       }
       if (T._b1pack && !T._b1scent) {
         T._b1packT += dt;
-        if (T._b1packT > 3.6 && !T._b1n1) {
+        if (T._b1packT > 3.8 && !T._b1n1) {
           T._b1n1 = true;
           setCaption('Bram, grey at the muzzle.', 3.4, 'he knew this valley before the road had a name');
+          pointOut('bram', 3.4);
         }
-        if (T._b1packT > 7.4 && !T._b1n2) {
+        if (T._b1packT > 7.6 && !T._b1n2) {
           T._b1n2 = true;
           setCaption('Sedge, restless.', 3.4, 'first to the kill, first to worry');
+          pointOut('sedge', 3.4);
         }
-        if (T._b1packT > 11.2 && !T._b1n3) {
+        if (T._b1packT > 11.4 && !T._b1n3) {
           T._b1n3 = true;
           setCaption('Alder and Fen, the yearlings.', 3.4, 'all legs and questions');
+          pointOut('yearlings', 3.4);
         }
-        if (T._b1packT > 15) {
+        if (T._b1packT > 15.2) {
           T._b1scent = true;
           stickyPrompt('The world speaks in scent. Hold E.', ['E']);
           // a deer crosses the morning from offscreen, close by, writing
@@ -3214,17 +3097,18 @@ function prologueUpdate(dt) {
       if (T.scentHold > 2.5) {   // long enough to actually read the gold
         clearPrompt();
         S.beat = 2; S.beatT = 0;
-        setCaption('Three springs old.', 3.5);
+        setCaption('The scent of the whole valley.', 3.5);
         showPrompt('Morning light on the overlook, west of the den.', [], 6);
       }
       break;
 
-    // Beat 2 — first sightline: the valley, unbroken
+    // Beat 2 — first sightline: the valley, unbroken. The vista holds until
+    // she looks away (any key); only then does beat 3 begin.
     case 2:
-      if (dist(S.wolf.x, S.wolf.y, OVERLOOK.x, OVERLOOK.y) < 130) {
-        S.beat = 3; S.beatT = 0;
-        S.vistaT = 3.4; S.vistaTMax = 3.4; S.inputLockT = 3.4;
-        setCaption('The valley. Whole.', 3.4);
+      if (!T._b2held && dist(S.wolf.x, S.wolf.y, OVERLOOK.x, OVERLOOK.y) < 130) {
+        T._b2held = true;
+        S.vistaT = 3.4; S.vistaTMax = 3.4; S.inputLockT = 999; S.vistaWait = true;
+        setCaption('The valley. Whole.', 900, 'press any key when you have seen it');
         // Willow appears and the map begins
         S.willow = {
           x: OVERLOOK.x - 60, y: OVERLOOK.y - 30, heading: Math.PI,
@@ -3240,6 +3124,7 @@ function prologueUpdate(dt) {
       if (S.beatT > 3.5 && !T._b3go) {
         T._b3go = true;
         setCaption('Willow.', 3, 'your mother — follow her');
+        pointOut('willow', 4);
         willowSetPath([nodePt('oldFord', 'aspenStand-oldFord')]);
       }
       if (T._b3go && !T._b3shown && S.beatT > 6.5) {
@@ -3262,14 +3147,19 @@ function prologueUpdate(dt) {
         // an easy hunt on open, unbroken ground
         S.prologueElk = true;
         S.elk.length = 0;
-        // close enough to SEE at the close-in camera when it is named
+        // spawn it just ahead of Aspen, toward the open ford — always on the
+        // close-in camera when it is named, and pointed out
+        const ford = NbyId.get('oldFord');
+        const ea = Math.atan2(ford.y - S.wolf.y, ford.x - S.wolf.x);
+        const ex = S.wolf.x + Math.cos(ea) * 160, ey = S.wolf.y + Math.sin(ea) * 160;
         S.elk.push({
-          herd: 0, x: w.x - 50, y: w.y - 140,
+          herd: 0, x: ex, y: ey,
           heading: Math.PI / 2, stamina: 32, fleeing: false, gait: 0,
-          bull: false, skittish: 0.8, grazeT: 99, tx: w.x - 50, ty: w.y - 140,
+          bull: false, skittish: 0.8, grazeT: 99, tx: ex, ty: ey,
           frail: 0.55,   // winter-thin: the first hunt is meant to be won
         });
         setCaption('An elk, winter-thin.', 3.5);
+        pointOut('elk', 4);
         showPrompt('Run it down.', [], 6);
       }
       break;
@@ -3314,7 +3204,7 @@ function prologueUpdate(dt) {
         S.beat = 6; S.beatT = 0;
         setCaption('The far side.', 3);
         S.prompt = null; S.promptQueue.length = 0;  // crossing talk ends at the crossing
-        stickyPrompt('Lean into her.', ['F']);
+        stickyPrompt('Lean into her — press SPACE.', ['SPACE']);
       }
       break;
 
@@ -3394,13 +3284,13 @@ function prologueUpdate(dt) {
           p.state = 'follow'; p.tx = undefined;
         }
         S.cars.length = 0;
-        S.vistaT = 3.6; S.vistaTMax = 3.6; S.inputLockT = 3.6;
+        S.vistaT = 3.6; S.vistaTMax = 3.6; S.inputLockT = 999; S.vistaWait = true;
         S.ghostPulse = 3.6;
         S.shake = 6;
         recomputeGhosts();
-        setCaption('Three winters later.', 3.6, 'the world did not wait');
+        setCaption('Three winters later.', 900, 'press any key when you have seen it');
       }
-      if (T._b8cut && S.beatT > 9.5 && S.beat === 8) {
+      if (T._b8cut && !S.vistaWait && S.beatT > 9.5 && S.beat === 8) {
         S.beat = 9; S.beatT = 0;
         // Willow, old, at the den
         S.willow = {
@@ -3973,7 +3863,6 @@ function saveGame() {
       yearlingKnows: [...S.yearlingKnows],
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
       pups: S.pups,
-      task: S.task, taskCooldown: S.taskCooldown,
       weather: S.weather, wind: S.wind,
       overpassCross: S.overpassCross || 0,
       herdAnchors: HERDS.map(H => ({ x: H.anchor.x, y: H.anchor.y })),
@@ -4036,8 +3925,6 @@ function loadGame() {
   S.yearlingKnows = new Set(d.yearlingKnows);
   S.denId = d.denId; S.denSite = d.denSite; S.seenDens = d.seenDens || [];
   S.pups = d.pups;
-  S.task = d.task || null;
-  S.taskCooldown = typeof d.taskCooldown === 'number' ? d.taskCooldown : 30;
   S.weather = d.weather || null;
   S.wind = d.wind || { a: Math.random() * Math.PI * 2 };
   S.overpassCross = d.overpassCross || 0;
@@ -4166,7 +4053,6 @@ function update(dt) {
     westPackUpdate(dt);
     lichenUpdate();
     fireUpdate(dt);
-    taskUpdate(dt);
     tutorialUpdate(dt);
     calloutUpdate(dt);
     endingCheck();

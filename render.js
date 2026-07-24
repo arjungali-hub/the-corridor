@@ -1104,8 +1104,12 @@ function drawWorld() {
     ctx.globalAlpha = 0.4 + 0.12 * Math.sin(S.time * 2);
     ctx.lineDashOffset = -S.time * 50;
     for (let i = 1; i < S.routePath.length; i++) {
-      const A = NbyId.get(S.routePath[i - 1]), B = NbyId.get(S.routePath[i]);
-      strokePolyline(ctx, [[A.x, A.y], [B.x, B.y]], 7, 'rgba(78,122,140,0.75)', [26, 22]);
+      const idA = S.routePath[i - 1], idB = S.routePath[i];
+      const A = NbyId.get(idA), B = NbyId.get(idB);
+      // follow the drawn edge's own curve, not a straight chord between centres
+      const e = S.edges.find(x => (x.a === idA && x.b === idB) || (x.a === idB && x.b === idA));
+      const poly = e ? edgePolyline(e) : [[A.x, A.y], [B.x, B.y]];
+      strokePolyline(ctx, poly, 7, 'rgba(78,122,140,0.75)', [26, 22]);
     }
     ctx.lineDashOffset = 0;
     const t = routeTargetPos();
@@ -1317,24 +1321,67 @@ function drawWorld() {
 
   drawPrologueWorldBits();
 
-  // the soft chevron: where to look, when the land won't say
+  // the soft chevron: where to look, when the land won't say. Kept small and
+  // close to her so it never sails off the edge of the close-in camera.
   if (S.guide) {
     const a = Math.atan2(S.guide.y - S.wolf.y, S.guide.x - S.wolf.x);
-    const gx = S.wolf.x + Math.cos(a) * 130, gy = S.wolf.y + Math.sin(a) * 130;
+    const gx = S.wolf.x + Math.cos(a) * 104, gy = S.wolf.y + Math.sin(a) * 104;
     const pulse = 0.55 + 0.45 * Math.sin(S.time * 3);
     ctx.save();
     ctx.translate(gx, gy);
     ctx.rotate(a);
     ctx.globalAlpha = 0.5 + 0.3 * pulse;
     ctx.strokeStyle = 'rgba(255,214,140,0.95)';
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 4;
     ctx.lineCap = 'round';
-    for (const off of [0, -16]) {
+    for (const off of [0, -12]) {
       ctx.beginPath();
-      ctx.moveTo(off - 10, -14);
-      ctx.lineTo(off + 6, 0);
-      ctx.lineTo(off - 10, 14);
+      ctx.moveTo(off - 8, -11);
+      ctx.lineTo(off + 5, 0);
+      ctx.lineTo(off - 8, 11);
       ctx.stroke();
+    }
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  // the prologue "look here" marker: a caret over the introduced creature, or
+  // an edge chevron toward it if it has drifted off the close-in camera
+  if (S.pointAt) {
+    const halfW = (canvas.width / 2) / S.cam.scale;
+    const halfH = (canvas.height / 2) / S.cam.scale;
+    const onScreen = Math.abs(S.pointAt.x - S.cam.x) < halfW - 40
+                  && Math.abs(S.pointAt.y - S.cam.y) < halfH - 40;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,224,150,0.95)';
+    ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (onScreen) {
+      const bob = Math.sin(S.time * 4) * 6;
+      const px = S.pointAt.x, py = S.pointAt.y - 54 + bob;
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(px - 12, py - 14);
+      ctx.lineTo(px, py);
+      ctx.lineTo(px + 12, py - 14);
+      ctx.stroke();
+      ctx.globalAlpha = 0.32;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(S.pointAt.x, S.pointAt.y, 30 + 4 * Math.sin(S.time * 3), 0, Math.PI * 2);
+      ctx.stroke();
+    } else {
+      const a = Math.atan2(S.pointAt.y - S.wolf.y, S.pointAt.x - S.wolf.x);
+      ctx.translate(S.wolf.x + Math.cos(a) * 150, S.wolf.y + Math.sin(a) * 150);
+      ctx.rotate(a);
+      ctx.globalAlpha = 0.85;
+      ctx.lineWidth = 5;
+      for (const off of [0, -16]) {
+        ctx.beginPath();
+        ctx.moveTo(off - 10, -14);
+        ctx.lineTo(off + 6, 0);
+        ctx.lineTo(off - 10, 14);
+        ctx.stroke();
+      }
     }
     ctx.restore();
     ctx.globalAlpha = 1;
@@ -2017,27 +2064,25 @@ function drawMap() {
   for (const g of TEAR_GROUPS) {
     if (!groupTorn(g)) continue;
     drawRip(g, m);
-    // the wound wears its name — the same name the urge asks around
+    // the wound wears its name — centered on the rip and sized to fit inside it
     if (m > 0.7 && TEAR_NAMES[g.key]) {
-      let lx = g.trigger.x, ly = g.trigger.y;
-      if (g.ripPath) {
-        let sx = 0, sy = 0;
-        for (const pt of g.ripPath) { sx += pt[0]; sy += pt[1]; }
-        lx = sx / g.ripPath.length; ly = sy / g.ripPath.length;
-      }
-      ctx.font = `italic ${13 / sc}px ${FONT}`;
+      const pts = g.ripPath ? g.ripPath.map(p => ({ x: p[0], y: p[1] }))
+        : g.chain.map(id => NbyId.get(id));
+      let sx = 0, sy = 0, minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const p of pts) { sx += p.x; sy += p.y; minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }
+      const cx = sx / pts.length, cy = sy / pts.length, bw = maxX - minX;
+      const name = TEAR_NAMES[g.key];
+      // shrink to fit the tear's width (rough char-width estimate, headless-safe)
+      let fs = 13 / sc;
+      if (bw > 140) fs = Math.min(fs, (bw * 0.82) / (name.length * 0.5));
+      fs = Math.max(fs, 7 / sc);
+      ctx.font = `italic ${fs}px ${FONT}`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = `rgba(238,228,205,${0.95 * m})`;
-      ctx.fillText(TEAR_NAMES[g.key], lx, ly);
-    }
-    // the tear she is working on right now announces itself
-    if (S.task && S.task.kind === 'patch' && S.task.key === g.key) {
-      const pu = 0.3 + 0.25 * Math.sin(S.time * 3);
-      ctx.strokeStyle = `rgba(140,40,30,${pu * m})`;
-      ctx.lineWidth = 3 / sc;
-      ctx.setLineDash([14 / sc, 10 / sc]);
-      ctx.beginPath(); ctx.arc(g.trigger.x, g.trigger.y, g.trigger.r + 60, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
+      // a soft dark backing so the name reads over the torn grey
+      ctx.fillStyle = `rgba(40,38,34,${0.4 * m})`;
+      ctx.fillText(name, cx + 1 / sc, cy + 1 / sc);
+      ctx.fillStyle = `rgba(244,236,216,${0.96 * m})`;
+      ctx.fillText(name, cx, cy);
     }
   }
   // (no patch squares: the new ink around a rip is its own record)
@@ -2168,7 +2213,9 @@ function drawMap() {
     ctx.globalAlpha = 1;
   }
 
-  if (m > 0.7) {
+  // in the prologue the map is Willow's, opened by her hand — not yet hers to
+  // "remember", so the caption stays off until Act I
+  if (m > 0.7 && S.mode !== 'prologue') {
     ctx.font = `italic 13px ${FONT}`;
     ctx.fillStyle = `rgba(91,70,50,${m * 0.8})`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
@@ -2362,24 +2409,20 @@ function drawHUD() {
     ctx.font = `bold 17px ${FONT}`;
     ctx.fillStyle = inkText;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText(`Day ${day()} · ${seasonName()}${S.task ? ' — the day holds' : ''}`, 20, 16);
+    ctx.fillText(`Day ${day()} · ${seasonName()}`, 20, 16);
     ctx.font = `italic 12px ${FONT}`;
     ctx.fillStyle = onMap ? 'rgba(91,70,50,0.85)' : 'rgba(235,228,208,0.85)';
     ctx.fillText(objectiveText(), 20, 38);
-    if (S.task) {
-      const pulse = 0.75 + 0.25 * Math.sin(S.time * 2);
-      ctx.font = `italic 14px ${FONT}`;
-      ctx.fillStyle = onMap ? `rgba(122,63,18,${pulse})` : `rgba(240,205,140,${pulse})`;
-      ctx.fillText('› ' + S.task.text, 20, 56);
-    }
   }
   ctx.shadowBlur = 0;
 
-  let by = S.task ? 80 : 60;
+  // food and water always show; the others only when they have something in
+  // them (an empty bar is clutter, not information)
+  let by = 60;
   if (S.hud.food) { drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f'); by += 16; }
   if (S.hud.food) { drawBar(20, by, 140, 'WATER', S.water / 100, S.water < 25 ? '#b0473a' : '#5f7d92'); by += 16; }
-  if (S.hud.fear) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }
-  if (S.hud.pups && S.pups && !S.pups.traveling && S.pups.count > 0) {
+  if (S.hud.fear && S.fear > 0.01) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }
+  if (S.hud.pups && S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food > 0.5) {
     drawBar(20, by, 140, `PUP FOOD ×${S.pups.count}`, S.pups.food / 100, '#8d6f4a'); by += 16;
   }
   if (isInjured() || (S.sickT || 0) > 0) {
@@ -2440,7 +2483,7 @@ function drawHelp() {
   if (S.tut.sawMap) rows.push(['SPACE', 'the map — press to open, press to close']);
   if (S.tut.scentHold > 0.6) rows.push(['E (hold)', 'smell the wind']);
   if (S.tut.fTaught) rows.push(['F', 'the pack holds, or follows']);
-  if (S.tut.drinkTaught) rows.push(['Q (hold)', 'drink, standing in water']);
+  if (S.tut.drinkTaught || S.mode === 'play') rows.push(['Q (hold)', 'drink, standing in water']);
   rows.push(['M', 'quiet']);
   rows.push(['R  R', 'restart the game (skips prologue)']);
   rows.push(['H', 'open or close this']);

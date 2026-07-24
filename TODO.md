@@ -660,3 +660,37 @@ on TIMING the patrol (verified: a crossing with the patrol away never forces
 a confrontation). Yielding a posture still repositions unhurt and lets her
 retry indefinitely, so it is still never a mandatory fight and cannot
 soft-lock — but a ruined pack must read the marks and slip through.
+
+## Part 20 — Playtest batch (Arjun, 2026-07-23)
+
+- [x] Trees are actual obstacles (collision, like the other obstacles).
+      `inForestCore()` blocks the dense trunk core (r*0.5) in the present era
+      only; three canopies that straddled trails were nudged clear (data.js).
+- [x] Q (drink) added to the help overlay of what Aspen knows how to do.
+      Now unconditional in play (a core verb), not gated on first thirst.
+- [x] Prologue beat-6 play-fight: interact with SPACE, not F (F isn't taught
+      until spring). SPACE routes through toggleMap's beat-6 branch.
+- [x] HUD bars other than food/water disappear when empty (fear, pups...).
+- [x] Remove tasks entirely (the whole urge/task system + its HUD line).
+- [x] Prologue visibility (rebuilt for the old larger/porthole vision):
+  - [x] Willow is in view when introduced, and pointed out somehow.
+  - [x] The other packmates are pointed out somehow when introduced.
+  - [x] Aspen (you) is introduced among the introductions (named first).
+  - [x] The elk is in view when you're told to run it down (spawns ahead of
+        Aspen toward the ford, and is pointed out).
+  - [x] The overlook arrow is on-screen, slightly smaller, closer to Aspen.
+  - [x] The overlook vista holds until the player presses a key to lower it
+        (chosen over a fixed longer hold — player-paced for the emotional beat).
+        Applies to both the overlook (beat 2) and THE CUT (beat 8).
+- [x] Tears no longer circled (tasks gone); tear NAMES centered and fully
+      inside their tear shape.
+- [x] Curved node-to-node routes: the on-land route drew straight chords while
+      the map drew the edge's curve — the land route now follows edgePolyline too.
+- [x] The map's bottom "what she remembers of the territory" caption must NOT
+      show in the prologue when Willow opens the map.
+
+New "look here" system: `pointOut(tag, dur)` + `resolvePointTarget()` set
+`S.pointAt` to a live creature position each prologue frame; render draws a
+bobbing caret over it (or an edge chevron toward it if off the close-in camera).
+Vista hold: `S.vistaWait` pins the matte fully-in until any key calls
+`releaseVista()`, which lowers it and hands the beat forward.
