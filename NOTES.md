@@ -548,3 +548,14 @@ black timber ridgeline, and a warm-glow title. That completes the pass —
 palette+light, wolves, trees, terrain, prey, all water, lighting, Willow,
 map, HUD, title. Harness 261 green x3+. The judge is the browser: every
 season, day/night, weather, and the map.
+
+## art revert (2026-07-23)
+
+Per Arjun: reverted render.js entirely to the pre-overhaul state (935ad86) —
+old wolves, trees, terrain, prey, cattle, lighting, Willow, parchment, HUD,
+title — EXCEPT the bog/pond drinking-water rendering, which is kept as the
+overhaul paintPond (mud bank -> shallows -> deep-center depth gradient,
+sky-sheen, reeds, scum when fouled, cracked winter ice, smooth edges), used
+for every pond and the spring. Carried only the three helpers it needs
+(LIGHT, toRGB, mixTone). The play-view porthole darkness stays removed
+(drawPlayFog no-op), matching the prior request. Harness 261 green x3.

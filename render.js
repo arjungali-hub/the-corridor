@@ -14,20 +14,10 @@ const C_PATCH     = '#E4DCC0';
 const C_STITCH    = '#8A795A';
 const C_NODE      = '#5B4632';
 
-// Season palettes, warmed and deepened for more painterly value range.
-const SEASON_GROUND = ['#879a63', '#9c9556', '#a4864a', '#c7ccd2'];
-const SEASON_GROUND_DARK = ['#6d8250', '#7f7c44', '#856a3c', '#a9b1b9'];
-const SEASON_GROUND_LIGHT = ['#a8b984', '#bcb374', '#c4a663', '#e2e6ea'];  // sunlit meadow tops
-const SEASON_FOREST = ['#4f6f42', '#5b6d3d', '#786636', '#6f7d84'];
-const SEASON_FOREST_LIGHT = ['#7a9a5c', '#8a9752', '#a88e4c', '#9aa6ac'];
-const SEASON_SKYLIGHT = [                                    // ambient sky tint per season
-  'rgba(150,185,150,0.06)', 'rgba(200,190,140,0.06)',
-  'rgba(200,150,90,0.07)', 'rgba(150,175,205,0.08)'];
-const PAST_GROUND = '#93a466';   // the remembered valley, warm and whole
-const PAST_GROUND_LIGHT = '#b3c188';
-
-// One sun, upper-left, for every cast shadow and rim light in the world.
-const LIGHT = { x: -0.62, y: -0.78 };   // normalized direction the light comes FROM
+const SEASON_GROUND = ['#8fa06f', '#a09b63', '#a68f5c', '#ccd0d4'];
+const SEASON_GROUND_DARK = ['#7a8c5c', '#8a8752', '#93794a', '#b4bac0'];
+const SEASON_FOREST = ['#5e7a4e', '#647547', '#7d6f3f', '#7c878c'];
+const PAST_GROUND = '#96a468';   // the remembered valley, warm and whole
 
 const WOLF_TONES = {
   aspen:  { base: '#8f959b', dark: '#666c72', light: '#c6cacd' },
@@ -115,14 +105,13 @@ function rr(c, x, y, w, h, r) {
 let baseLayer = null, baseKey = '';
 const BASE_SCALE = 0.5;   // half-resolution terrain: painterly, and 4× cheaper
 
-// A body of standing water painted into the base layer with real depth:
-// mud bank → shallows → dark deep center, a sky-sheen crescent offset toward
-// the light, reeds around the rim, and (winter) a cracked pale ice lid.
+// A bog/pond of standing drinking water: mud bank → shallows → dark deep
+// center, a sky-sheen crescent, rim reeds, algal scum when fouled, and a
+// cracked pale ice lid in winter. Smooth-edged. (The one art kept from the
+// overhaul, by request.)
 function paintPond(b, x, y, r, squash, si, past, foul) {
   const prng = makePrng(hashStr('pond' + Math.round(x) + '_' + Math.round(y)));
   const iced = !past && si === 3;
-  // one gently irregular radius profile, reused at every ring so the shape is
-  // consistent; drawn as a smooth closed curve (no jagged straight segments)
   const NR = 12, prof = [];
   for (let i = 0; i < NR; i++) prof.push(0.9 + prng() * 0.16);
   const lobe = (rad) => {
@@ -131,7 +120,7 @@ function paintPond(b, x, y, r, squash, si, past, foul) {
       return [x + Math.cos(a) * rr, y + Math.sin(a) * rr * squash];
     };
     b.beginPath();
-    let a0 = p(0), aPrev = p(NR - 1);
+    const a0 = p(0), aPrev = p(NR - 1);
     b.moveTo((aPrev[0] + a0[0]) / 2, (aPrev[1] + a0[1]) / 2);
     for (let i = 0; i < NR; i++) {
       const cur = p(i), nxt = p(i + 1);
@@ -139,22 +128,18 @@ function paintPond(b, x, y, r, squash, si, past, foul) {
     }
     b.closePath();
   };
-  // damp mud bank
   b.fillStyle = mixTone('#6f6446', '#4f4630', 0.3);
   lobe(r * 1.2); b.fill();
   b.fillStyle = 'rgba(60,54,38,0.5)';
   lobe(r * 1.08); b.fill();
-  // the water body, as a depth gradient
   const deep = iced ? '#b7c6cf' : foul ? '#565b3c' : '#3f647a';
   const shallow = iced ? '#dfe8ec' : foul ? '#767a4e' : '#6f9fb2';
   const wg = b.createRadialGradient(x - r * 0.2, y - r * 0.2 * squash, r * 0.1, x, y, r);
   wg.addColorStop(0, shallow); wg.addColorStop(0.55, iced ? '#c8d6dc' : foul ? '#61653f' : '#557f96'); wg.addColorStop(1, deep);
   b.fillStyle = wg;
   lobe(r); b.fill();
-  // clip to the water for sheen / scum / cracks
   b.save(); lobe(r * 0.99); b.clip();
   if (iced) {
-    // cracks radiating across the lid
     b.strokeStyle = 'rgba(150,170,182,0.6)'; b.lineWidth = 1.2;
     for (let k = 0; k < 7; k++) {
       const a = prng() * Math.PI * 2;
@@ -166,16 +151,14 @@ function paintPond(b, x, y, r, squash, si, past, foul) {
     b.fillStyle = 'rgba(255,255,255,0.35)';
     b.beginPath(); b.ellipse(x - r * 0.3, y - r * 0.3 * squash, r * 0.5, r * 0.3, 0.3, 0, Math.PI * 2); b.fill();
   } else {
-    // sky-sheen: a bright crescent offset toward the light
     b.fillStyle = foul ? 'rgba(180,186,120,0.3)' : 'rgba(210,232,240,0.4)';
     b.beginPath(); b.ellipse(x + LIGHT.x * r * 0.35, y + LIGHT.y * r * 0.35 * squash, r * 0.5, r * 0.22, Math.atan2(LIGHT.y, LIGHT.x), 0, Math.PI * 2); b.fill();
-    if (foul) {   // algal scum blooms
+    if (foul) {
       b.fillStyle = 'rgba(120,140,70,0.4)';
       for (let k = 0; k < 6; k++) { b.beginPath(); b.arc(x + (prng() - 0.5) * r * 1.4, y + (prng() - 0.5) * r * squash * 1.4, r * (0.12 + prng() * 0.16), 0, Math.PI * 2); b.fill(); }
     }
   }
   b.restore();
-  // reeds around the near rim
   if (!iced) {
     b.strokeStyle = mixTone('#6a7a38', '#4a5a26', 0.4); b.lineWidth = 2; b.lineCap = 'round';
     for (let k = 0; k < 16; k++) {
@@ -202,112 +185,59 @@ function buildBaseLayer() {
   const past = S.era === 'past';
   const AX = X0 - APRON, AY = -APRON, AW = WORLD.w - X0 + 2 * APRON, AH = WORLD.h + 2 * APRON;
 
-  // ground — a soft vertical wash from sunlit top to cooler foot, so the
-  // whole land reads with a light direction, not one flat fill
-  const gmid = past ? PAST_GROUND : SEASON_GROUND[si];
-  const gtop = past ? PAST_GROUND_LIGHT : SEASON_GROUND_LIGHT[si];
-  const gbot = past ? darkenTone(PAST_GROUND, 12) : SEASON_GROUND_DARK[si];
-  const base = b.createLinearGradient(0, AY, 0, AY + AH);
-  base.addColorStop(0, gtop); base.addColorStop(0.5, gmid); base.addColorStop(1, gbot);
-  b.fillStyle = base;
+  // ground — the land continues past where she can walk; no black void
+  b.fillStyle = past ? PAST_GROUND : SEASON_GROUND[si];
   b.fillRect(AX, AY, AW, AH);
 
   const rng = makePrng(710);
-  // large painterly meadow blobs in analogous hues — big soft value shapes
-  for (let i = 0; i < 90; i++) {
-    const x = AX + rng() * AW, y = AY + rng() * AH, r = 300 + rng() * 560;
-    const lighter = rng() > 0.5;
-    const g = b.createRadialGradient(x, y, r * 0.15, x, y, r);
-    g.addColorStop(0, lighter ? gtop : gbot);
-    g.addColorStop(1, lighter ? gtop.replace('rgb', 'rgba').replace(')', ',0)') : 'rgba(0,0,0,0)');
-    b.globalAlpha = 0.10 + rng() * 0.10;
-    b.fillStyle = lighter ? gtop : mixTone(gmid, gbot, 0.7);
-    b.beginPath(); b.ellipse(x, y, r, r * (0.5 + rng() * 0.4), rng() * 3, 0, Math.PI * 2); b.fill();
+  // broad tonal patches
+  for (let i = 0; i < 60; i++) {
+    const x = AX + rng() * AW, y = AY + rng() * AH, r = 260 + rng() * 480;
+    const g = b.createRadialGradient(x, y, r * 0.2, x, y, r);
+    const dark = rng() > 0.5;
+    g.addColorStop(0, dark ? 'rgba(50,60,30,0.10)' : 'rgba(240,240,200,0.08)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    b.fillStyle = g;
+    b.beginPath(); b.arc(x, y, r, 0, Math.PI * 2); b.fill();
   }
-  b.globalAlpha = 1;
-  // mid mottle: worn ground, clumps
+  // mottling
   b.fillStyle = SEASON_GROUND_DARK[si];
-  for (let i = 0; i < 700; i++) {
-    b.globalAlpha = 0.04 + rng() * 0.05;
+  for (let i = 0; i < 900; i++) {
+    b.globalAlpha = 0.05 + rng() * 0.05;
     b.beginPath();
-    b.ellipse(AX + rng() * AW, AY + rng() * AH, 24 + rng() * 80, 14 + rng() * 44, rng() * 3, 0, Math.PI * 2);
+    b.ellipse(AX + rng() * AW, AY + rng() * AH, 30 + rng() * 90, 18 + rng() * 50, rng() * 3, 0, Math.PI * 2);
     b.fill();
   }
   b.globalAlpha = 1;
-  // directional grass: short angled blades leaning with a prevailing breeze,
-  // denser and greener in the growing seasons, sparse and dun in winter
-  {
-    const bladeN = (si === 3 && !past) ? 1600 : 5200;
-    const dark = mixTone(gmid, '#2c3a1c', 0.5), litBlade = mixTone(gtop, '#e8ecc8', 0.3);
-    for (let i = 0; i < bladeN; i++) {
-      const gx = AX + rng() * AW, gy = AY + rng() * AH;
-      const lean = -0.5 + rng() * 0.3, h = 3 + rng() * 5;
-      b.strokeStyle = rng() > 0.4 ? dark : litBlade;
-      b.globalAlpha = 0.16 + rng() * 0.16;
-      b.lineWidth = 0.9;
-      b.beginPath(); b.moveTo(gx, gy); b.lineTo(gx + lean * h, gy - h); b.stroke();
-    }
-    b.globalAlpha = 1;
-  }
-  // fine stone/dust speckle
-  for (let i = 0; i < 1400; i++) {
-    b.fillStyle = rng() > 0.5 ? 'rgba(40,52,26,0.10)' : 'rgba(232,232,200,0.09)';
-    b.fillRect(AX + rng() * AW, AY + rng() * AH, 1.5 + rng() * 2, 1.2 + rng() * 1.6);
+  // fine speckle: grass tufts / stones
+  for (let i = 0; i < 3200; i++) {
+    b.fillStyle = rng() > 0.5 ? 'rgba(40,55,25,0.12)' : 'rgba(235,235,205,0.10)';
+    b.fillRect(AX + rng() * AW, AY + rng() * AH, 2 + rng() * 3, 1.5 + rng() * 2);
   }
   // season dressing
   if (si === 0) {
-    // wildflowers in clumps, a few colors, with tiny stems
-    for (let c = 0; c < 90; c++) {
-      const cx = AX + rng() * AW, cy = AY + rng() * AH;
-      const hue = rng();
-      const col = hue < 0.4 ? 'rgba(250,246,224,0.85)' : hue < 0.72 ? 'rgba(236,206,110,0.8)' : 'rgba(210,150,180,0.7)';
-      for (let k = 0; k < 5 + rng() * 8; k++) {
-        const fx = cx + (rng() - 0.5) * 90, fy = cy + (rng() - 0.5) * 90;
-        b.strokeStyle = 'rgba(70,95,45,0.5)'; b.lineWidth = 0.8;
-        b.beginPath(); b.moveTo(fx, fy + 4); b.lineTo(fx, fy); b.stroke();
-        b.fillStyle = col;
-        b.beginPath(); b.arc(fx, fy, 1.5 + rng() * 1.4, 0, Math.PI * 2); b.fill();
-      }
-    }
-  } else if (si === 1 && !past) {
-    // summer: dry straw patches
-    for (let i = 0; i < 240; i++) {
-      b.fillStyle = 'rgba(206,186,120,0.16)';
-      b.beginPath(); b.ellipse(AX + rng() * AW, AY + rng() * AH, 30 + rng() * 70, 18 + rng() * 40, rng() * 3, 0, Math.PI * 2); b.fill();
+    for (let i = 0; i < 640; i++) {   // wildflowers
+      b.fillStyle = rng() > 0.5 ? 'rgba(250,245,220,0.7)' : 'rgba(230,200,120,0.6)';
+      b.beginPath(); b.arc(AX + rng() * AW, AY + rng() * AH, 1.6 + rng() * 1.6, 0, Math.PI * 2); b.fill();
     }
   } else if (si === 2 && !past) {
-    // autumn leaf litter in warm scatters
-    for (let i = 0; i < 1100; i++) {
-      const warm = rng();
-      b.fillStyle = warm < 0.4 ? `rgba(${170 + rng() * 50 | 0},${90 + rng() * 40 | 0},34,0.55)`
-        : warm < 0.75 ? `rgba(${200 + rng() * 40 | 0},${140 + rng() * 40 | 0},48,0.5)`
-        : `rgba(${150 + rng() * 40 | 0},${60 + rng() * 30 | 0},34,0.5)`;
-      b.save(); b.translate(AX + rng() * AW, AY + rng() * AH); b.rotate(rng() * 3);
-      b.beginPath(); b.ellipse(0, 0, 3.2, 1.7, 0, 0, Math.PI * 2); b.fill(); b.restore();
+    for (let i = 0; i < 760; i++) {   // leaf litter
+      b.fillStyle = `rgba(${150 + rng() * 60 | 0},${70 + rng() * 40 | 0},30,0.5)`;
+      b.beginPath(); b.ellipse(AX + rng() * AW, AY + rng() * AH, 3, 1.6, rng() * 3, 0, Math.PI * 2); b.fill();
     }
   } else if (si === 3 && !past) {
-    // winter: wind-sculpted drifts with a shadowed lee edge
-    for (let i = 0; i < 380; i++) {
-      const dx = AX + rng() * AW, dy = AY + rng() * AH, dw = 40 + rng() * 100, dh = 8 + rng() * 16;
-      b.fillStyle = 'rgba(70,90,110,0.10)';
-      b.beginPath(); b.ellipse(dx - LIGHT.x * 6, dy - LIGHT.y * 6 + dh * 0.4, dw, dh, rng() * 0.5 - 0.25, 0, Math.PI * 2); b.fill();
-      b.fillStyle = 'rgba(252,253,255,0.6)';
-      b.beginPath(); b.ellipse(dx, dy, dw, dh, rng() * 0.5 - 0.25, 0, Math.PI * 2); b.fill();
+    for (let i = 0; i < 330; i++) {   // drifts
+      b.fillStyle = 'rgba(255,255,255,0.5)';
+      b.beginPath(); b.ellipse(AX + rng() * AW, AY + rng() * AH, 40 + rng() * 90, 8 + rng() * 16, rng() * 0.6 - 0.3, 0, Math.PI * 2); b.fill();
     }
   }
 
-  // the creek: a muddy bank, a mid depth, and a bright sunlit ribbon offset
-  // toward the light — reads as water catching the sky
-  strokeSmooth(b, TERRAIN.creekFlow, 46, 'rgba(74,64,42,0.5)');
-  strokeSmooth(b, TERRAIN.creekFlow, 34, si === 3 && !past ? '#a7bac6' : mixTone('#4a708a', '#6f9cae', 0.4));
-  strokeSmooth(b, TERRAIN.creekFlow, 22, si === 3 && !past ? '#c3d4dc' : '#6f9cae');
-  b.save(); b.translate(LIGHT.x * 4, LIGHT.y * 4);
-  strokeSmooth(b, TERRAIN.creekFlow, 8, si === 3 && !past ? '#e6eef2' : '#bcd6de');
-  b.restore();
+  // water: banks, then living water; the dry bed; the wash under the road
+  strokeSmooth(b, TERRAIN.creekFlow, 44, 'rgba(80,70,45,0.45)');
+  strokeSmooth(b, TERRAIN.creekFlow, 30, si === 3 && !past ? '#aebfc9' : '#6f9cae');
+  strokeSmooth(b, TERRAIN.creekFlow, 12, si === 3 && !past ? '#d5dfe5' : '#a9c6d2');
 
-  // ponds: standing water with real depth — a dark deep center up through
-  // shallows to a mud bank, a sky-sheen offset toward the light, reeds, and
-  // (winter) a cracked pale lid. Fouled ones sit scummed olive.
+  // ponds: standing drinking water — the one art kept from the overhaul
   for (const p of PONDS) {
     paintPond(b, p.x, p.y, p.r, 0.74, si, past,
       !past && typeof waterFouled === 'function' && S && waterFouled(p.x, p.y));
@@ -330,16 +260,6 @@ function buildBaseLayer() {
   strokeSmooth(b, TERRAIN.wash, 16, 'rgba(165,150,112,0.55)', [22, 16]);
   const sp = TERRAIN.springsPond;
   paintPond(b, sp.x, sp.y, sp.r, 0.8, si, past, false);
-  const rrng = makePrng(77);
-  for (let i = 0; i < 26; i++) {   // reeds
-    const a = rrng() * Math.PI * 2, d = sp.r * (0.9 + rrng() * 0.3);
-    b.strokeStyle = 'rgba(90,110,50,0.8)';
-    b.lineWidth = 1.6;
-    b.beginPath();
-    b.moveTo(sp.x + Math.cos(a) * d, sp.y + Math.sin(a) * d * 0.8);
-    b.lineTo(sp.x + Math.cos(a) * d + (rrng() - 0.5) * 6, sp.y + Math.sin(a) * d * 0.8 - 8 - rrng() * 8);
-    b.stroke();
-  }
 
   // the impoundment at the Bend — where they diverted the creek into a
   // bermed dredge pond. Geometry too straight to be anything but built.
@@ -766,97 +686,34 @@ function buildBaseLayer() {
 }
 
 function drawTree(b, x, y, r, frng, si, past) {
-  const conifer = frng() > 0.34;
-  const winter = si === 3 && !past;
+  const conifer = frng() > 0.3;
+  b.fillStyle = 'rgba(30,45,25,0.25)';
+  b.beginPath(); b.ellipse(x + r * 0.5, y + r * 0.6, r * 1.05, r * 0.6, 0, 0, Math.PI * 2); b.fill();
+  if (!conifer && si === 3 && !past) {
+    // bare deciduous in winter
+    b.strokeStyle = '#5b4a3a'; b.lineWidth = 2;
+    for (let i = 0; i < 5; i++) {
+      const a = frng() * Math.PI * 2;
+      b.beginPath(); b.moveTo(x, y); b.lineTo(x + Math.cos(a) * r * 0.8, y + Math.sin(a) * r * 0.8); b.stroke();
+    }
+    return;
+  }
   const tone = past ? SEASON_FOREST[0] : SEASON_FOREST[si];
-  const toneL = past ? SEASON_FOREST_LIGHT[0] : SEASON_FOREST_LIGHT[si];
-  // a long soft cast shadow, thrown opposite the light across the ground
-  b.fillStyle = 'rgba(28,38,22,0.22)';
-  b.beginPath();
-  b.ellipse(x - LIGHT.x * r * 1.1, y - LIGHT.y * r * 0.6 + r * 0.5,
-    r * 1.35, r * 0.62, Math.atan2(-LIGHT.y, -LIGHT.x), 0, Math.PI * 2);
-  b.fill();
-
-  if (!conifer && winter) {
-    // bare deciduous: a real branching skeleton
-    b.strokeStyle = '#6a5644'; b.lineCap = 'round';
-    const branch = (bx, by, ang, len, w) => {
-      if (len < r * 0.16) return;
-      const ex = bx + Math.cos(ang) * len, ey = by + Math.sin(ang) * len;
-      b.lineWidth = w; b.beginPath(); b.moveTo(bx, by); b.lineTo(ex, ey); b.stroke();
-      branch(ex, ey, ang - 0.5 - frng() * 0.3, len * 0.68, w * 0.66);
-      branch(ex, ey, ang + 0.5 + frng() * 0.3, len * 0.68, w * 0.66);
-    };
-    b.lineWidth = r * 0.16; b.strokeStyle = '#5b4a3a';
-    b.beginPath(); b.moveTo(x, y + r * 0.5); b.lineTo(x, y - r * 0.2); b.stroke();
-    b.strokeStyle = '#6a5644';
-    for (let i = 0; i < 4; i++) branch(x, y - r * 0.2, -Math.PI / 2 + (i - 1.5) * 0.55, r * 0.6, r * 0.12);
-    return;
-  }
-
-  if (conifer) {
-    // a tapered spire in stacked tiers, lit on one shoulder
-    const tiers = 4, topY = y - r * 1.15;
-    for (let t = 0; t < tiers; t++) {
-      const ty = topY + (t / tiers) * r * 2.0;
-      const tw = r * (0.28 + 0.72 * (t + 1) / tiers);
-      const th = r * 0.72;
-      b.fillStyle = darkenTone(tone, 6 + t * 3);
-      b.beginPath();
-      b.moveTo(x, ty);
-      b.quadraticCurveTo(x - tw * 0.6, ty + th * 0.7, x - tw, ty + th);
-      b.quadraticCurveTo(x, ty + th * 0.86, x + tw, ty + th);
-      b.quadraticCurveTo(x + tw * 0.6, ty + th * 0.7, x, ty);
-      b.closePath(); b.fill();
-      // sunlit left shoulder of each tier
-      b.fillStyle = toneL; b.globalAlpha = 0.5;
-      b.beginPath();
-      b.moveTo(x, ty + th * 0.1);
-      b.quadraticCurveTo(x - tw * 0.55, ty + th * 0.7, x - tw * 0.8, ty + th * 0.92);
-      b.quadraticCurveTo(x - tw * 0.3, ty + th * 0.6, x, ty + th * 0.1);
-      b.closePath(); b.fill();
-      b.globalAlpha = 1;
-    }
-    if (winter) {   // snow load on the tiers
-      b.fillStyle = 'rgba(248,250,252,0.7)';
-      for (let t = 0; t < tiers; t++) {
-        const ty = topY + (t / tiers) * r * 2.0 + r * 0.66, tw = r * (0.28 + 0.72 * (t + 1) / tiers);
-        b.beginPath(); b.ellipse(x - tw * 0.2, ty, tw * 0.7, r * 0.12, 0.1, 0, Math.PI * 2); b.fill();
-      }
-    }
-    return;
-  }
-
-  // deciduous: one clean, rounded crown over a short trunk — smooth-edged,
-  // shaded like a single ball of foliage catching the light on one side
-  b.fillStyle = '#5a4636';
-  b.fillRect(x - r * 0.09, y - r * 0.05, r * 0.18, r * 0.72);
-  // a softly irregular but ROUNDED outline (bezier through gentle points)
-  const crownR = r * 0.98, cy = y - r * 0.1;
-  const pts = [];
-  for (let i = 0; i < 10; i++) {
-    const a = (i / 10) * Math.PI * 2, rr2 = crownR * (0.92 + frng() * 0.12);
-    pts.push([x + Math.cos(a) * rr2, cy + Math.sin(a) * rr2 * 0.94]);
-  }
-  const g = b.createRadialGradient(x + LIGHT.x * crownR * 0.45, cy + LIGHT.y * crownR * 0.45, crownR * 0.15, x, cy, crownR);
-  g.addColorStop(0, lightenTone(toneL, 10));
-  g.addColorStop(0.55, tone);
+  const g = b.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.15, x, y, r);
+  g.addColorStop(0, conifer ? lightenTone(tone, 20) : lightenTone(tone, 34));
   g.addColorStop(1, darkenTone(tone, 22));
   b.fillStyle = g;
   b.beginPath();
-  b.moveTo((pts[0][0] + pts[9][0]) / 2, (pts[0][1] + pts[9][1]) / 2);
-  for (let i = 0; i < pts.length; i++) {
-    const cur = pts[i], nxt = pts[(i + 1) % pts.length];
-    b.quadraticCurveTo(cur[0], cur[1], (cur[0] + nxt[0]) / 2, (cur[1] + nxt[1]) / 2);
+  for (let i = 0; i <= 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const rr2 = r * (0.85 + frng() * 0.3);
+    const px = x + Math.cos(a) * rr2, py = y + Math.sin(a) * rr2;
+    if (i === 0) b.moveTo(px, py); else b.lineTo(px, py);
   }
   b.closePath(); b.fill();
-  // a soft internal shadow crescent away from the light, for volume
-  b.fillStyle = darkenTone(tone, 16); b.globalAlpha = 0.35;
-  b.beginPath(); b.ellipse(x - LIGHT.x * crownR * 0.35, cy - LIGHT.y * crownR * 0.35, crownR * 0.6, crownR * 0.5, 0, 0, Math.PI * 2); b.fill();
-  b.globalAlpha = 1;
-  if (winter) {
-    b.fillStyle = 'rgba(250,252,254,0.55)';
-    b.beginPath(); b.ellipse(x + LIGHT.x * crownR * 0.3, cy + LIGHT.y * crownR * 0.3, crownR * 0.6, crownR * 0.5, 0, 0, Math.PI * 2); b.fill();
+  if (si === 3 && !past) {
+    b.fillStyle = 'rgba(255,255,255,0.55)';
+    b.beginPath(); b.arc(x - r * 0.2, y - r * 0.25, r * 0.5, 0, Math.PI * 2); b.fill();
   }
 }
 
@@ -867,297 +724,127 @@ function shiftTone(hex, amt) {
   const r = clamp((n >> 16) + amt, 0, 255), g = clamp(((n >> 8) & 255) + amt, 0, 255), bl = clamp((n & 255) + amt, 0, 255);
   return `rgb(${r},${g},${bl})`;
 }
-// parse any #hex to [r,g,b]
-function toRGB(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-// mix two #hex colors by t (0=a,1=b) → 'rgb(...)'
+// helpers kept only for the ponds' water rendering (the one art the rest of
+// this file's revert preserves)
+const LIGHT = { x: -0.62, y: -0.78 };
+function toRGB(hex) { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function mixTone(a, b, t) {
   const A = toRGB(a), B = toRGB(b);
   return `rgb(${Math.round(A[0] + (B[0] - A[0]) * t)},${Math.round(A[1] + (B[1] - A[1]) * t)},${Math.round(A[2] + (B[2] - A[2]) * t)})`;
-}
-// warm/cool shift for form: push toward amber (warm) or slate (cool)
-function tempTone(hex, warm) {
-  const [r, g, b] = toRGB(hex);
-  const w = warm;   // -1 cool .. +1 warm
-  return `rgb(${clamp(r + w * 18, 0, 255) | 0},${clamp(g + w * 4, 0, 255) | 0},${clamp(b - w * 16, 0, 255) | 0})`;
 }
 
 // ── creatures ────────────────────────────────────────────────────────────────
 
 function drawWolfBody(x, y, heading, size, tone, moving, gait, limp) {
-  // soft, directional contact shadow — offset opposite the light, feathered
-  const sh = ctx.createRadialGradient(
-    x - LIGHT.x * size * 0.7, y - LIGHT.y * size * 0.7 + size * 0.5, size * 0.3,
-    x - LIGHT.x * size * 0.7, y - LIGHT.y * size * 0.7 + size * 0.5, size * 2.4);
-  sh.addColorStop(0, 'rgba(18,22,14,0.32)');
-  sh.addColorStop(1, 'rgba(18,22,14,0)');
-  ctx.fillStyle = sh;
-  ctx.beginPath();
-  ctx.ellipse(x - LIGHT.x * size * 0.7, y - LIGHT.y * size * 0.5 + size * 0.5,
-    size * 2.2, size * 1.05, heading, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.fillStyle = 'rgba(20,25,15,0.28)';
+  ctx.beginPath(); ctx.ellipse(x + 4, y + 6, size * 2.1, size * 1.0, 0, 0, Math.PI * 2); ctx.fill();
 
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(heading);
   if (!moving) ctx.scale(1, 1 + 0.02 * Math.sin(S.time * 2.2 + size));
 
-  // the light in body-space (so rim/shade rotate with the wolf)
-  const la = Math.atan2(LIGHT.y, LIGHT.x) - heading;
-  const lx = Math.cos(la), ly = Math.sin(la);
-
-  const mid = tone.base;
-  const shade = darkenTone(mid.startsWith('#') ? mid : '#8f959b', 26);
-  const belly = tone.dark;
-  const back = tone.light;
-
   const ph = gait * 0.085;
   const stride = moving ? size * 0.5 : 0;
-  // Legs live UNDER the body — every leg is drawn BEFORE the torso, so the
-  // body always covers the upper leg; only the paw peeks just past the belly
-  // edge. Two rows: the far side sits higher (mostly hidden), the near side
-  // shows a little paw below. They swing fore/aft, never splayed outward.
-  const legOrder = [
-    { lx: 0.6, row: -1, off: Math.PI },
-    { lx: -0.5, row: -1, off: 0 },
-    { lx: 0.6, row: 1, off: 0 },
-    { lx: -0.5, row: 1, off: Math.PI },
+  // legs, trotting in diagonal pairs
+  const legs = [
+    [0.85, 0.5, 0], [0.85, -0.5, Math.PI], [-0.75, 0.5, Math.PI], [-0.75, -0.5, 0],
   ];
-  const drawLeg = (L) => {
-    const near = L.row > 0;
+  for (let i = 0; i < 4; i++) {
+    const [lx, ly, off] = legs[i];
     let st = stride;
-    if (limp && L.lx > 0 && !near) st *= 0.35;
-    const swing = Math.sin(ph + L.off) * st;
-    const hipX = L.lx * size, hipY = L.row * size * 0.28;
-    // the paw lands just past the body edge on the near row, tucked in on the far
-    const footX = L.lx * size + swing, footY = L.row * size * (near ? 0.62 : 0.4);
-    ctx.strokeStyle = near ? shade : darkenTone(belly.startsWith('#') ? belly : '#666c72', 8);
-    ctx.lineWidth = size * (near ? 0.24 : 0.2);
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    if (limp && i === 0) st *= 0.35;   // the hurt foreleg barely swings
+    const px = lx * size + Math.sin(ph + off) * st;
+    ctx.strokeStyle = tone.dark;
+    ctx.lineWidth = size * 0.28;
+    ctx.lineCap = 'round';
     ctx.beginPath();
-    ctx.moveTo(hipX, hipY);
-    ctx.quadraticCurveTo(L.lx * size + swing * 0.5, L.row * size * 0.5, footX, footY);
+    ctx.moveTo(lx * size * 0.55, ly * size * 0.55);
+    ctx.lineTo(px, ly * size * 0.95);
     ctx.stroke();
-    ctx.fillStyle = tone.dark;                       // paw
-    ctx.beginPath(); ctx.ellipse(footX, footY, size * 0.11, size * 0.08, 0, 0, Math.PI * 2); ctx.fill();
-  };
-  for (const L of legOrder) drawLeg(L);   // all legs, then the body covers them
-
-  // brush tail — a tapered plume with a dark tip, swaying
-  const sway = Math.sin(S.time * 2.6 + ph * 0.4) * size * (moving ? 0.55 : 0.22);
-  ctx.fillStyle = mid;
-  ctx.beginPath();
-  ctx.moveTo(-size * 1.1, -size * 0.28);
-  ctx.quadraticCurveTo(-size * 2.0, sway * 0.5 - size * 0.3, -size * 2.5, sway);
-  ctx.quadraticCurveTo(-size * 2.0, sway * 0.5 + size * 0.34, -size * 1.1, size * 0.28);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = darkenTone(mid.startsWith('#') ? mid : '#8f959b', 30);   // dark tip
-  ctx.beginPath();
-  ctx.ellipse(-size * 2.35, sway * 0.9, size * 0.34, size * 0.24, sway * 0.1, 0, Math.PI * 2);
-  ctx.fill();
-
-  // torso as one flowing silhouette (haunch → back → shoulder), then form-
-  // shade. Lean and elongated — a wolf is long and narrow, not a barrel.
-  ctx.fillStyle = mid;
+    ctx.fillStyle = tone.dark;
+    ctx.beginPath(); ctx.arc(px, ly * size * 0.95, size * 0.15, 0, Math.PI * 2); ctx.fill();
+  }
+  // tail, swaying
+  const sway = Math.sin(S.time * 2.6 + ph * 0.4) * size * (moving ? 0.5 : 0.22);
+  ctx.strokeStyle = tone.base;
+  ctx.lineCap = 'round';
+  ctx.lineWidth = size * 0.5;
   ctx.beginPath();
   ctx.moveTo(-size * 1.2, 0);
-  ctx.bezierCurveTo(-size * 1.22, -size * 0.48, -size * 0.2, -size * 0.56, size * 0.5, -size * 0.5);
-  ctx.bezierCurveTo(size * 1.05, -size * 0.44, size * 1.28, -size * 0.28, size * 1.5, -size * 0.15);
-  ctx.bezierCurveTo(size * 1.64, 0, size * 1.64, 0, size * 1.5, size * 0.15);
-  ctx.bezierCurveTo(size * 1.28, size * 0.28, size * 1.05, size * 0.44, size * 0.5, size * 0.5);
-  ctx.bezierCurveTo(-size * 0.2, size * 0.56, -size * 1.22, size * 0.48, -size * 1.2, 0);
-  ctx.closePath(); ctx.fill();
-
-  // sunlit back (rim toward the light) and shadowed belly (away)
-  ctx.save(); ctx.clip();
-  const grad = ctx.createLinearGradient(-lx * size, -ly * size, lx * size, ly * size);
-  grad.addColorStop(0, back);
-  grad.addColorStop(0.42, mid);
-  grad.addColorStop(1, belly);
-  ctx.globalAlpha = 0.9; ctx.fillStyle = grad;
-  ctx.fillRect(-size * 1.6, -size * 1, size * 3.4, size * 2);
-  ctx.globalAlpha = 1;
-  // fur direction: a few soft strokes flowing back along the spine
-  ctx.strokeStyle = darkenTone(mid.startsWith('#') ? mid : '#8f959b', 14);
-  ctx.lineWidth = size * 0.05; ctx.globalAlpha = 0.35;
-  const frng = makePrng(Math.round(size * 97) ^ Math.round(x));
-  for (let i = 0; i < 10; i++) {
-    const fx = -size * 0.9 + frng() * size * 2.0, fy = (frng() - 0.5) * size * 1.1;
-    ctx.beginPath(); ctx.moveTo(fx, fy); ctx.lineTo(fx - size * 0.3, fy + (frng() - 0.5) * size * 0.15); ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-
-  // a crisp rim-light bead along the lit edge of the back
-  ctx.strokeStyle = back; ctx.globalAlpha = 0.5; ctx.lineWidth = size * 0.12; ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(-size * 1.05, -size * 0.42);
-  ctx.bezierCurveTo(-size * 0.2, -size * 0.54, size * 0.7, -size * 0.46, size * 1.35, -size * 0.22);
+  ctx.quadraticCurveTo(-size * 1.8, sway * 0.5, -size * 2.25, sway);
   ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  // scruff/ruff at the shoulders, then neck and a proper wedge head
-  ctx.fillStyle = mid;
-  ctx.beginPath(); ctx.ellipse(size * 1.02, 0, size * 0.5, size * 0.38, 0, 0, Math.PI * 2); ctx.fill();
-  // head: a narrower skull tapering to the muzzle
+  ctx.strokeStyle = tone.dark;
+  ctx.lineWidth = size * 0.26;
   ctx.beginPath();
-  ctx.moveTo(size * 1.28, -size * 0.32);
-  ctx.quadraticCurveTo(size * 1.78, -size * 0.32, size * 2.08, -size * 0.13);
-  ctx.quadraticCurveTo(size * 2.34, 0, size * 2.08, size * 0.13);
-  ctx.quadraticCurveTo(size * 1.78, size * 0.32, size * 1.28, size * 0.32);
-  ctx.quadraticCurveTo(size * 1.1, 0, size * 1.28, -size * 0.32);
-  ctx.closePath(); ctx.fill();
-  // lit crown of the head
-  ctx.fillStyle = back; ctx.globalAlpha = 0.4;
-  ctx.beginPath(); ctx.ellipse(size * 1.52 + lx * size * 0.15, ly * size * 0.15, size * 0.3, size * 0.18, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.moveTo(-size * 1.6, sway * 0.3);
+  ctx.quadraticCurveTo(-size * 1.95, sway * 0.7, -size * 2.3, sway);
+  ctx.stroke();
+  // body: hips + chest
+  ctx.fillStyle = tone.base;
+  ctx.beginPath(); ctx.ellipse(-size * 0.55, 0, size * 0.95, size * 0.62, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(size * 0.3, 0, size * 1.0, size * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  // light flanks
+  ctx.fillStyle = tone.light;
+  ctx.globalAlpha = 0.4;
+  ctx.beginPath(); ctx.ellipse(size * 0.2, 0, size * 0.8, size * 0.5, 0, 0, Math.PI * 2); ctx.fill();
   ctx.globalAlpha = 1;
-  // pale cheek/muzzle
-  ctx.fillStyle = back;
-  ctx.beginPath(); ctx.ellipse(size * 1.97, size * 0.03, size * 0.28, size * 0.14, 0, 0, Math.PI * 2); ctx.fill();
-  // nose
-  ctx.fillStyle = '#181816';
-  ctx.beginPath(); ctx.ellipse(size * 2.24, 0, size * 0.11, size * 0.09, 0, 0, Math.PI * 2); ctx.fill();
-  // eyes — a faint amber glint
-  ctx.fillStyle = 'rgba(60,45,20,0.9)';
-  for (const sgn of [1, -1]) { ctx.beginPath(); ctx.arc(size * 1.62, sgn * size * 0.2, size * 0.055, 0, Math.PI * 2); ctx.fill(); }
-  // ears — filled wedges with a dark inner
+  // dorsal stripe
+  ctx.fillStyle = tone.dark;
+  ctx.globalAlpha = 0.5;
+  ctx.beginPath(); ctx.ellipse(-size * 0.1, 0, size * 1.1, size * 0.24, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  // neck + head
+  ctx.fillStyle = tone.base;
+  ctx.beginPath(); ctx.ellipse(size * 0.95, 0, size * 0.55, size * 0.42, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(size * 1.45, 0, size * 0.52, size * 0.4, 0, 0, Math.PI * 2); ctx.fill();
+  // muzzle + nose
+  ctx.fillStyle = tone.light;
+  ctx.beginPath(); ctx.ellipse(size * 1.95, 0, size * 0.32, size * 0.2, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#1a1a18';
+  ctx.beginPath(); ctx.arc(size * 2.2, 0, size * 0.1, 0, Math.PI * 2); ctx.fill();
+  // ears
+  ctx.fillStyle = tone.dark;
   for (const sgn of [1, -1]) {
-    ctx.fillStyle = mid;
     ctx.beginPath();
-    ctx.moveTo(size * 1.28, sgn * size * 0.26);
-    ctx.quadraticCurveTo(size * 1.02, sgn * size * 0.62, size * 1.2, sgn * size * 0.66);
-    ctx.quadraticCurveTo(size * 1.42, sgn * size * 0.5, size * 1.46, sgn * size * 0.3);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = belly;
-    ctx.beginPath();
-    ctx.moveTo(size * 1.3, sgn * size * 0.34);
-    ctx.quadraticCurveTo(size * 1.16, sgn * size * 0.54, size * 1.26, sgn * size * 0.56);
-    ctx.quadraticCurveTo(size * 1.38, sgn * size * 0.46, size * 1.4, sgn * size * 0.36);
+    ctx.moveTo(size * 1.2, sgn * size * 0.16);
+    ctx.lineTo(size * 1.05, sgn * size * 0.5);
+    ctx.lineTo(size * 1.42, sgn * size * 0.38);
     ctx.closePath(); ctx.fill();
   }
   ctx.restore();
 }
 
-// Willow curled in the den — a lean spine spiralled nose-to-tail, breathing
-// until she isn't. Read as a real curled wolf, not a round mass.
+// Willow lying in the den — breathing, until she isn't.
 function drawWillowLying(w) {
   const tone = w.alive ? WOLF_TONES.willow : WOLF_TONES.willowDead;
-  const size = 12;
-  // soft contact shadow, hugging the curl
-  const sh = ctx.createRadialGradient(w.x - LIGHT.x * size, w.y - LIGHT.y * size * 0.5 + size * 0.4, size * 0.5,
-    w.x - LIGHT.x * size, w.y - LIGHT.y * size * 0.5 + size * 0.4, size * 2.4);
-  sh.addColorStop(0, 'rgba(16,20,12,0.30)'); sh.addColorStop(1, 'rgba(16,20,12,0)');
-  ctx.fillStyle = sh;
-  ctx.beginPath(); ctx.ellipse(w.x - LIGHT.x * size * 0.5, w.y + size * 0.5, size * 2.2, size * 1.15, 0.2, 0, Math.PI * 2); ctx.fill();
-
+  const size = 13;
+  ctx.fillStyle = 'rgba(20,25,15,0.3)';
+  ctx.beginPath(); ctx.ellipse(w.x + 3, w.y + 5, size * 2.3, size * 1.3, 0.2, 0, Math.PI * 2); ctx.fill();
   ctx.save();
   ctx.translate(w.x, w.y);
-  ctx.rotate(0.22);
-  const breath = w.alive ? 1 + 0.03 * Math.sin(S.time * 1.3) : 1;
-  ctx.scale(breath, breath);
-
-  // The curled spine: a spiral of points from the haunch (thick) around to
-  // the neck (thin). Build a tapering ribbon outline from it.
-  const N = 26, turns = 1.35;
-  const spineR0 = size * 1.55, spineR1 = size * 0.55;   // outer→inner radius of the curl
-  const a0 = -0.5, a1 = a0 + turns * Math.PI * 2;
-  const spine = [];
-  for (let i = 0; i <= N; i++) {
-    const t = i / N;
-    const a = a0 + (a1 - a0) * t;
-    const rad = spineR0 * (1 - t) + spineR1 * t;
-    const halfW = size * (0.62 * (1 - t) + 0.14 * t);   // haunch thick → neck thin
-    spine.push({ x: Math.cos(a) * rad, y: Math.sin(a) * rad, w: halfW, a });
-  }
-  const outline = () => {
-    ctx.beginPath();
-    // outer edge forward
-    for (let i = 0; i <= N; i++) {
-      const p = spine[i], nx = Math.cos(p.a + Math.PI / 2), ny = Math.sin(p.a + Math.PI / 2);
-      const px = p.x + nx * p.w, py = p.y + ny * p.w;
-      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-    }
-    // inner edge back
-    for (let i = N; i >= 0; i--) {
-      const p = spine[i], nx = Math.cos(p.a + Math.PI / 2), ny = Math.sin(p.a + Math.PI / 2);
-      ctx.lineTo(p.x - nx * p.w, p.y - ny * p.w);
-    }
-    ctx.closePath();
-  };
-
-  ctx.fillStyle = tone.base; outline(); ctx.fill();
-  // form shading across the curl (lit outer flank, shadow toward the fold)
-  ctx.save(); outline(); ctx.clip();
-  const g = ctx.createLinearGradient(LIGHT.x * size * 2, LIGHT.y * size * 2, -LIGHT.x * size * 2, -LIGHT.y * size * 2);
-  g.addColorStop(0, tone.light); g.addColorStop(0.5, tone.base); g.addColorStop(1, tone.dark);
-  ctx.globalAlpha = w.alive ? 0.85 : 0.6; ctx.fillStyle = g;
-  ctx.fillRect(-size * 2.4, -size * 2.4, size * 4.8, size * 4.8);
-  ctx.globalAlpha = 1;
-  // fur strokes flowing along the spine
-  ctx.strokeStyle = darkenTone(tone.base, 16); ctx.globalAlpha = 0.28; ctx.lineWidth = size * 0.05;
-  for (let i = 2; i < N; i += 2) {
-    const p = spine[i], nx = Math.cos(p.a + Math.PI / 2), ny = Math.sin(p.a + Math.PI / 2);
-    ctx.beginPath(); ctx.moveTo(p.x - nx * p.w * 0.6, p.y - ny * p.w * 0.6); ctx.lineTo(p.x + nx * p.w * 0.6, p.y + ny * p.w * 0.6); ctx.stroke();
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-  // a rim-light bead along the lit outer edge of the back
-  ctx.strokeStyle = tone.light; ctx.globalAlpha = w.alive ? 0.45 : 0.25; ctx.lineWidth = size * 0.1; ctx.lineCap = 'round';
-  ctx.beginPath();
-  for (let i = 0; i <= N; i++) {
-    const p = spine[i], nx = Math.cos(p.a + Math.PI / 2), ny = Math.sin(p.a + Math.PI / 2);
-    const px = p.x + nx * p.w, py = p.y + ny * p.w;
-    if (px * LIGHT.x + py * LIGHT.y > 0) { i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
-    else ctx.moveTo(px, py);
-  }
-  ctx.stroke(); ctx.globalAlpha = 1;
-
-  // the brush tail sweeping from the haunch across to shelter the nose
-  const h = spine[0];
-  ctx.strokeStyle = tone.base; ctx.lineWidth = size * 0.42; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(h.x, h.y);
-  ctx.quadraticCurveTo(h.x + size * 0.8, h.y + size * 1.4, size * 0.2, size * 1.35);
-  ctx.stroke();
-  ctx.strokeStyle = darkenTone(tone.base, 26); ctx.lineWidth = size * 0.16;
-  ctx.beginPath(); ctx.moveTo(h.x, h.y + size * 0.1); ctx.quadraticCurveTo(h.x + size * 0.7, h.y + size * 1.35, size * 0.2, size * 1.28); ctx.stroke();
-
-  // the head at the neck end (inner tip), resting low on folded paws
-  const nk = spine[N];
-  const hx = nk.x + Math.cos(nk.a) * size * 0.5, hy = nk.y + Math.sin(nk.a) * size * 0.5;
-  const hrot = nk.a + Math.PI * 0.5;
-  ctx.save(); ctx.translate(hx, hy); ctx.rotate(hrot);
-  // paws under the chin
-  ctx.strokeStyle = tone.dark; ctx.lineWidth = size * 0.16; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(-size * 0.1, size * 0.4); ctx.lineTo(size * 0.5, size * 0.5); ctx.stroke();
-  // skull → muzzle
+  ctx.rotate(0.25);
+  const breath = w.alive ? 1 + 0.035 * Math.sin(S.time * 1.4) : 1;
+  ctx.scale(1, breath);
   ctx.fillStyle = tone.base;
-  ctx.beginPath();
-  ctx.moveTo(-size * 0.34, -size * 0.28);
-  ctx.quadraticCurveTo(size * 0.2, -size * 0.34, size * 0.5, -size * 0.12);
-  ctx.quadraticCurveTo(size * 0.72, 0, size * 0.5, size * 0.12);
-  ctx.quadraticCurveTo(size * 0.2, size * 0.34, -size * 0.34, size * 0.28);
-  ctx.quadraticCurveTo(-size * 0.5, 0, -size * 0.34, -size * 0.28);
-  ctx.closePath(); ctx.fill();
-  ctx.fillStyle = tone.light;   // pale cheek
-  ctx.beginPath(); ctx.ellipse(size * 0.42, size * 0.04, size * 0.24, size * 0.12, 0, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#181816';    // nose
-  ctx.beginPath(); ctx.arc(size * 0.62, 0, size * 0.08, 0, Math.PI * 2); ctx.fill();
-  // ears, laid back
+  ctx.beginPath(); ctx.ellipse(0, 0, size * 1.9, size * 1.0, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = tone.dark;
-  for (const sgn of [1, -1]) {
-    ctx.beginPath();
-    ctx.moveTo(-size * 0.3, sgn * size * 0.18);
-    ctx.quadraticCurveTo(-size * 0.5, sgn * size * 0.36, -size * 0.34, sgn * size * 0.4);
-    ctx.quadraticCurveTo(-size * 0.2, sgn * size * 0.3, -size * 0.16, sgn * size * 0.16);
-    ctx.closePath(); ctx.fill();
-  }
-  // eye — a soft closed line always (she is resting / gone)
-  ctx.strokeStyle = 'rgba(40,38,34,0.6)'; ctx.lineWidth = size * 0.05; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(size * 0.08, -size * 0.06); ctx.lineTo(size * 0.24, -size * 0.02); ctx.stroke();
-  ctx.restore();
-
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath(); ctx.ellipse(-size * 0.2, -size * 0.2, size * 1.5, size * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.globalAlpha = 1;
+  // head tucked toward her flank
+  ctx.fillStyle = tone.base;
+  ctx.beginPath(); ctx.ellipse(size * 1.5, size * 0.4, size * 0.55, size * 0.42, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = tone.light;
+  ctx.beginPath(); ctx.ellipse(size * 1.85, size * 0.65, size * 0.3, size * 0.18, 0.5, 0, Math.PI * 2); ctx.fill();
+  // tail curled
+  ctx.strokeStyle = tone.dark;
+  ctx.lineWidth = size * 0.4;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-size * 1.6, size * 0.3);
+  ctx.quadraticCurveTo(-size * 2.2, size * 0.9, -size * 1.4, size * 1.2);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -1269,47 +956,19 @@ function daylight() {
 function drawLightAndAir() {
   resetTransform();
   const dl = daylight();
-  const W = canvas.width, Hh = canvas.height;
-  // a global directional grade: warm light spilling from the sun corner,
-  // cool shadow pooling in the opposite one — gives the flat scene a lit feel
-  if (S.era !== 'past' && !(S.weather && S.weather.kind !== 'sun')) {
-    if (!drawLightAndAir._grade || drawLightAndAir._gkey !== W + 'x' + Hh) {
-      drawLightAndAir._gkey = W + 'x' + Hh;
-      const lx = LIGHT.x < 0 ? 0 : W, ly = LIGHT.y < 0 ? 0 : Hh;   // sun corner
-      const gg = ctx.createLinearGradient(lx, ly, W - lx, Hh - ly);
-      gg.addColorStop(0, 'rgba(255,224,150,0.09)');
-      gg.addColorStop(0.5, 'rgba(255,224,150,0)');
-      gg.addColorStop(1, 'rgba(40,60,90,0.10)');
-      drawLightAndAir._grade = gg;
-    }
-    ctx.fillStyle = drawLightAndAir._grade;
-    ctx.fillRect(0, 0, W, Hh);
-  }
-  // a season-colored ambient wash, tying the palette together
-  if (S.era !== 'past') {
-    ctx.fillStyle = SEASON_SKYLIGHT[seasonIndex()];
-    ctx.fillRect(0, 0, W, Hh);
-  }
-  // days are short now: night is a slow blue suggestion, never a strobe
+  // days are 5 seconds long now: night is a suggestion, never a strobe
   if (dl < 1) {
-    ctx.fillStyle = `rgba(13,22,38,${(1 - dl) * 0.12})`;
-    ctx.fillRect(0, 0, W, Hh);
+    ctx.fillStyle = `rgba(13,22,38,${(1 - dl) * 0.10})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   const warm = dl > 0.15 && dl < 0.95 ? (1 - Math.abs(2 * ((dl - 0.15) / 0.8) - 1)) : 0;
   if (warm > 0) {
-    // golden-hour warmth, brightest low in the sky (the sun corner)
-    const gh = ctx.createLinearGradient(0, 0, 0, Hh);
-    gh.addColorStop(0, `rgba(255,150,60,${warm * 0.03})`);
-    gh.addColorStop(1, `rgba(255,170,80,${warm * 0.07})`);
-    ctx.fillStyle = gh;
-    ctx.fillRect(0, 0, W, Hh);
+    ctx.fillStyle = `rgba(255,150,60,${warm * 0.04})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   if (S.era === 'past' || S.vistaT > 0) {
-    const pg = ctx.createLinearGradient(0, 0, 0, Hh);
-    pg.addColorStop(0, `rgba(255,196,110,${S.era === 'past' ? 0.13 : 0.16})`);
-    pg.addColorStop(1, `rgba(255,170,80,${S.era === 'past' ? 0.06 : 0.09})`);
-    ctx.fillStyle = pg;
-    ctx.fillRect(0, 0, W, Hh);
+    ctx.fillStyle = `rgba(255,180,90,${S.era === 'past' ? 0.10 : 0.14})`;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   // the drought: summer bakes toward straw until the lightning comes
   if (S.era !== 'past' && S.fire && S.fire.state === 'none' && seasonIndex() === 1) {
@@ -1352,11 +1011,10 @@ function drawLightAndAir() {
   if (!drawLightAndAir._vg || drawLightAndAir._key !== canvas.width + 'x' + canvas.height) {
     drawLightAndAir._key = canvas.width + 'x' + canvas.height;
     const vg = ctx.createRadialGradient(
-      canvas.width / 2, canvas.height * 0.44, Math.min(canvas.width, canvas.height) * 0.42,
-      canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.8);
+      canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.45,
+      canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.75);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(0.7, 'rgba(12,16,10,0.10)');
-    vg.addColorStop(1, 'rgba(8,11,7,0.32)');
+    vg.addColorStop(1, 'rgba(10,14,8,0.26)');
     drawLightAndAir._vg = vg;
   }
   ctx.fillStyle = drawLightAndAir._vg;
@@ -1428,39 +1086,14 @@ function drawWorld() {
       wx0, wy0, wx1 - wx0, wy1 - wy0);
   }
 
-  // living water: drifting glints down the creek, and a slow specular
-  // shimmer breathing across each pond's sunlit crescent
-  const frozen = S.era !== 'past' && seasonIndex() === 3;
-  if (!frozen) {
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    for (let i = 0; i < TERRAIN.creekFlow.length - 1; i++) {
-      const [ax, ay] = TERRAIN.creekFlow[i];
-      const ph = Math.sin(S.time * 2 + i * 1.7);
-      if (ph > 0.4) {
-        ctx.globalAlpha = (ph - 0.4) * 0.6;
-        ctx.beginPath(); ctx.ellipse(ax + ph * 8, ay + 20, 9, 2, 0.3, 0, Math.PI * 2); ctx.fill();
-      }
-    }
-    // pond shimmer + a few sparkles that catch the sun
-    for (const p of PONDS.concat([TERRAIN.springsPond])) {
-      const sq = 0.78;
-      const shimmer = 0.12 + 0.1 * Math.sin(S.time * 1.3 + p.x * 0.01);
-      ctx.globalAlpha = shimmer;
-      ctx.fillStyle = 'rgba(224,240,246,0.9)';
-      ctx.beginPath();
-      ctx.ellipse(p.x + LIGHT.x * p.r * 0.35, p.y + LIGHT.y * p.r * 0.35 * sq, p.r * 0.5, p.r * 0.16, Math.atan2(LIGHT.y, LIGHT.x), 0, Math.PI * 2);
-      ctx.fill();
-      const srng = makePrng(hashStr('spk' + Math.round(p.x)));
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      for (let k = 0; k < 5; k++) {
-        const a = srng() * Math.PI * 2, rr = srng() * p.r * 0.7;
-        const tw = Math.sin(S.time * 4 + k * 2 + p.x);
-        if (tw > 0.6) {
-          ctx.globalAlpha = (tw - 0.6) * 1.2;
-          const sx = p.x + Math.cos(a) * rr, sy = p.y + Math.sin(a) * rr * sq;
-          ctx.beginPath(); ctx.arc(sx, sy, 1.4, 0, Math.PI * 2); ctx.fill();
-        }
-      }
+  // living water glints
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  for (let i = 0; i < TERRAIN.creekFlow.length - 1; i++) {
+    const [ax, ay] = TERRAIN.creekFlow[i];
+    const ph = Math.sin(S.time * 2 + i * 1.7);
+    if (ph > 0.4) {
+      ctx.globalAlpha = (ph - 0.4) * 0.6;
+      ctx.beginPath(); ctx.ellipse(ax + ph * 8, ay + 20, 8, 2, 0.3, 0, Math.PI * 2); ctx.fill();
     }
   }
   ctx.globalAlpha = 1;
@@ -1758,8 +1391,7 @@ function drawWorld() {
 // The porthole: past her senses the land goes dark. A world-unit sight
 // distance (fair on every monitor) scaled to the screen, soft-edged.
 // The play-view porthole darkness was removed by request — the world stays
-// fully visible. (playSightWorld() still drives the scent-view reach and the
-// bearing cues; only the on-screen darkening is gone.)
+// fully visible. (playSightWorld() still drives scent reach and bearing cues.)
 function drawPlayFog() {}
 
 // A2: the remembered route, once she is back in the porthole — a bearing-only
@@ -2268,38 +1900,22 @@ function parchmentLayer() {
   _parchment = document.createElement('canvas');
   _parchment.width = canvas.width; _parchment.height = canvas.height;
   const c = _parchment.getContext('2d');
-  const W = canvas.width, Hh = canvas.height;
-  // a warm vellum base with a faint vertical tone shift
-  const vg = c.createLinearGradient(0, 0, 0, Hh);
-  vg.addColorStop(0, '#f0e6cf'); vg.addColorStop(0.5, C_PARCHMENT); vg.addColorStop(1, '#e2d5b8');
-  c.fillStyle = vg; c.fillRect(0, 0, W, Hh);
-  const rng = makePrng(42);
-  // large soft stains — tea-colored blooms, aging the sheet unevenly
-  for (let i = 0; i < 22; i++) {
-    const x = rng() * W, y = rng() * Hh, r = 80 + rng() * 260;
-    const g = c.createRadialGradient(x, y, r * 0.2, x, y, r);
-    g.addColorStop(0, `rgba(150,110,50,${0.03 + rng() * 0.04})`);
-    g.addColorStop(1, 'rgba(150,110,50,0)');
-    c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill();
-  }
-  // fibrous grain: faint horizontal laid lines
-  c.strokeStyle = 'rgba(120,95,55,0.04)'; c.lineWidth = 1;
-  for (let y = 0; y < Hh; y += 4) { c.beginPath(); c.moveTo(0, y + (rng() - 0.5) * 2); c.lineTo(W, y + (rng() - 0.5) * 2); c.stroke(); }
-  // fine speckle / foxing
-  for (let i = 0; i < 520; i++) {
-    c.fillStyle = `rgba(90,55,20,${rng() * 0.05})`;
-    c.beginPath(); c.arc(rng() * W, rng() * Hh, rng() * 1.6 + 0.4, 0, Math.PI * 2); c.fill();
-  }
-  // darkened, worn corners + edge burnish
-  const cg = c.createRadialGradient(W / 2, Hh / 2, Math.min(W, Hh) * 0.32, W / 2, Hh / 2, Math.max(W, Hh) * 0.82);
+  c.fillStyle = C_PARCHMENT;
+  c.fillRect(0, 0, canvas.width, canvas.height);
+  const cg = c.createRadialGradient(
+    canvas.width / 2, canvas.height / 2, Math.min(canvas.width, canvas.height) * 0.35,
+    canvas.width / 2, canvas.height / 2, Math.max(canvas.width, canvas.height) * 0.8);
   cg.addColorStop(0, 'rgba(120,90,40,0)');
-  cg.addColorStop(0.75, 'rgba(120,88,40,0.10)');
-  cg.addColorStop(1, 'rgba(96,68,30,0.30)');
-  c.fillStyle = cg; c.fillRect(0, 0, W, Hh);
-  // a soft creaseline or two, as if the map were folded
-  c.strokeStyle = 'rgba(110,84,44,0.10)'; c.lineWidth = 2;
-  c.beginPath(); c.moveTo(W * 0.5 + 20, 0); c.lineTo(W * 0.5 - 20, Hh); c.stroke();
-  c.beginPath(); c.moveTo(0, Hh * 0.5 - 14); c.lineTo(W, Hh * 0.5 + 14); c.stroke();
+  cg.addColorStop(1, 'rgba(120,90,40,0.22)');
+  c.fillStyle = cg;
+  c.fillRect(0, 0, canvas.width, canvas.height);
+  const rng = makePrng(42);
+  for (let i = 0; i < 420; i++) {
+    c.fillStyle = `rgba(90,55,20,${rng() * 0.05})`;
+    c.beginPath();
+    c.arc(rng() * canvas.width, rng() * canvas.height, rng() * 1.6 + 0.4, 0, Math.PI * 2);
+    c.fill();
+  }
   return _parchment;
 }
 
@@ -2723,32 +2339,16 @@ function drawCaption() {
 }
 
 function drawBar(x, y, w, label, frac, color) {
-  const h = 12;
-  // recessed track with a hairline rim
-  ctx.fillStyle = 'rgba(16,14,10,0.5)';
-  rr(ctx, x, y, w, h, 6); ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)'; ctx.lineWidth = 1;
-  rr(ctx, x + 0.5, y + 0.5, w - 1, h - 1, 5.5); ctx.stroke();
-  const f = clamp(frac, 0, 1);
-  if (f > 0.01) {
-    const fw = Math.max(6, (w - 2) * f);
-    // a soft vertical sheen on the fill (top light → bottom dark)
-    const g = ctx.createLinearGradient(0, y + 1, 0, y + h - 1);
-    g.addColorStop(0, lightenTone(color.startsWith('#') ? color : '#b08d3f', 30));
-    g.addColorStop(0.5, color);
-    g.addColorStop(1, darkenTone(color.startsWith('#') ? color : '#b08d3f', 24));
-    ctx.fillStyle = g;
-    rr(ctx, x + 1, y + 1, fw, h - 2, 5); ctx.fill();
-    // a bright top highlight line
-    ctx.fillStyle = 'rgba(255,255,255,0.28)';
-    rr(ctx, x + 2, y + 2, fw - 2, 2, 1); ctx.fill();
+  ctx.fillStyle = 'rgba(20,18,12,0.4)';
+  rr(ctx, x, y, w, 11, 5); ctx.fill();
+  if (frac > 0.01) {
+    ctx.fillStyle = color;
+    rr(ctx, x + 1, y + 1, Math.max(6, (w - 2) * clamp(frac, 0, 1)), 9, 4); ctx.fill();
   }
   ctx.font = `bold 9px ${FONT}`;
   ctx.fillStyle = '#f4efdd';
-  ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 2;
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  ctx.fillText(label, x + 7, y + h / 2 + 0.5);
-  ctx.shadowBlur = 0;
+  ctx.fillText(label, x + 6, y + 6);
 }
 
 function drawHUD() {
@@ -2869,57 +2469,28 @@ function drawHelp() {
 
 function drawIntro() {
   resetTransform();
-  const W = canvas.width, Hh = canvas.height, cx = W / 2, cy = Hh / 2;
-  const t = Date.now() / 1000;
-  // a deep dusk sky graded down to dark timber
-  const g = ctx.createLinearGradient(0, 0, 0, Hh);
-  g.addColorStop(0, '#243043'); g.addColorStop(0.4, '#1b2620'); g.addColorStop(1, '#12160f');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, Hh);
-  // a low moon, and its cool wash
-  const moonX = W * 0.74, moonY = Hh * 0.26;
-  const halo = ctx.createRadialGradient(moonX, moonY, 4, moonX, moonY, 220);
-  halo.addColorStop(0, 'rgba(220,228,236,0.22)'); halo.addColorStop(1, 'rgba(220,228,236,0)');
-  ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(moonX, moonY, 220, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = '#e8ecf0'; ctx.beginPath(); ctx.arc(moonX, moonY, 34, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = 'rgba(180,190,200,0.5)';
-  const mrng = makePrng(7);
-  for (let i = 0; i < 5; i++) ctx.fillRect(moonX - 24 + mrng() * 48, moonY - 24 + mrng() * 48, 3 + mrng() * 5, 3 + mrng() * 4);
-  // faint stars
-  ctx.fillStyle = 'rgba(230,235,240,0.7)';
-  const srng = makePrng(19);
-  for (let i = 0; i < 70; i++) {
-    const sx = srng() * W, sy = srng() * Hh * 0.5, tw = Math.sin(t * 2 + i);
-    ctx.globalAlpha = 0.3 + 0.4 * Math.max(0, tw);
-    ctx.fillRect(sx, sy, 1.4, 1.4);
-  }
-  ctx.globalAlpha = 1;
-  // a ridgeline of black timber along the horizon
-  ctx.fillStyle = '#0d120b';
-  ctx.beginPath(); ctx.moveTo(0, Hh);
-  const rrng = makePrng(53);
-  for (let x = 0; x <= W; x += 24) {
-    const base = Hh * 0.62 + Math.sin(x * 0.004) * 30;
-    ctx.lineTo(x, base - rrng() * 26);
-    ctx.lineTo(x + 6, base - 40 - rrng() * 34);   // tree spikes
-    ctx.lineTo(x + 12, base - rrng() * 26);
-  }
-  ctx.lineTo(W, Hh); ctx.closePath(); ctx.fill();
-
+  const g = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  g.addColorStop(0, '#151812');
+  g.addColorStop(1, '#1e241b');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width / 2, cy = canvas.height / 2;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  // title, with a soft warm glow
-  ctx.shadowColor = 'rgba(210,180,120,0.5)'; ctx.shadowBlur = 18;
-  ctx.font = `bold 48px ${FONT}`; ctx.fillStyle = '#efe6cf';
-  ctx.fillText('T H E   C O R R I D O R', cx, cy - 70);
-  ctx.shadowBlur = 0;
-  ctx.font = `italic 17px ${FONT}`; ctx.fillStyle = '#b6ab8c';
-  ctx.fillText('one year', cx, cy - 24);
-  ctx.font = `bold 15px ${FONT}`; ctx.fillStyle = '#e8dfc6';
-  ctx.globalAlpha = 0.5 + 0.45 * Math.sin(t * 2.4);
-  ctx.fillText('press any key', cx, cy + 96);
+  ctx.font = `bold 46px ${FONT}`;
+  ctx.fillStyle = C_PARCHMENT;
+  ctx.fillText('T H E   C O R R I D O R', cx, cy - 60);
+  ctx.font = `italic 17px ${FONT}`;
+  ctx.fillStyle = '#b8ac8d';
+  ctx.fillText('one year', cx, cy - 12);
+  ctx.font = `bold 15px ${FONT}`;
+  ctx.fillStyle = C_PARCHMENT;
+  ctx.globalAlpha = 0.55 + 0.45 * Math.sin(Date.now() / 420);
+  ctx.fillText('press any key', cx, cy + 90);
   ctx.globalAlpha = 1;
   if (hasResumableSave()) {
-    ctx.font = `14px ${FONT}`; ctx.fillStyle = '#b6ab8c';
-    ctx.fillText('R — resume the year from where you left off', cx, cy + 158);
+    ctx.font = `14px ${FONT}`;
+    ctx.fillStyle = '#b8ac8d';
+    ctx.fillText('R — resume the year from where you left off', cx, cy + 152);
   }
 }
 
