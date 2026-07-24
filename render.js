@@ -338,34 +338,26 @@ function buildBaseLayer() {
     }
   }
 
-  // forests: shadowed, clustered trees — charred east of the burn line
-  // for the rest of the year, once the fire has passed
+  // forests: loose groves — a soft canopy shadow, then the individual trees
+  // (each a real obstacle; positions shared with collision via TREES). Charred
+  // east of the burn line for the rest of the year, once the fire has passed.
   for (const f of TERRAIN.forests) {
-    const frng = makePrng(hashStr('f' + f.x + ',' + f.y));
     const charred = burned && f.x > 3400 && f.y < 2400;
-    b.fillStyle = charred ? 'rgba(20,18,16,0.25)' : 'rgba(35,50,30,0.18)';
-    b.beginPath(); b.arc(f.x + 14, f.y + 18, f.r, 0, Math.PI * 2); b.fill();
-    const trees = Math.floor(f.r * f.r / 1700);
-    for (let i = 0; i < trees; i++) {
-      const a = frng() * Math.PI * 2, d = Math.sqrt(frng()) * f.r;
-      const tx = f.x + Math.cos(a) * d, ty = f.y + Math.sin(a) * d;
-      if (charred) {
-        b.strokeStyle = '#2e2a26';
-        b.lineWidth = 3;
-        b.beginPath(); b.moveTo(tx, ty + 8); b.lineTo(tx + (frng() - 0.5) * 8, ty - 14 - frng() * 10); b.stroke();
-        b.fillStyle = 'rgba(60,56,52,0.5)';
-        b.beginPath(); b.arc(tx, ty, 5 + frng() * 5, 0, Math.PI * 2); b.fill();
-      } else {
-        drawTree(b, tx, ty, 12 + frng() * 16, frng, si, past);
-      }
-    }
+    b.fillStyle = charred ? 'rgba(20,18,16,0.16)' : 'rgba(35,50,30,0.11)';
+    b.beginPath(); b.arc(f.x + 14, f.y + 18, f.r * 0.82, 0, Math.PI * 2); b.fill();
   }
-  // lone trees
-  const lrng = makePrng(4242);
-  for (let i = 0; i < 170; i++) {
-    const x = AX + lrng() * AW, y = AY + lrng() * AH;
-    if (x > 820 && x < 1020) continue;  // not in the road bed
-    drawTree(b, x, y, 10 + lrng() * 12, lrng, si, past);
+  for (const t of TREES) {
+    const charred = burned && t.x > 3400 && t.y < 2400;
+    const rng = makePrng(hashStr('tdraw' + Math.round(t.x) + ',' + Math.round(t.y)));
+    if (charred) {
+      b.strokeStyle = '#2e2a26';
+      b.lineWidth = 3;
+      b.beginPath(); b.moveTo(t.x, t.y + 8); b.lineTo(t.x + (rng() - 0.5) * 8, t.y - 14 - rng() * 10); b.stroke();
+      b.fillStyle = 'rgba(60,56,52,0.5)';
+      b.beginPath(); b.arc(t.x, t.y, 5 + rng() * 5, 0, Math.PI * 2); b.fill();
+    } else {
+      drawTree(b, t.x, t.y, t.s, rng, si, past);
+    }
   }
   // the wilder country beyond her bounds: apron forest
   const apr = makePrng(9911);
@@ -1345,8 +1337,9 @@ function drawWorld() {
     ctx.globalAlpha = 1;
   }
 
-  // the prologue "look here" marker: a caret over the introduced creature, or
-  // an edge chevron toward it if it has drifted off the close-in camera
+  // the prologue "look here" marker: a soft ring drawn AROUND the introduced
+  // creature (just a circle, no arrow), or an edge chevron toward it if it has
+  // drifted off the close-in camera
   if (S.pointAt) {
     const halfW = (canvas.width / 2) / S.cam.scale;
     const halfH = (canvas.height / 2) / S.cam.scale;
@@ -1356,18 +1349,11 @@ function drawWorld() {
     ctx.strokeStyle = 'rgba(255,224,150,0.95)';
     ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     if (onScreen) {
-      const bob = Math.sin(S.time * 4) * 6;
-      const px = S.pointAt.x, py = S.pointAt.y - 54 + bob;
-      ctx.globalAlpha = 0.9;
+      const pulse = Math.sin(S.time * 3);
+      ctx.globalAlpha = 0.6 + 0.2 * pulse;
+      ctx.lineWidth = 3.2;
       ctx.beginPath();
-      ctx.moveTo(px - 12, py - 14);
-      ctx.lineTo(px, py);
-      ctx.lineTo(px + 12, py - 14);
-      ctx.stroke();
-      ctx.globalAlpha = 0.32;
-      ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.arc(S.pointAt.x, S.pointAt.y, 30 + 4 * Math.sin(S.time * 3), 0, Math.PI * 2);
+      ctx.arc(S.pointAt.x, S.pointAt.y, 32 + 4 * pulse, 0, Math.PI * 2);
       ctx.stroke();
     } else {
       const a = Math.atan2(S.pointAt.y - S.wolf.y, S.pointAt.x - S.wolf.x);
@@ -2629,7 +2615,10 @@ function drawEnding() {
   }
 
   const yearlingAlive = S.pack.some(w => w.yearling && w.state !== 'dead' && w.state !== 'gone');
-  const hasLegacy = yearlingAlive && S.yearlingKnows.size > 0;
+  // when the rail takes HER, the map dies with her — the pack is leaderless in a
+  // country it never learned to read, so no legacy carries forward
+  const dead = S.endKind === 'dead';
+  const hasLegacy = yearlingAlive && S.yearlingKnows.size > 0 && !dead;
   if (t > 12 && hasLegacy) {
     ctx.globalAlpha = clamp((t - 12) / 2, 0, 1) * 0.9;
     for (const eid of S.yearlingKnows) {
@@ -2656,7 +2645,10 @@ function drawEnding() {
     ctx.fillText(line1, canvas.width / 2, canvas.height / 2 - 66);
     ctx.font = `15px ${FONT}`;
     ctx.fillStyle = `rgba(200,190,165,${a})`;
-    ctx.fillText(`Of the ${totalCount()} that walked the year, ${survivorCount()} came through.`, canvas.width / 2, canvas.height / 2 - 34);
+    ctx.fillText(dead
+      ? 'Without her map, the pack scatters into a land it cannot read. None come through.'
+      : `Of the ${totalCount()} that walked the year, ${survivorCount()} came through.`,
+      canvas.width / 2, canvas.height / 2 - 34);
     ctx.font = `17px ${FONT}`;
     ctx.fillStyle = `rgba(237,226,201,${a})`;
     ctx.fillText('A wolf’s territory once passed from mother to daughter, unchanged, for generations.',

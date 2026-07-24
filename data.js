@@ -180,7 +180,9 @@ const OBSTACLES = {
 };
 
 const TERRAIN = {
-  creekFlow: [[3240, 0], [3160, 600], [3240, 1200], [3120, 1800], [3040, 2300],
+  // runs in from beyond the world to the north, the way the road does, so it
+  // reads as continuing into the distance rather than stopping at the edge
+  creekFlow: [[3200, -600], [3300, -300], [3240, 0], [3160, 600], [3240, 1200], [3120, 1800], [3040, 2300],
               [3240, 2600], [3400, 2900], [3440, 3040], [3560, 3200], [3700, 3300]],
   creekDry:  [[3040, 2300], [2840, 2660], [2700, 2800], [2400, 2940], [2200, 3000], [1800, 3200]],
   wash:      [[1520, 2240], [1200, 2360], [920, 2460], [680, 2360], [600, 2100]],

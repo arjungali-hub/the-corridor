@@ -155,6 +155,58 @@ const DEN = NbyId.get('den');
 // herd anchors migrate during the year; remember where they truly live
 for (const H of HERDS) H.anchor0 = { x: H.anchor.x, y: H.anchor.y };
 
+// Individual trees. Far scarcer than a solid canopy — loose groves you weave
+// through, each a real obstacle: its trunk blocks wolves and prey in the
+// present. Shared by render (to draw) and collision (to block), and carved
+// away from nodes, den sites, herd anchors, ponds, and the road so nothing
+// critical is ever walled in or made unstandable.
+const TREE_R = 0.42;   // collision radius as a fraction of the canopy size
+const TREES = (() => {
+  const clearings = [];
+  for (const n of NODES) clearings.push({ x: n.x, y: n.y, r: 76 });
+  for (const s of DEN_SITES) clearings.push({ x: s.x, y: s.y, r: 76 });
+  for (const H of HERDS) clearings.push({ x: H.anchor.x, y: H.anchor.y, r: 96 });
+  for (const p of PONDS) clearings.push({ x: p.x, y: p.y, r: p.r + 42 });
+  if (TERRAIN.springsPond) clearings.push({ x: TERRAIN.springsPond.x, y: TERRAIN.springsPond.y, r: TERRAIN.springsPond.r + 42 });
+  const clear = (x, y) => {
+    if (x > 800 && x < 1040) return false;   // the road bed and its shoulders
+    for (const c of clearings) if ((x - c.x) ** 2 + (y - c.y) ** 2 < c.r * c.r) return false;
+    return true;
+  };
+  const out = [];
+  for (const f of TERRAIN.forests) {
+    const rng = makePrng(hashStr('grove' + f.x + ',' + f.y));
+    const n = Math.max(3, Math.round(f.r * f.r / 5600));
+    for (let i = 0; i < n; i++) {
+      const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * f.r;
+      const x = f.x + Math.cos(a) * d, y = f.y + Math.sin(a) * d;
+      const s = 13 + rng() * 15;                 // canopy draw size
+      if (clear(x, y)) out.push({ x, y, s });
+    }
+  }
+  const lrng = makePrng(4242);
+  const X0 = WORLD.x0 || 0;
+  for (let i = 0; i < 60; i++) {
+    const x = X0 + lrng() * WORLD.w, y = lrng() * WORLD.h;
+    const s = 11 + lrng() * 12;
+    if (clear(x, y)) out.push({ x, y, s });
+  }
+  return out;
+})();
+
+// A tree's trunk blocks — but only in the present; the scripted prologue paths
+// run clear (matching how the built obstacles hold off until Act I).
+function inTreeAt(x, y, pad) {
+  if (!S || S.era === 'past') return false;
+  for (const t of TREES) {
+    const cr = t.s * TREE_R + pad;
+    const dx = x - t.x; if (dx > cr || dx < -cr) continue;
+    const dy = y - t.y; if (dy > cr || dy < -cr) continue;
+    if (dx * dx + dy * dy < cr * cr) return true;
+  }
+  return false;
+}
+
 // The construction grows a little every season: the effective footprint of
 // the machines' ground expands, and its tear zone with it.
 function obstacleRect(key) {
@@ -552,7 +604,7 @@ function blockedAt(x, y, r, canPassGap, margin) {
   }
   if (bridgeWallAt(x, y, r)) return true;
   if (S.era === 'past') return false;  // none of it has been built yet
-  if (inForestCore(x, y, r)) return true;
+  if (inTreeAt(x, y, r)) return true;
   for (const key of ['construction', 'subdivision', 'gravelPit']) {
     const c = obstacleRect(key);
     if (x > c.x0 - r && x < c.x1 + r && y > c.y0 - r && y < c.y1 + r) return true;
@@ -561,17 +613,6 @@ function blockedAt(x, y, r, canPassGap, margin) {
   if (dist(x, y, ms.x, ms.y) < ms.r + r) return true;
   const f = OBSTACLES.fence;
   if (distSeg(x, y, f.x0, f.y0, f.x1, f.y1).d < r + 5) return true;
-  return false;
-}
-
-// The dense core of a forest clump blocks travel — you skirt the trunks; the
-// canopy edge (outer half) stays walkable. Present era only, so the scripted
-// prologue paths are never obstructed.
-function inForestCore(x, y, pad) {
-  if (!S || S.era === 'past') return false;
-  for (const f of TERRAIN.forests) {
-    if (dist(x, y, f.x, f.y) < f.r * 0.5 + pad) return true;
-  }
   return false;
 }
 
@@ -590,7 +631,7 @@ function wolfBlockedAt(x, y, margin) {
     if (x > h.x0 - 8 - WOLF_R && x < h.x1 + 8 + WOLF_R) return true;
   }
   if (S.era === 'past') return false;
-  if (inForestCore(x, y, WOLF_R)) return true;
+  if (inTreeAt(x, y, WOLF_R)) return true;
   for (const key of ['construction', 'subdivision', 'gravelPit']) {
     const c = obstacleRect(key);
     if (x > c.x0 - WOLF_R && x < c.x1 + WOLF_R && y > c.y0 - WOLF_R && y < c.y1 + WOLF_R) return true;
@@ -1765,9 +1806,9 @@ function preyUpdate(dt) {
         // her pack's hunger writes his ledger even when she is elsewhere
         if (!S.tut.packCalf && dist(S.wolf.x, S.wolf.y, elk.x, elk.y) > 500) {
           S.tut.packCalf = true;
-          say('The pack took a calf on its own. The house will not know the difference.');
+          say('The pack took one of the cattle on its own. The house will not know the difference.');
         } else {
-          say('A calf. Easy meat. The house will know.');
+          say('Cattle — big, slow, easy meat. The house will know.');
         }
       } else if (thinned) {
         // the seasonal beat outranks the routine kill line
@@ -3076,10 +3117,15 @@ function prologueUpdate(dt) {
         }
         if (T._b1packT > 11.4 && !T._b1n3) {
           T._b1n3 = true;
-          setCaption('Alder and Fen, the yearlings.', 3.4, 'all legs and questions');
-          pointOut('yearlings', 3.4);
+          setCaption('Alder, a yearling.', 3.4, 'all legs and questions');
+          pointOut('alder', 3.4);
         }
-        if (T._b1packT > 15.2) {
+        if (T._b1packT > 15.2 && !T._b1n4) {
+          T._b1n4 = true;
+          setCaption('Fen, the other.', 3.4, 'a half-step behind her brother, always');
+          pointOut('fen', 3.4);
+        }
+        if (T._b1packT > 19) {
           T._b1scent = true;
           stickyPrompt('The world speaks in scent. Hold E.', ['E']);
           // a deer crosses the morning from offscreen, close by, writing
