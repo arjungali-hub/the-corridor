@@ -559,3 +559,21 @@ sky-sheen, reeds, scum when fouled, cracked winter ice, smooth edges), used
 for every pond and the spring. Carried only the three helpers it needs
 (LIGHT, toRGB, mixTone). The play-view porthole darkness stays removed
 (drawPlayFog no-op), matching the prior request. Harness 261 green x3.
+
+## pack-state + fear-freeze fixes (2026-07-23)
+
+Three playtest bugs. (1) The "holds" desync: the per-wolf pack movement never
+checked w.state, so once ANY wolf was set to follow (e.g. a just-found Sedge
+forced to "follow"), the zone re-centered on Aspen and the "holding" wolves
+got dragged along while the roster still said "holds". Fixed: a wolf in
+"stay" is now authoritative — it keeps to S.zoneAnchor (its own center/radius)
+and does not leave to hunt, regardless of the rest of the pack; and a found
+lost wolf rejoins in the pack CURRENT stance (S.zoneAnchor ? stay : follow),
+so roster and ground never disagree. (2) Fear freeze re-tied to the bar: the
+pack freezes whenever fear > 0.03 (anything showing) and unfreezes the
+instant fear drains to ~0 — real terror (>0.5) still scatters them to safe
+ground first, milder fright just roots them where they stand; dropped the
+fixed 70s spell. Balk recovery is likewise fear-only now. (3) The R/H teach
+prompts shortened to 3.5s so they fade on their own. Harness updated (fear-
+bar freeze, held-wolf-holds-while-another-follows) + a latent car-strike
+flake in the season-defer test fixed; green x6.

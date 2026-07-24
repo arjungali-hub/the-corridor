@@ -1193,25 +1193,26 @@ function packUpdate(dt) {
     }
   }
 
-  // terror is not a statue: past the threshold every wolf RUNS — away from
-  // what frightened it, to ground that reads as safe — and roots there.
-  // The spell holds long after the teeth are gone.
-  if (!S.packFrozen && S.fear > 0.85) {
+  // The pack freezes whenever fear shows in the bar, and only until it drains
+  // back to nothing. At real terror they scatter to safe ground first (so
+  // nothing can corner a rooted pack); a milder fright just roots them where
+  // they stand. Either way, the moment fear is gone, they move again.
+  const scared = S.fear > 0.03;
+  if (scared && !S.packFrozen) {
     S.packFrozen = true;
+    const flee = S.fear > 0.5;
     const src = S.fearSource || { x: S.wolf.x, y: S.wolf.y };
     for (const w of S.pack) {
       if (w.state === 'dead' || w.state === 'gone') continue;
-      w.fleeTo = safePointFrom(w, src);
-      w.frozenT = FREEZE_TIME;
+      w.fleeTo = flee ? safePointFrom(w, src) : null;
     }
-    if (S.mode === 'play') say('The pack scatters for safe ground — and roots there. Nothing will move them for a long while.');
+    if (S.mode === 'play') say(flee ? 'The pack scatters for safe ground, and roots there.' : 'The pack freezes.');
   }
-  if (S.packFrozen && S.fear < 0.6 && !S.pack.some(w => (w.frozenT || 0) > 0)) S.packFrozen = false;
+  if (S.packFrozen && !scared) S.packFrozen = false;
   if (S.packFrozen) {
     for (const w of S.pack) {
       if (w.state === 'dead' || w.state === 'gone') { w.moving = false; continue; }
-      w.frozenT = Math.max(0, (w.frozenT || 0) - dt);
-      fleeStep(w, dt);
+      fleeStep(w, dt);   // runs to safe ground if it has one, else stands still
     }
     return;
   }
@@ -1261,32 +1262,38 @@ function packUpdate(dt) {
     w.injuredT = Math.max(0, (w.injuredT || 0) - dt);
     const lag = (w.injuredT > 0 ? 0.65 : 1) * snow;
 
-    // fear is not a toggle: a balked wolf runs off the road line, roots at
-    // safe ground, and stays rooted until the fear AND the long spell pass
-    if (w.balked && S.fear < 0.35 && (w.frozenT || 0) <= 0) {
+    // a balked wolf recovers as soon as the fear is gone from the bar
+    if (w.balked && S.fear <= 0.03) {
       w.balked = false;
       if (w.state === 'balk') w.state = 'follow';
     }
     if (w.balked) {
       w.state = 'balk';
-      w.frozenT = Math.max(0, (w.frozenT || 0) - dt);
       fleeStep(w, dt);
       continue;
     }
 
-    const dZone = dist(w.x, w.y, c.x, c.y);
+    // a wolf told to HOLD keeps to the anchor no matter what the rest of the
+    // pack does — its state is authoritative, so "holds" in the roster is
+    // never a lie. Following wolves use the live zone (Aspen).
+    const held = w.state === 'stay';
+    const wc = (held && S.zoneAnchor) ? S.zoneAnchor : c;
+    const wzr = (held && S.zoneAnchor) ? zoneRadius(wc) : zr;
+    const wHuntLimit = Math.max(320, wzr * 2);
+    const dZone = dist(w.x, w.y, wc.x, wc.y);
 
     // adults hunt on their own: chase near prey, break off beyond the
     // hunting radius, never set foot on the asphalt. Hysteresis keeps the
     // edge honest: a chase starts well inside the radius and is only
-    // abandoned well outside it — no flickering at the line.
-    if (!w.pup && S.mode === 'play') {
+    // abandoned well outside it — no flickering at the line. A held wolf
+    // does not leave its ground to hunt.
+    if (!w.pup && !held && S.mode === 'play') {
       let prey = null, pd = 1e9;
       for (const e of S.elk) {
         const d = dist(w.x, w.y, e.x, e.y);
         if (d < 280 && d < pd) { pd = d; prey = e; }
       }
-      const mayHunt = w.hunting ? dZone < huntLimit * 1.3 : dZone < huntLimit * 0.8;
+      const mayHunt = w.hunting ? dZone < wHuntLimit * 1.3 : dZone < wHuntLimit * 0.8;
       if (prey && mayHunt) {
         w.hunting = true;
         const d = pd || 1;
@@ -1303,17 +1310,17 @@ function packUpdate(dt) {
 
     // outside the zone: lope smoothly back to a stable personal slot in it
     // (a fixed angle per wolf — no per-frame re-rolls, no frenzy)
-    if (dZone > zr) {
+    if (dZone > wzr) {
       if (w.slotA === undefined) w.slotA = Math.random() * Math.PI * 2;
-      w.tx = c.x + Math.cos(w.slotA) * zr * 0.5;
-      w.ty = c.y + Math.sin(w.slotA) * zr * 0.5;
+      w.tx = wc.x + Math.cos(w.slotA) * wzr * 0.5;
+      w.ty = wc.y + Math.sin(w.slotA) * wzr * 0.5;
       w.wanderT = 0.5;
     } else {
       w.wanderT = (w.wanderT || 0) - dt;
       if (w.wanderT <= 0 || w.tx === undefined || dist(w.x, w.y, w.tx, w.ty) < 14) {
-        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * zr;
-        w.tx = c.x + Math.cos(a) * r;
-        w.ty = c.y + Math.sin(a) * r;
+        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * wzr;
+        w.tx = wc.x + Math.cos(a) * r;
+        w.ty = wc.y + Math.sin(a) * r;
         w.wanderT = 1.5 + Math.random() * 3;
       }
     }
@@ -1825,9 +1832,10 @@ function chooseDen(site) {
   if (!S.seenDens.includes(site.id)) S.seenDens.push(site.id);
   S.history.push({ type: 'den', day: day(), site: site.id });
   say(`${site.name} is home now.`);
-  // home chosen: the last two verbs are given, one at a time
-  showPrompt('R twice restarts the game (if you ever want to).', ['R'], 5);
-  showPrompt('What she knows how to do: H.', ['H'], 5);
+  // home chosen: the last two verbs are given, one at a time — each fades on
+  // its own after a few seconds; no need to press the key to dismiss it
+  showPrompt('R twice restarts the game (if you ever want to).', ['R'], 3.5);
+  showPrompt('What she knows how to do: H.', ['H'], 3.5);
   S.tut.taughtHelp = true;
   saveGame();
 }
@@ -2672,7 +2680,9 @@ function taskProgress(t) {
   if (t.kind === 'findwolf') {
     const w = S.pack.find(x => x.id === t.key);
     if (w && w.lost && dist(S.wolf.x, S.wolf.y, w.x, w.y) < 150) {
-      w.lost = false; w.lostT = 0; w.state = 'follow';
+      // rejoin in the pack's CURRENT stance — if they were told to hold, she
+      // holds too, so the roster and the ground never disagree
+      w.lost = false; w.lostT = 0; w.state = S.zoneAnchor ? 'stay' : 'follow';
       say(`${w.name} falls in at her shoulder as if nothing happened.`);
     }
   } else if (t.kind === 'cache') {
