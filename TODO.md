@@ -772,8 +772,9 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       suspended; wired into the keydown and canvas-click handlers. Harness:
       suspended-context stub + first keydown => resume() called, state running,
       unlock fires once. MANUAL SAFARI CHECK STILL OWED (Node can't verify it).
-- [ ] 3 Loading state: inline a dependency-free title + "loading…" on #191b16 in
-      index.html, shown pre-JS; game clears it on first successful draw().
+- [x] 3 Loading state: a #loading overlay (THE CORRIDOR + "loading…" on #191b16,
+      inline CSS, Georgia, no fetch) shows instantly pre-JS; main.js adds .hidden
+      (0.6s fade) on the first frame after draw(). MANUAL: throttle + confirm.
 - [ ] 4 Error boundary: window.onerror + unhandledrejection stop the loop, draw
       an in-fiction card ("The land slipped away. Press R to return."), log the
       real error, wire R to reload. Tiny + defensive. Harness: a deliberate throw

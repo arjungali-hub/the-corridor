@@ -79,11 +79,18 @@ window.addEventListener('blur', () => {
 newGame();
 
 let lastT = 0;
+let loadingCleared = false;
 function frame(t) {
   const dt = Math.min(0.05, (t - lastT) / 1000 || 0.016);
   lastT = t;
   update(dt);
   draw();
+  // the game has painted a real frame — retire the pre-JS loading state
+  if (!loadingCleared) {
+    loadingCleared = true;
+    const el = typeof document !== 'undefined' && document.getElementById && document.getElementById('loading');
+    if (el) el.classList.add('hidden');
+  }
   requestAnimationFrame(frame);
 }
 if (typeof requestAnimationFrame === 'function') requestAnimationFrame(frame);

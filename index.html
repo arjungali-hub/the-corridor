@@ -9,9 +9,30 @@
   <style>
     html, body { margin: 0; height: 100%; overflow: hidden; background: #191b16; }
     canvas { display: block; }
+    /* Loading state: shown by the browser instantly (zero JS, no fetch), so the
+       first impression is the title on dusk, not a black rectangle. main.js
+       fades it out on the first successful draw(). */
+    #loading {
+      position: fixed; inset: 0; z-index: 10;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      background: #191b16;
+      font-family: Georgia, "Times New Roman", serif;
+      transition: opacity 0.6s ease; opacity: 1;
+    }
+    #loading.hidden { opacity: 0; pointer-events: none; }
+    #loading .wm {
+      color: #d8cfb8; font-size: 34px; letter-spacing: 0.28em;
+      font-weight: bold; text-indent: 0.28em;
+    }
+    #loading .ld {
+      color: #6f6a5a; font-size: 14px; font-style: italic;
+      letter-spacing: 0.1em; margin-top: 22px;
+    }
   </style>
 </head>
 <body>
+  <div id="loading"><div class="wm">THE CORRIDOR</div><div class="ld">loading…</div></div>
   <canvas id="game"></canvas>
   <script src="data.js"></script>
   <script src="game.js"></script>

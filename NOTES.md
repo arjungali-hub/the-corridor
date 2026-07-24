@@ -722,3 +722,13 @@ with a resume spy and asserts the first keydown resumes it (state 'running') and
 that the unlock fires only once. **Owed: a manual check in Safari specifically —
 the Node harness cannot exercise a real WebAudio autoplay policy, and this is the
 #1 silent-failure class for web games.** Harness 283 green, x3.
+
+## established fix 3 — loading state (2026-07-25)
+
+~7,700 lines parse before the first frame; until then the canvas was a black
+rectangle on #191b16. index.html now carries an inline #loading overlay (THE
+CORRIDOR wordmark + "loading…", inline CSS, Georgia so nothing is fetched, same
+dusk background) that the browser paints instantly with zero JS. main.js sets a
+loadingCleared latch and adds `.hidden` (a 0.6s opacity fade) on the first frame
+after draw(), so it retires the moment the game actually renders. No harness
+check (pre-JS); manual = throttle CPU/network and confirm the title shows first.
