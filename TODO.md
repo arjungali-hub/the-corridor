@@ -775,10 +775,13 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
 - [x] 3 Loading state: a #loading overlay (THE CORRIDOR + "loading…" on #191b16,
       inline CSS, Georgia, no fetch) shows instantly pre-JS; main.js adds .hidden
       (0.6s fade) on the first frame after draw(). MANUAL: throttle + confirm.
-- [ ] 4 Error boundary: window.onerror + unhandledrejection stop the loop, draw
-      an in-fiction card ("The land slipped away. Press R to return."), log the
-      real error, wire R to reload. Tiny + defensive. Harness: a deliberate throw
-      in update() halts the loop and takes the card path (remove throw after).
+- [x] 4 Error boundary: a `crashed` latch + drawCrashCard ("The land slipped
+      away. Press R to return."); the frame body is try/caught (update/draw throw
+      => handleCrash, no reschedule), and window 'error'/'unhandledrejection'
+      handlers catch the rest. R-on-crash is handled at the TOP of the existing
+      keydown handler (no second listener, so the harness key() path is intact).
+      Harness: a throw inside update() via frame(0) trips the boundary; an
+      unhandled rejection trips it too.
 - [ ] 5 Save migration: migrateSave(save) in loadGame defaults every field added
       since the base schema (missing key => its newGame default); no version bump
       for additive changes; a structurally-unusable save fails safe to newGame.

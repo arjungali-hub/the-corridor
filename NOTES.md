@@ -732,3 +732,19 @@ dusk background) that the browser paints instantly with zero JS. main.js sets a
 loadingCleared latch and adds `.hidden` (a 0.6s opacity fade) on the first frame
 after draw(), so it retires the moment the game actually renders. No harness
 check (pre-JS); manual = throttle CPU/network and confirm the title shows first.
+
+## established fix 4 — error boundary (2026-07-25)
+
+An uncaught error mid-year used to freeze the canvas with no recourse. main.js
+now carries a tiny, game-state-independent boundary: a `crashed` latch,
+drawCrashCard() (paints #191b16 + "The land slipped away." / "Press R to
+return." straight onto the 2D context — no game render), handleCrash() (logs the
+real error to console for us, draws the card, latches). The frame body is
+wrapped in try/catch (a throw in update()/draw() calls handleCrash and does NOT
+reschedule — the card stands), and window 'error' + 'unhandledrejection'
+handlers catch everything outside the frame. R-on-crash is handled at the TOP of
+the existing keydown handler rather than a second listener — important, because
+the harness drives input through the single stored keydown handler, so adding a
+second would have broken every key() call. Harness: a deliberate throw inside
+update() via frame(0) trips the boundary; an unhandled rejection trips it too.
+284 green, x3.
