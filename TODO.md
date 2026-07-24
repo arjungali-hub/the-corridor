@@ -802,8 +802,12 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       game. / Please visit on a computer to play." on dusk) and newGame()/RAF are
       NOT called; desktop/headless boots normally. Harness: gate inert on
       headless; card draws clean. Manual: emulate mobile in devtools.
-- [ ] 8 OG/social meta in <head>: og:title/description/image(absolute)/type +
-      twitter:card summary_large_image. Manual: link unfurls.
+- [x] 8 OG/social meta in <head>: og:title/description/type/url/image + twitter
+      summary_large_image set. Text tags final ("You are the wolf. The map you
+      inherited is wrong."). OWED before sharing: replace the placeholder
+      the-corridor.vercel.app domain with the real deployed URL and add og-cover.
+      png (1200x630) at the site root (og:image must be absolute). Manual: paste
+      link into a preview debugger.
 - [ ] 9 Accessibility slate (each additive, all best-practice):
   - [ ] 9a Key remapping row from the intro, persisted to localStorage under a
         key SEPARATE from the run save (survives New Year).

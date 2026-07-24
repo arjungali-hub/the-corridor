@@ -795,3 +795,15 @@ loop entirely; a resize redraws the card. Everyone else boots as before. No touc
 controls for v1. Harness: the gate is inert on the headless/desktop context so
 the game still boots, and the card draws without throwing; the positive mobile
 path is a manual devtools check. 289 green, x3.
+
+## established fix 8 — OG / social meta (2026-07-25)
+
+Shared links unfurled as bare text. index.html <head> now carries og:title,
+og:description ("You are the wolf. The map you inherited is wrong."), og:type
+(website), og:url, og:image, and the twitter summary_large_image equivalents.
+The text tags are final. TWO things owed before sharing (flagged in an HTML
+comment right there): the placeholder domain the-corridor.vercel.app must become
+the real deployed URL, and a 1200x630 og-cover.png (a representative screenshot)
+must sit at the site root — og:image has to be absolute, crawlers won't resolve
+a relative path. No harness check (head only); verify by pasting the deployed
+link into a link-preview debugger.
