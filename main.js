@@ -107,7 +107,34 @@ window.addEventListener('blur', () => {
 // A reload is a clean slate by default: the whole game starts over, prologue
 // included. A save is never loaded at boot — but a year in progress can be
 // reclaimed from the intro screen with R; any other key clears it.
-newGame();
+// (newGame() runs in the boot gate at the bottom, unless this is a phone.)
+
+// A phone visitor can't control a keyboard game — greet them kindly instead of
+// handing them a canvas they can't play. Desktop is unaffected.
+function isTouchOnly() {
+  try {
+    if (typeof window === 'undefined') return false;
+    const mm = window.matchMedia;
+    const noFine = !(mm && mm.call(window, '(pointer: fine)').matches);
+    const touch = ('ontouchstart' in window)
+      || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
+    return !!touch && noFine;
+  } catch (_) { return false; }
+}
+function drawMobileCard() {
+  if (!ctx) return;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.fillStyle = '#191b16';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#d8cfb8';
+  ctx.font = 'bold 30px Georgia, "Times New Roman", serif';
+  ctx.fillText('THE CORRIDOR', canvas.width / 2, canvas.height / 2 - 40);
+  ctx.font = 'italic 16px Georgia, "Times New Roman", serif';
+  ctx.fillStyle = '#a29b86';
+  ctx.fillText('The Corridor is a keyboard game.', canvas.width / 2, canvas.height / 2 + 12);
+  ctx.fillText('Please visit on a computer to play.', canvas.width / 2, canvas.height / 2 + 38);
+}
 
 let lastT = 0;
 let loadingCleared = false;
@@ -130,4 +157,13 @@ function frame(t) {
   }
   requestAnimationFrame(frame);
 }
-if (typeof requestAnimationFrame === 'function') requestAnimationFrame(frame);
+// Boot gate: a keyboard-less phone gets the kind card; everyone else gets the game.
+if (isTouchOnly()) {
+  const el = typeof document !== 'undefined' && document.getElementById && document.getElementById('loading');
+  if (el) el.classList.add('hidden');
+  drawMobileCard();
+  window.addEventListener('resize', drawMobileCard);
+} else {
+  newGame();
+  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(frame);
+}

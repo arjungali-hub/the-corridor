@@ -797,9 +797,11 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       y2y.net · ARC arc-solutions.org). Grep confirmed no other unsourced stat in
       copy. OWED (external): cite Banff/Parks Canada/Y2Y in the itch page + the
       educator guide. Manual: reach each ending, read cleanly.
-- [ ] 7 Mobile gate: touch + no-fine-pointer at boot => a kind dusk card ("The
-      Corridor is a keyboard game — please visit on a computer to play."); game
-      does not start. No touch controls for v1. Desktop unaffected.
+- [x] 7 Mobile gate: isTouchOnly() (touch UA/maxTouchPoints AND no `(pointer:
+      fine)`) at the boot gate => drawMobileCard ("The Corridor is a keyboard
+      game. / Please visit on a computer to play." on dusk) and newGame()/RAF are
+      NOT called; desktop/headless boots normally. Harness: gate inert on
+      headless; card draws clean. Manual: emulate mobile in devtools.
 - [ ] 8 OG/social meta in <head>: og:title/description/image(absolute)/type +
       twitter:card summary_large_image. Manual: link unfurls.
 - [ ] 9 Accessibility slate (each additive, all best-practice):

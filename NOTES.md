@@ -782,3 +782,16 @@ crossings dataset — verifiable, and the card names Banff on-screen (sufficient
 attribution). OWED, external to the repo: cite Banff / Parks Canada / Y2Y in the
 itch page copy and the educator guide so the claim is fully traceable. Harness
 smoke-draws the ending at endT=21 to render the panel. 287 green, x3.
+
+## established fix 7 — mobile gate (2026-07-25)
+
+This is a keyboard game; a phone visitor got a canvas they couldn't control.
+main.js now decides at the boot gate: isTouchOnly() — a touch context
+('ontouchstart' or navigator.maxTouchPoints) AND no `(pointer: fine)` (i.e. no
+mouse/trackpad), all typeof-guarded and try/caught — routes phones to
+drawMobileCard() ("THE CORRIDOR / The Corridor is a keyboard game. / Please visit
+on a computer to play." on the same #191b16 dusk) and skips newGame() + the RAF
+loop entirely; a resize redraws the card. Everyone else boots as before. No touch
+controls for v1. Harness: the gate is inert on the headless/desktop context so
+the game still boots, and the card draws without throwing; the positive mobile
+path is a manual devtools check. 289 green, x3.
