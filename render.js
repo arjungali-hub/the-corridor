@@ -2708,13 +2708,37 @@ function drawEnding() {
     ctx.fillStyle = `rgba(237,226,201,${a})`;
     ctx.fillText('A wolf’s territory once passed from mother to daughter, unchanged, for generations.',
       canvas.width / 2, canvas.height / 2 + 6);
-    ctx.fillText('The average corridor now closes within one.', canvas.width / 2, canvas.height / 2 + 32);
+    ctx.fillText('Now the map is torn before it is handed down.', canvas.width / 2, canvas.height / 2 + 32);
     ctx.font = `italic 14px ${FONT}`;
     ctx.fillStyle = `rgba(184,172,141,${a})`;
     ctx.fillText(hasLegacy
       ? 'The young walk behind her knowing the new ways. The dotted line is theirs.'
       : 'No one walks behind her who learned the new ways.',
       canvas.width / 2, canvas.height / 2 + 68);
+  }
+  // the one sourced impact card: real, verifiable, attributed on-screen to Banff
+  // (the Trans-Canada crossings — the world's longest-running dataset). No
+  // unsourced number appears anywhere in the game.
+  if (t > 19) {
+    const ba = clamp((t - 19) / 2, 0, 1);
+    const y = canvas.height - 168;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgba(16,18,16,${0.5 * ba})`;
+    ctx.fillRect(0, y - 22, canvas.width, 120);
+    ctx.font = `bold 15px ${FONT}`;
+    ctx.fillStyle = `rgba(214,224,206,${ba})`;
+    ctx.fillText('Wildlife crossings work.', canvas.width / 2, y);
+    ctx.font = `14px ${FONT}`;
+    ctx.fillStyle = `rgba(196,204,186,${0.92 * ba})`;
+    ctx.fillText('In Banff National Park, crossings and fencing cut wildlife-vehicle collisions by over 80%',
+      canvas.width / 2, y + 26);
+    ctx.fillText('— and elk and deer deaths by 96%, across 250,000+ animal crossings. The land can be reconnected.',
+      canvas.width / 2, y + 48);
+    ctx.font = `italic 13px ${FONT}`;
+    ctx.fillStyle = `rgba(150,168,150,${0.9 * ba})`;
+    ctx.fillText('Learn more — Yellowstone to Yukon (y2y.net) · ARC Solutions (arc-solutions.org)',
+      canvas.width / 2, y + 74);
+    ctx.globalAlpha = 1;
   }
   if (t > 18) {
     ctx.font = `bold 15px ${FONT}`;

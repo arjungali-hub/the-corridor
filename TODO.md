@@ -788,11 +788,15 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       false (fail safe). No version bump. Harness: an old save missing water/
       exposure/foundPaths/rumorsTold/wind loads with sane defaults; a corrupt
       save (edges: 12345) fails safe to intro.
-- [ ] 6 Ending card integrity: replace the false "average corridor closes within
-      one generation" line with a true, unsourced-stat-free line; add ONE sourced
-      Banff impact card (crossings+fencing cut collisions >80%, elk/deer ~96%,
-      250k+ crossings) naming Banff on-screen; link Y2Y / ARC. Grep for any other
-      unsourced statistic. Manual: each ending reads cleanly.
+- [x] 6 Ending card integrity: the false "The average corridor now closes within
+      one." is replaced by "Now the map is torn before it is handed down." (true,
+      no number). A sourced Banff impact card fades in at endT>19: "Wildlife
+      crossings work. In Banff National Park, crossings and fencing cut wildlife-
+      vehicle collisions by over 80% — and elk and deer deaths by 96%, across
+      250,000+ animal crossings. The land can be reconnected." + link line (Y2Y
+      y2y.net · ARC arc-solutions.org). Grep confirmed no other unsourced stat in
+      copy. OWED (external): cite Banff/Parks Canada/Y2Y in the itch page + the
+      educator guide. Manual: reach each ending, read cleanly.
 - [ ] 7 Mobile gate: touch + no-fine-pointer at boot => a kind dusk card ("The
       Corridor is a keyboard game — please visit on a computer to play."); game
       does not start. No touch controls for v1. Desktop unaffected.

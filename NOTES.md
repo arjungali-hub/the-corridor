@@ -761,3 +761,24 @@ newGame() run, and loadGame returns false — the caller then starts fresh, no
 crash. No version bump (additive migration forward). Harness: an old save with
 only {v,clockMin,wolf} loads with water=90/exposure=0/foundPaths={}/rumorsTold=
 []/wind set; a corrupt {v:2,edges:12345} fails safe to intro. 287 green, x3.
+
+## established fix 6 — ending card integrity (2026-07-25)
+
+The closing editorial line "The average corridor now closes within one." was NOT
+a real statistic — there is no study establishing an average corridor-closure
+rate per generation; it was written for cadence, and shipping it as fact into a
+classroom is an integrity problem. Replaced with "Now the map is torn before it
+is handed down." — true to the game's own premise, asserts no number, pairs with
+the line above it ("...unchanged, for generations."). A grep across game/render/
+data confirmed no other player-facing unsourced statistic (the only % hits are
+internal code comments).
+
+Added ONE sourced impact card, fading in at endT>19 below the editorial block:
+"Wildlife crossings work. In Banff National Park, crossings and fencing cut
+wildlife-vehicle collisions by over 80% — and elk and deer deaths by 96%, across
+250,000+ animal crossings. The land can be reconnected." + a link line (Y2Y
+y2y.net · ARC arc-solutions.org). These figures are the Banff Trans-Canada
+crossings dataset — verifiable, and the card names Banff on-screen (sufficient
+attribution). OWED, external to the repo: cite Banff / Parks Canada / Y2Y in the
+itch page copy and the educator guide so the claim is fully traceable. Harness
+smoke-draws the ending at endT=21 to render the panel. 287 green, x3.
