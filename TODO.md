@@ -767,11 +767,11 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       does it launch and strike. Death + 'dead' ending unchanged. Harness:
       spawn-warns; no strike (and train parked) during the warning; still kills
       after; measured invariant — strike time from spawn >= TRAIN_WARN.
-- [ ] 2 Resume AudioContext (RELEASE-BLOCKING): getAudioCtx never calls resume,
-      so Safari/iOS + much of Chrome ship silent. On the first user gesture
-      (intro keydown / beginFromIntro), if ac.state === 'suspended' call
-      ac.resume(); once-only, never throws. Harness: suspended context + first
-      keydown => resume() called. Manual: Safari specifically.
+- [x] 2 Resume AudioContext (RELEASE-BLOCKING): resumeAudio() (latched once,
+      try/caught) creates the context inside the gesture and resumes it if
+      suspended; wired into the keydown and canvas-click handlers. Harness:
+      suspended-context stub + first keydown => resume() called, state running,
+      unlock fires once. MANUAL SAFARI CHECK STILL OWED (Node can't verify it).
 - [ ] 3 Loading state: inline a dependency-free title + "loading…" on #191b16 in
       index.html, shown pre-JS; game clears it on first successful draw().
 - [ ] 4 Error boundary: window.onerror + unhandledrejection stop the loop, draw

@@ -3682,6 +3682,20 @@ function getAudioCtx() {
   return audioCtx;
 }
 
+// Browsers create the AudioContext SUSPENDED under autoplay policy (all of
+// Safari/iOS, much of Chrome). Without an explicit resume on a real user
+// gesture the whole game ships silent. Call this from the first keydown/click:
+// it creates the context inside the gesture and resumes it, once.
+let audioUnlocked = false;
+function resumeAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  const ac = getAudioCtx();
+  if (ac && ac.state === 'suspended' && typeof ac.resume === 'function') {
+    try { ac.resume(); } catch (_) { /* audio just won't play */ }
+  }
+}
+
 function toggleMute() {
   muted = !muted;
   if (!masterGain) getAudioCtx();

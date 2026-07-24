@@ -26,6 +26,8 @@ window.addEventListener('keydown', (ev) => {
   const k = ev.key.toLowerCase();
   if (k === ' ' || k.startsWith('arrow')) ev.preventDefault();
 
+  resumeAudio();   // the first gesture unlocks a suspended AudioContext (Safari/iOS/Chrome)
+
   if (S && S.mode === 'intro') {
     // R reclaims a year in progress; any other key lets it go and starts fresh
     if (k === 'r' && hasResumableSave()) { if (!loadGame()) { clearSave(); beginFromIntro(); } return; }
@@ -55,6 +57,7 @@ window.addEventListener('keyup', (ev) => {
 
 // clicking the raised map plans a route to a known place
 canvas.addEventListener('click', (ev) => {
+  resumeAudio();
   if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
   const wx = (ev.clientX - canvas.width / 2) / S.cam.scale + S.cam.x;
   const wy = (ev.clientY - canvas.height / 2) / S.cam.scale + S.cam.y;

@@ -709,3 +709,16 @@ parked train (headY = t.y + dir*(warnT/TRAIN_WARN)*4200) and after launch rides
 the leading edge. (3) Ballast dust jitter near the head + an S.shake tremble when
 the head bears down within 1100u of Aspen. The death and its ending copy are
 untouched — this only guarantees she was warned. Harness 281 green, x3.
+
+## established fix 2 — resume the AudioContext (2026-07-25)
+
+getAudioCtx() created the context but nothing ever resumed it, and browsers
+start it SUSPENDED under autoplay policy — so the game shipped silent for all of
+Safari/iOS and much of Chrome. resumeAudio() (latched via audioUnlocked, wrapped
+in try/catch) now creates the context inside the first user gesture and calls
+ac.resume() if it is suspended; it is wired into the keydown handler (before any
+mode branch) and the canvas click handler. Harness stubs a suspended context
+with a resume spy and asserts the first keydown resumes it (state 'running') and
+that the unlock fires only once. **Owed: a manual check in Safari specifically —
+the Node harness cannot exercise a real WebAudio autoplay policy, and this is the
+#1 silent-failure class for web games.** Harness 283 green, x3.
