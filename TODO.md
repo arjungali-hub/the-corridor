@@ -808,16 +808,22 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       the-corridor.vercel.app domain with the real deployed URL and add og-cover.
       png (1200x630) at the site root (og:image must be absolute). Manual: paste
       link into a preview debugger.
-- [ ] 9 Accessibility slate (each additive, all best-practice):
-  - [ ] 9a Key remapping row from the intro, persisted to localStorage under a
-        key SEPARATE from the run save (survives New Year).
-  - [ ] 9b Hold->toggle option for SPACE inherit-hold and sustained-hold verbs.
-  - [ ] 9c Scent colorblind safety ALWAYS-ON: marks pulse (discrete throbs),
-        trails flow (directional dashes) — a shape/motion channel independent of
-        gold-vs-red hue.
-  - [ ] 9d Text scale multiplier in options; captions + suggestion line persist
-        long enough to read at 1.5x.
-  - [ ] 9e True pause: ESC freezes update() wholesale, resumes on any key, quiet
-        "paused" overlay (distinct from the map, which doesn't pause the world).
-  - [ ] 9f Flash ceiling: audit headlights, fire glow, train headlight, strike
-        flashes to keep peak luminance jumps under strobe territory.
+- [x] 9 Accessibility slate (each additive, all best-practice):
+  - [x] 9a Key remapping: OPTIONS.bindings + rebuildKeymap; an options screen
+        (O from the intro) rebinds by picking a number then a key; persisted to
+        OPTIONS_KEY, separate from SAVE_KEY, so it survives New Year. Arrows stay
+        as fixed movement alternates; R/M/H/F/Esc/O reserved.
+  - [x] 9b Hold->toggle: OPTIONS.holdToggle; a tap flips the sustained verbs
+        (sense/scent/drink) instead of holding, keyup doesn't release.
+  - [x] 9c Scent colorblind safety ALWAYS-ON: prey trails FLOW (a bright band
+        travels the trail — spatial wave on gold alpha), rival marks PULSE (a
+        discrete in-place throb on red alpha/width) — distinct motion signatures,
+        not hue.
+  - [x] 9d Text scale (OPTIONS.textScale 1–2×, − / +): scales caption/msg/
+        suggestion fonts AND lengthens caption/msg lifetimes (textLinger) so
+        nothing flashes past at 1.5×.
+  - [x] 9e True pause: ESC toggles gamePaused; update() early-returns wholesale;
+        any key resumes; quiet drawPause overlay. Distinct from the map.
+  - [x] 9f Flash ceiling: drawFlicker's full-screen tear/strike flash peak capped
+        (~0.54 → 0.26); headlight cones are low-alpha moving glows, the train
+        headlight ramps smoothly, fire glow is steady — no >3Hz full-screen jump.

@@ -4,6 +4,8 @@
 // ── palette ──────────────────────────────────────────────────────────────────
 
 const FONT = 'Georgia, "Times New Roman", serif';
+// 9d: caption / message / suggestion text-size multiplier (1.0–2.0), from options
+function ts() { return (typeof OPTIONS !== 'undefined' && OPTIONS) ? OPTIONS.textScale : 1; }
 
 const C_PARCHMENT = '#EDE2C9';
 const C_INK_DARK  = '#7A3F12';
@@ -1626,18 +1628,25 @@ function drawScent() {
     if (age > 260) break;      // long trails: a story readable hours later
     if (p.x < gx0 || p.x > gx1 || p.y < gy0 || p.y > gy1) continue;
     if (p.v > 0.45) continue;  // violet, cached when the scent was laid
-    ctx.globalAlpha = 0.7 * (1 - age / 260);
+    // 9c: prey trails FLOW — a bright band travels along the trail (a spatial
+    // wave, not a screen-wide flash), so they read as prey-scent by MOTION and
+    // not only by their gold hue (deuteranopia/protanopia safety, always on).
+    const flow = 0.6 + 0.4 * Math.sin(i * 0.6 - S.time * 5);
+    ctx.globalAlpha = 0.7 * (1 - age / 260) * flow;
     ctx.drawImage(goldSprite(), p.x - 16, p.y - 16, 32, 32);
     drawn++;
   }
   ctx.globalAlpha = 1;
 
-  // red: rival marks, raked
+  // red: rival marks, raked. 9c: marks PULSE — a discrete in-place throb (a
+  // different motion signature from the trails' flow), so rival-marks vs
+  // prey-scent are told apart without relying on red-vs-gold hue.
+  const markPulse = 0.45 + 0.55 * Math.pow(Math.max(0, Math.sin(S.time * 2.4)), 2);
   if (S.era !== 'past') {
     for (const m of SCENT_RED) {
       if (violetAt(m.x, m.y) > 0.45) continue;
-      ctx.strokeStyle = 'rgba(210,60,50,0.7)';
-      ctx.lineWidth = 4;
+      ctx.strokeStyle = `rgba(210,60,50,${0.7 * markPulse})`;
+      ctx.lineWidth = 4 + markPulse;
       ctx.lineCap = 'round';
       for (const off of [-6, 4]) {
         ctx.beginPath();
@@ -1654,8 +1663,8 @@ function drawScent() {
       for (const m of WEST_PACK.marks) {
         if (violetAt(m.x, m.y) > 0.6) continue;
         const fresh = markFreshness(m);
-        ctx.strokeStyle = `rgba(224,74,58,${0.35 + 0.55 * fresh})`;
-        ctx.lineWidth = 4 + 2 * fresh;
+        ctx.strokeStyle = `rgba(224,74,58,${(0.35 + 0.55 * fresh) * markPulse})`;
+        ctx.lineWidth = (4 + 2 * fresh) + markPulse;
         ctx.lineCap = 'round';
         for (const off of [-7, 5]) {
           ctx.beginPath();
@@ -2424,14 +2433,14 @@ function drawCaption() {
   if (alpha <= 0) return;
   ctx.globalAlpha = alpha;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `28px ${FONT}`;
+  ctx.font = `${Math.round(28 * ts())}px ${FONT}`;
   ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 10;
   ctx.fillStyle = '#f2ead4';
   ctx.fillText(c.text, canvas.width / 2, canvas.height * 0.24);
   if (c.sub) {
-    ctx.font = `italic 15px ${FONT}`;
+    ctx.font = `italic ${Math.round(15 * ts())}px ${FONT}`;
     ctx.fillStyle = 'rgba(230,218,190,0.85)';
-    ctx.fillText(c.sub, canvas.width / 2, canvas.height * 0.24 + 32);
+    ctx.fillText(c.sub, canvas.width / 2, canvas.height * 0.24 + 32 * ts());
   }
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
@@ -2457,25 +2466,27 @@ function drawHUD() {
 
   if (!onMap) { ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 5; }
 
+  const s = ts();   // 9d text scale
   if (S.hud.day) {
     ctx.font = `bold 17px ${FONT}`;
     ctx.fillStyle = inkText;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText(`Day ${day()} · ${seasonName()}`, 20, 16);
-    ctx.font = `italic 12px ${FONT}`;
+    ctx.font = `italic ${Math.round(12 * s)}px ${FONT}`;
     ctx.fillStyle = onMap ? 'rgba(91,70,50,0.85)' : 'rgba(235,228,208,0.85)';
     ctx.fillText(objectiveText(), 20, 38);
     // a suggestion: help, never an order — a direction to try, not a task
     if (S.suggestion) {
       ctx.fillStyle = onMap ? 'rgba(120,82,40,0.9)' : 'rgba(226,206,150,0.92)';
-      ctx.fillText('› ' + S.suggestion.text, 20, 56);
+      ctx.fillText('› ' + S.suggestion.text, 20, 38 + Math.round(18 * s));
     }
   }
   ctx.shadowBlur = 0;
 
   // food and water always show; the others only when they have something in
-  // them (an empty bar is clutter, not information)
-  let by = S.suggestion ? 78 : 60;
+  // them (an empty bar is clutter, not information). Bars drop below the scaled
+  // objective/suggestion prose.
+  let by = S.suggestion ? Math.round(38 + 38 * s) : 60;
   if (S.hud.food) { drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f'); by += 16; }
   if (S.hud.food) { drawBar(20, by, 140, 'WATER', S.water / 100, S.water < 25 ? '#b0473a' : '#5f7d92'); by += 16; }
   if (S.hud.fear && S.fear > 0.01) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }
@@ -2512,7 +2523,7 @@ function drawHUD() {
   }
 
   if (S.msgT > 0) {
-    ctx.font = `italic 16px ${FONT}`;
+    ctx.font = `italic ${Math.round(16 * s)}px ${FONT}`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     if (!onMap) { ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6; }
     ctx.fillStyle = onMap
@@ -2526,7 +2537,11 @@ function drawHUD() {
 function drawFlicker() {
   if (S.flickerT <= 0) return;
   resetTransform();
-  ctx.fillStyle = `rgba(150,150,144,${0.45 * (S.flickerT / 0.5)})`;
+  // 9f flash ceiling: a single tear/strike flash, its peak held gentle (was up
+  // to ~0.54 on a strike) so the largest full-screen luminance jump in the game
+  // stays well under photosensitivity-strobe territory.
+  const a = 0.26 * clamp(S.flickerT / 0.5, 0, 1);
+  ctx.fillStyle = `rgba(150,150,144,${a})`;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 }
 
@@ -2592,6 +2607,65 @@ function drawIntro() {
     ctx.fillStyle = '#b8ac8d';
     ctx.fillText('R — resume the year from where you left off', cx, cy + 152);
   }
+  ctx.font = `13px ${FONT}`;
+  ctx.fillStyle = '#8a8066';
+  ctx.fillText('O — options (keys, hold-to-toggle, text size)', cx, cy + 182);
+}
+
+// The options screen (9a remap · 9b hold-toggle · 9d text scale). Reached with O
+// from the intro; the always-on aids (9c scent shapes, 9f flash ceiling) are not
+// settings. optionsOpen / rebinding live in main.js; OPTIONS in game.js.
+function drawOptions() {
+  resetTransform();
+  ctx.fillStyle = '#151812';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width / 2;
+  let y = Math.max(70, canvas.height / 2 - 190);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `bold 26px ${FONT}`;
+  ctx.fillStyle = C_PARCHMENT;
+  ctx.fillText('Options', cx, y); y += 46;
+  ctx.font = `italic 13px ${FONT}`;
+  ctx.fillStyle = '#8a8066';
+  ctx.fillText(rebinding
+    ? `Press a key for “${rebinding}” …  (Esc to cancel)`
+    : 'Press a number to rebind · T hold-to-toggle · − / + text size · O or Esc to close',
+    cx, y); y += 36;
+  ctx.textAlign = 'left';
+  const lx = cx - 190;
+  ctx.font = `16px ${FONT}`;
+  const names = { up: 'Up', down: 'Down', left: 'Left', right: 'Right', map: 'Map', scent: 'Smell (hold)', drink: 'Drink (hold)' };
+  const order = ['up', 'down', 'left', 'right', 'map', 'scent', 'drink'];
+  for (let i = 0; i < order.length; i++) {
+    const a = order[i];
+    const bound = OPTIONS.bindings[a];
+    const label = bound === ' ' ? 'Space' : (bound || '—').toUpperCase();
+    ctx.fillStyle = (rebinding === a) ? '#e8c98a' : C_PARCHMENT;
+    ctx.fillText(`${i + 1}.  ${names[a]}`, lx, y);
+    ctx.textAlign = 'right'; ctx.fillText(label, lx + 380, y); ctx.textAlign = 'left';
+    y += 30;
+  }
+  y += 14;
+  ctx.fillStyle = C_PARCHMENT;
+  ctx.fillText('T.  Hold to toggle', lx, y);
+  ctx.textAlign = 'right'; ctx.fillText(OPTIONS.holdToggle ? 'On' : 'Off', lx + 380, y); ctx.textAlign = 'left';
+  y += 30;
+  ctx.fillText('− / +  Text size', lx, y);
+  ctx.textAlign = 'right'; ctx.fillText(OPTIONS.textScale.toFixed(1) + '×', lx + 380, y); ctx.textAlign = 'left';
+}
+
+// A quiet pause overlay (9e): the year is held, not ended.
+function drawPause() {
+  resetTransform();
+  ctx.fillStyle = 'rgba(15,16,12,0.55)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = `italic ${Math.round(22 * (OPTIONS ? OPTIONS.textScale : 1))}px ${FONT}`;
+  ctx.fillStyle = 'rgba(232,224,204,0.9)';
+  ctx.fillText('paused', canvas.width / 2, canvas.height / 2 - 8);
+  ctx.font = `${Math.round(13 * (OPTIONS ? OPTIONS.textScale : 1))}px ${FONT}`;
+  ctx.fillStyle = 'rgba(160,152,132,0.85)';
+  ctx.fillText('any key to go on', canvas.width / 2, canvas.height / 2 + 22);
 }
 
 // ── the ending: the satellite dissolve ───────────────────────────────────────
@@ -2951,6 +3025,12 @@ function drawPassage() {
 
 function draw() {
   if (!S) return;
+  // the options screen sits over whatever is behind it (reachable from intro)
+  if (typeof optionsOpen !== 'undefined' && optionsOpen) {
+    if (S.mode === 'intro') drawIntro();
+    drawOptions();
+    return;
+  }
   if (S.mode === 'intro') { drawIntro(); return; }
   if (S.mode === 'ending') { drawEnding(); return; }
 
@@ -2966,4 +3046,5 @@ function draw() {
   drawPrompt();
   drawCaption();
   drawHelp();
+  if (typeof gamePaused !== 'undefined' && gamePaused) drawPause();
 }

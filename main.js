@@ -41,15 +41,47 @@ window.addEventListener('unhandledrejection', (e) => handleCrash(e && e.reason))
 
 // ── input ────────────────────────────────────────────────────────────────────
 
-const KEYMAP = {
-  w: 'up', arrowup: 'up',
-  s: 'down', arrowdown: 'down',
-  a: 'left', arrowleft: 'left',
-  d: 'right', arrowright: 'right',
-  ' ': 'sense',
-  e: 'scent',
-  q: 'drink',
-};
+// The effective key map is built from OPTIONS.bindings (9a: remappable, persisted
+// separately from the run save) — arrows always stay as movement alternates.
+let KEYMAP = {};
+const SLOT_FOR = { up: 'up', down: 'down', left: 'left', right: 'right', map: 'sense', scent: 'scent', drink: 'drink' };
+function rebuildKeymap() {
+  KEYMAP = { arrowup: 'up', arrowdown: 'down', arrowleft: 'left', arrowright: 'right' };
+  for (const action in OPTIONS.bindings) {
+    const key = OPTIONS.bindings[action], slot = SLOT_FOR[action];
+    if (key && slot) KEYMAP[key] = slot;
+  }
+}
+loadOptions();
+rebuildKeymap();
+
+const HELD_SLOTS = { sense: 1, scent: 1, drink: 1 };   // the sustained-hold verbs (9b)
+const REBIND_ACTIONS = ['up', 'down', 'left', 'right', 'map', 'scent', 'drink'];
+const RESERVED_KEYS = ['r', 'm', 'h', 'f', 'escape', 'o'];
+let optionsOpen = false;
+let rebinding = null;   // the action awaiting a new key, while the options screen is up
+
+function applyBinding(action, key) {
+  if (!key || RESERVED_KEYS.includes(key)) return false;         // don't shadow a system key
+  for (const a of REBIND_ACTIONS) if (a !== action && OPTIONS.bindings[a] === key) return false;  // no dupes
+  OPTIONS.bindings[action] = key;
+  saveOptions();
+  rebuildKeymap();
+  return true;
+}
+function handleOptionsKey(k) {
+  if (rebinding) {                                   // capture the next key as the new binding
+    if (k !== 'escape') applyBinding(rebinding, k);
+    rebinding = null;
+    return;
+  }
+  if (k === 'o' || k === 'escape') { optionsOpen = false; return; }
+  const n = parseInt(k, 10);
+  if (n >= 1 && n <= REBIND_ACTIONS.length) { rebinding = REBIND_ACTIONS[n - 1]; return; }
+  if (k === 't') { OPTIONS.holdToggle = !OPTIONS.holdToggle; saveOptions(); return; }
+  if (k === '-' || k === '_') { OPTIONS.textScale = Math.max(1, +(OPTIONS.textScale - 0.1).toFixed(2)); saveOptions(); return; }
+  if (k === '=' || k === '+') { OPTIONS.textScale = Math.min(2, +(OPTIONS.textScale + 0.1).toFixed(2)); saveOptions(); return; }
+}
 
 window.addEventListener('keydown', (ev) => {
   const k = (ev.key || '').toLowerCase();
@@ -59,7 +91,15 @@ window.addEventListener('keydown', (ev) => {
 
   resumeAudio();   // the first gesture unlocks a suspended AudioContext (Safari/iOS/Chrome)
 
+  // the options screen owns all input while it is up
+  if (optionsOpen) { handleOptionsKey(k); return; }
+
+  // ESC pauses the year; while paused, ANY key resumes (9e)
+  if (gamePaused) { gamePaused = false; return; }
+  if (k === 'escape') { togglePause(); return; }
+
   if (S && S.mode === 'intro') {
+    if (k === 'o') { optionsOpen = true; return; }   // O opens options from the intro
     // R reclaims a year in progress; any other key lets it go and starts fresh
     if (k === 'r' && hasResumableSave()) { if (!loadGame()) { clearSave(); beginFromIntro(); } return; }
     clearSave();
@@ -75,15 +115,22 @@ window.addEventListener('keydown', (ev) => {
   if (k === 'h' && S && S.tut && S.tut.taughtHelp
       && (S.mode === 'play' || S.mode === 'prologue')) { S.showHelp = !S.showHelp; return; }
   if (k === 'f' && S && (S.mode === 'play' || S.mode === 'prologue')) { togglePackStay(); return; }
-  if (k === ' ' && !ev.repeat) toggleMap();  // press to open, press to close
+  if (k === OPTIONS.bindings.map && !ev.repeat) toggleMap();  // press to open, press to close
 
   const slot = KEYMAP[k];
-  if (slot) input[slot] = true;  // ' ' still tracked while held: the inherit gesture
+  if (slot) {
+    // 9b: with hold-toggle on, a tap flips a sustained verb instead of holding it
+    if (OPTIONS.holdToggle && HELD_SLOTS[slot]) input[slot] = !input[slot];
+    else input[slot] = true;
+  }
 });
 
 window.addEventListener('keyup', (ev) => {
-  const slot = KEYMAP[ev.key.toLowerCase()];
-  if (slot) input[slot] = false;
+  const slot = KEYMAP[(ev.key || '').toLowerCase()];
+  if (slot) {
+    if (OPTIONS.holdToggle && HELD_SLOTS[slot]) return;   // stays on until pressed again
+    input[slot] = false;
+  }
 });
 
 // clicking the raised map plans a route to a known place

@@ -500,8 +500,11 @@ function seasonIndex() { return clamp(Math.floor((day() - 1) / 90), 0, 3); }
 function seasonName() { return SEASONS[seasonIndex()]; }
 function isInjured() { return S.injuredT > 0; }
 
-function say(text) { S.msg = text; S.msgT = 7; }
-function setCaption(text, dur, sub) { S.caption = { text, sub: sub || '', t: 0, dur: dur || 4 }; }
+// bigger text needs longer on screen: caption/message lifetimes scale with the
+// text-size option (9d), so nothing flashes past a reader at 1.5x.
+function textLinger() { return (typeof OPTIONS !== 'undefined' && OPTIONS) ? OPTIONS.textScale : 1; }
+function say(text) { S.msg = text; S.msgT = 7 * textLinger(); }
+function setCaption(text, dur, sub) { S.caption = { text, sub: sub || '', t: 0, dur: (dur || 4) * textLinger() }; }
 
 // A prologue "look here" marker: names a creature and points at it while it is
 // introduced. The tag is resolved to a live position every frame so the caret
@@ -4092,6 +4095,30 @@ function playTrainHorn() {
 const SAVE_KEY = 'the-corridor-save-v2';
 function storageOk() { return typeof localStorage !== 'undefined'; }
 
+// ── accessibility options ────────────────────────────────────────────────────
+// Kept under their OWN localStorage key, separate from the run save, so remaps
+// and preferences survive New Year (which only clears SAVE_KEY). Colorblind
+// scent safety (9c) and the flash ceiling (9f) are always-on and live in
+// render, not here.
+const OPTIONS_KEY = 'the-corridor-options-v1';
+const DEFAULT_BINDINGS = { up: 'w', down: 's', left: 'a', right: 'd', map: ' ', scent: 'e', drink: 'q' };
+let OPTIONS = { bindings: { ...DEFAULT_BINDINGS }, holdToggle: false, textScale: 1 };
+function loadOptions() {
+  if (!storageOk()) return;
+  try {
+    const d = JSON.parse(localStorage.getItem(OPTIONS_KEY) || 'null');
+    if (d && typeof d === 'object') {
+      OPTIONS.bindings = { ...DEFAULT_BINDINGS, ...(d.bindings || {}) };
+      if (typeof d.holdToggle === 'boolean') OPTIONS.holdToggle = d.holdToggle;
+      if (typeof d.textScale === 'number') OPTIONS.textScale = clamp(d.textScale, 1, 2);
+    }
+  } catch (_) { /* keep defaults */ }
+}
+function saveOptions() {
+  if (!storageOk()) return;
+  try { localStorage.setItem(OPTIONS_KEY, JSON.stringify(OPTIONS)); } catch (_) {}
+}
+
 function saveGame() {
   if (!storageOk() || !S || S.mode !== 'play') return;
   try {
@@ -4262,10 +4289,19 @@ function hasResumableSave() {
 
 // ── the frame update ─────────────────────────────────────────────────────────
 
+// A true pause (ESC): freezes update() wholesale — distinct from the map, which
+// by design does not pause the world. Life happens mid-year; the year waits.
+let gamePaused = false;
+function togglePause() {
+  if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
+  gamePaused = !gamePaused;
+}
+
 function update(dt) {
   if (!S) return;
   if (S.mode === 'intro') return;
   if (S.mode === 'ending') { S.endT += dt; return; }
+  if (gamePaused) return;   // ESC-pause: the whole world holds its breath
 
   S.time += dt;
   promptTick(dt);

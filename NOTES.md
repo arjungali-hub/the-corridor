@@ -796,6 +796,41 @@ controls for v1. Harness: the gate is inert on the headless/desktop context so
 the game still boots, and the card draws without throwing; the positive mobile
 path is a manual devtools check. 289 green, x3.
 
+## established fix 9 — accessibility slate (2026-07-25)
+
+Six additive best-practice widenings, all behind a new OPTIONS object persisted
+to its OWN key (OPTIONS_KEY, separate from the run save, so it survives New
+Year). An options screen opens with O from the intro (drawOptions).
+
+- 9a Key remapping: OPTIONS.bindings + rebuildKeymap() build the effective
+  KEYMAP; the screen rebinds by pressing a number then a key (dupes/reserved
+  keys refused). Arrows stay as fixed movement alternates.
+- 9b Hold->toggle: OPTIONS.holdToggle; a tap flips the sustained verbs
+  (sense/scent/drink) and keyup no longer releases them.
+- 9c Colorblind scent (always on): prey trails FLOW — a bright band travels the
+  trail (spatial wave on gold alpha, not a screen flash) — while rival marks
+  PULSE — a discrete in-place throb on red alpha/width. Two different MOTION
+  signatures, so prey-scent vs rival-marks read apart in greyscale.
+- 9d Text scale (OPTIONS.textScale 1–2×, − / +): scales caption/message/
+  suggestion fonts and, via textLinger(), lengthens caption + message lifetimes
+  so nothing flashes past a reader at 1.5×. Bars drop below the scaled prose.
+- 9e True pause: ESC toggles gamePaused; update() early-returns wholesale (the
+  world truly stops, unlike the map); any key resumes; quiet drawPause overlay.
+- 9f Flash ceiling: drawFlicker's full-screen tear/strike flash peak is capped
+  (~0.54 on a strike → 0.26); the headlight cones are low-alpha moving glows,
+  the new train headlight ramps smoothly over 3.2s, the fire glow is steady —
+  no >3Hz full-screen luminance jump anywhere.
+
+Harness: remap persists under OPTIONS_KEY and survives clearSave(), reloads into
+KEYMAP; hold-toggle flips scent on a tap and keyup doesn't release; text scale
+lengthens caption dur; pause freezes S.time and unpause resumes; options
+round-trip; options + pause screens smoke-draw. 302 green, x3.
+
+Tomorrow's first action: a manual browser pass — Chrome, Firefox, and Safari
+(Safari specifically for the AudioContext resume + the canvas), emulate mobile
+in devtools for the gate, throttle for the loading state, and greyscale-simulate
+the scent view. Then swap the OG placeholder domain/cover for the real deploy.
+
 ## established fix 8 — OG / social meta (2026-07-25)
 
 Shared links unfurled as bare text. index.html <head> now carries og:title,
