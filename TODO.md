@@ -827,3 +827,45 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
   - [x] 9f Flash ceiling: drawFlicker's full-screen tear/strike flash peak capped
         (~0.54 → 0.26); headlight cones are low-alpha moving glows, the train
         headlight ramps smoothly, fire glow is steady — no >3Hz full-screen jump.
+
+## Part 24 — Playtest batch (Arjun, 2026-07-25)
+
+- [ ] 1 Holding behind Aspen: when told to hold, the pack holds WHERE IT IS, not
+      at Aspen's spot — anchor each held wolf to its own position, not hers.
+- [ ] 2 Pack can't cross the rail when behind her: with her, crossing is fine;
+      behind her (she's across, they aren't) it acts like a wall. Fix the
+      pack/rail gating so a following/holding pack can follow her across.
+- [ ] 3 Housing complex: when the pack is seen from the subdivision, animate
+      people (and maybe pets) walking OUT of the houses toward the wolves.
+- [ ] 4 Finite suggestions advance on completion: a finishable suggestion (pick a
+      den, bring a carcass home) moves to the next one once done — not just the
+      directional ("explore east") ones that only time out.
+- [ ] 5 Drink prompt timing: "hold Q to drink" stays the whole time she's over
+      water (first drink), and lingers a few seconds after she leaves if she
+      didn't drink — then "water underfoot" clears.
+- [ ] 6 The "click a place to plan a route" hint shows only on the FIRST map
+      toggle, not every time.
+- [ ] 7 Den chosen => every "choose a den" line disappears (objective + prompts).
+- [ ] 8 Willow's dying circle (point-out) only appears AFTER the "hold SPACE"
+      prompt, not before.
+- [ ] 9 Arrow keys always move (prologue teaching + options say so); WASD is
+      rebindable, arrows are not.
+- [ ] 10 Taught controls reflect remaps: if WASD -> IJKL, the teaching text says
+      "IJKL to move", etc. (read the live bindings, not hardcoded letters).
+- [ ] 11 Train warning has NO visible tremble/lights in play (only sound), and
+      all three cues should last longer. Make headlight + tremble actually show
+      and extend TRAIN_WARN.
+- [ ] 12 ALL trees are obstacles — none passable. Grow the collision to the whole
+      tree (canopy), not just the trunk core.
+- [ ] 13 The carcass suggestion must say WHERE the carcass is (a bearing/mark),
+      not just "find a carcass".
+- [ ] 14 A carcass gives a significant amount of food — a little less than an elk.
+- [ ] 15 Edge of territory: when she can't walk further at the world edge, tell
+      her it's the edge of her territory (not a glitch).
+- [ ] 16 Contrast: on a lighter background (or as it lightens) switch prompt/HUD
+      font to black for readability.
+- [ ] 17 Stale bottom prompts clear: a bottom-line instruction that no longer
+      applies (e.g. "run it down" after the elk is being hunted) disappears.
+- [ ] 18 The prologue elk is NOT circled at "An elk, winter-thin." (drop the
+      point-out there).
+- [ ] 19 The prologue should look more like winter.

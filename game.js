@@ -1434,12 +1434,15 @@ function packUpdate(dt) {
       continue;
     }
 
-    // a wolf told to HOLD keeps to the anchor no matter what the rest of the
-    // pack does — its state is authoritative, so "holds" in the roster is
-    // never a lie. Following wolves use the live zone (Aspen).
+    // a wolf told to HOLD keeps to WHERE IT STANDS — not to Aspen's spot. Each
+    // held wolf latches its own hold point the first frame it holds; its state
+    // is authoritative, so "holds" in the roster is never a lie. Following
+    // wolves use the live zone (Aspen).
     const held = w.state === 'stay';
-    const wc = (held && S.zoneAnchor) ? S.zoneAnchor : c;
-    const wzr = (held && S.zoneAnchor) ? zoneRadius(wc) : zr;
+    if (held && w.holdX === undefined) { w.holdX = w.x; w.holdY = w.y; }
+    if (!held && w.holdX !== undefined) { w.holdX = undefined; w.holdY = undefined; }
+    const wc = held ? { x: w.holdX, y: w.holdY } : c;
+    const wzr = held ? zoneRadius(wc) : zr;
     const wHuntLimit = Math.max(320, wzr * 2);
     const dZone = dist(w.x, w.y, wc.x, wc.y);
 
@@ -1508,13 +1511,21 @@ function packUpdate(dt) {
     // a wolf never ambles on asphalt: mid-road, or headed onto it, full lope
     if (onRoad(w.x, w.y) || onRoad(w.tx, w.ty)) sp = Math.max(sp, 240 * w.mult * lag);
     const step = Math.min(d, sp * dt);
-    // and it NEVER takes asphalt — or an untrusted deck — Aspen is not on,
-    // unless she is already across, calling it through (a conducted crossing)
+    // it NEVER takes asphalt, the rail, or an untrusted deck Aspen is not on —
+    // UNLESS she has crossed that same barrier ahead of it (or is on it),
+    // calling it through. The road and the rail are gated separately: being
+    // across the highway must not, on its own, unlock the far-west rail.
     const hMid = (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2;
-    const sealed = !packRefuses(S.wolf.x, S.wolf.y) && !packRefuses(w.x, w.y)
-      && ((S.wolf.x - hMid > 0) === (w.x - hMid > 0));
-    tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step,
-      (x, y) => packBlockedAt(x, y) || (sealed && packRefuses(x, y)));
+    const railMid = (OBSTACLES.rail.x0 + OBSTACLES.rail.x1) / 2;
+    const sheLeads = packRefuses(S.wolf.x, S.wolf.y);   // she is on a barrier, calling
+    const roadOk = sheLeads || onRoad(w.x, w.y) || ((S.wolf.x < hMid) !== (w.x < hMid));
+    const railOk = sheLeads || onRail(w.x, w.y) || ((S.wolf.x < railMid) !== (w.x < railMid));
+    tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, (x, y) => {
+      if (packBlockedAt(x, y)) return true;
+      if (!roadOk && (onRoad(x, y) || (onDeck(x, y) && overpassOpen() && !overpassTrusted()))) return true;
+      if (!railOk && onRail(x, y)) return true;
+      return false;
+    });
     const want = Math.atan2(w.ty - w.y, w.tx - w.x);
     let dh = want - (w.heading || 0);
     while (dh > Math.PI) dh -= Math.PI * 2;
@@ -1582,8 +1593,11 @@ function togglePackStay() {
     if (w.state === 'dead' || w.state === 'gone') continue;
     // F never overrides fear: a wolf that balked stays balked
     w.state = anyFollowing ? 'stay' : (w.balked ? 'balk' : 'follow');
+    if (w.state === 'stay') { w.holdX = w.x; w.holdY = w.y; }   // hold where IT stands
+    else { w.holdX = undefined; w.holdY = undefined; }
   }
-  // holding anchors the zone where she stands; releasing hands it back to her
+  // a marker of "the pack is holding" for zoneCenter's fallback; the held wolves
+  // themselves keep to their own ground, not to this point
   S.zoneAnchor = anyFollowing ? { x: S.wolf.x, y: S.wolf.y } : null;
   S.tut.usedHold = true;
   if (S.mode === 'prologue' && S.beat === 6) S.tut._bond = true;
