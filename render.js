@@ -6,6 +6,17 @@
 const FONT = 'Georgia, "Times New Roman", serif';
 // 9d: caption / message / suggestion text-size multiplier (1.0–2.0), from options
 function ts() { return (typeof OPTIONS !== 'undefined' && OPTIONS) ? OPTIONS.textScale : 1; }
+// Is the ground behind on-screen text LIGHT? (raised map, the winter prologue,
+// the white passage, bright midday.) On light ground, text goes dark for
+// contrast; on dark ground it stays pale.
+function lightBg() {
+  if (!S) return false;
+  if (S.senseBlend > 0.5) return true;
+  if (S.mode === 'prologue') return true;
+  if ((S.passageFade || 0) > 0.3) return true;
+  if (typeof daylight === 'function' && daylight() > 0.72) return true;
+  return false;
+}
 
 const C_PARCHMENT = '#EDE2C9';
 const C_INK_DARK  = '#7A3F12';
@@ -1453,7 +1464,34 @@ function drawWorld() {
   drawFireAir();
   drawRouteCue();
   drawLightAndAir();
+  drawPrologueWinter();
   drawPlayFog();
+}
+
+// The prologue reads as winter: a cold wash over the remembered valley and snow
+// drifting across it. (The world it inherits, come Act I, is the same land in
+// its scarred present — this is the season she carries out of the past.)
+let _snowSeed = null;
+function drawPrologueWinter() {
+  if (!S || S.mode !== 'prologue') return;
+  resetTransform();
+  // cold winter light over the warm past
+  ctx.fillStyle = 'rgba(202,216,234,0.20)';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  // drifting snow — deterministic flakes, animated by time (falls + sways)
+  if (!_snowSeed) {
+    _snowSeed = [];
+    const r = makePrng(20251);
+    for (let i = 0; i < 120; i++) _snowSeed.push({ x: r(), y: r(), s: r(), sp: 16 + r() * 34, sw: 14 + r() * 26 });
+  }
+  ctx.fillStyle = 'rgba(246,249,253,0.9)';
+  for (const f of _snowSeed) {
+    const y = (f.y * canvas.height + S.time * f.sp) % canvas.height;
+    const x = (f.x * canvas.width + Math.sin(S.time * 0.5 + f.x * 40) * f.sw + canvas.width) % canvas.width;
+    ctx.globalAlpha = 0.35 + 0.55 * f.s;
+    ctx.beginPath(); ctx.arc(x, y, 1 + f.s * 1.9, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
 }
 
 // The porthole: past her senses the land goes dark. A world-unit sight
@@ -1573,7 +1611,9 @@ function drawPrologueWorldBits() {
   }
 
   // beat 9: the wordless prompt, in the map's own ink language
-  if (S.beat === 9 && !S.inherited && S.willow
+  // the circle over the dying Willow appears only once she has been asked for —
+  // after "Stay at her side. Hold SPACE." (T._b9ask), never before
+  if (S.beat === 9 && !S.inherited && S.willow && S.tut._b9ask
       && dist(S.wolf.x, S.wolf.y, S.willow.x, S.willow.y) < 110) {
     const p = { x: S.willow.x, y: S.willow.y - 46 };
     const pulse = 0.6 + 0.4 * Math.sin(S.time * 2.4);
@@ -2420,13 +2460,13 @@ function drawPrompt() {
   if (p.sticky) alpha *= 0.8 + 0.2 * Math.sin(S.time * 2.2);
   if (alpha <= 0) return;
 
-  const onMap = S.senseBlend > 0.5;
-  ctx.font = `italic 17px ${FONT}`;
+  const dark = lightBg();   // black text on a light background, pale on a dark one
+  ctx.font = `italic ${Math.round(17 * ts())}px ${FONT}`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const y = canvas.height - (p.keys.length ? 92 : 64);
   ctx.globalAlpha = alpha;
-  if (!onMap) { ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6; }
-  ctx.fillStyle = onMap ? 'rgba(74,58,38,0.95)' : 'rgba(240,234,216,0.95)';
+  ctx.shadowColor = dark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.6)'; ctx.shadowBlur = dark ? 4 : 6;
+  ctx.fillStyle = dark ? 'rgba(24,20,14,0.96)' : 'rgba(240,234,216,0.95)';
   ctx.fillText(p.text, canvas.width / 2, y);
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
@@ -2440,14 +2480,15 @@ function drawCaption() {
   const alpha = clamp(c.t / 0.8, 0, 1) * clamp((c.dur + 1.2 - c.t) / 1.2, 0, 1);
   if (alpha <= 0) return;
   ctx.globalAlpha = alpha;
+  const dark = lightBg();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = `${Math.round(28 * ts())}px ${FONT}`;
-  ctx.shadowColor = 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 10;
-  ctx.fillStyle = '#f2ead4';
+  ctx.shadowColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 10;
+  ctx.fillStyle = dark ? '#221d16' : '#f2ead4';
   ctx.fillText(c.text, canvas.width / 2, canvas.height * 0.24);
   if (c.sub) {
     ctx.font = `italic ${Math.round(15 * ts())}px ${FONT}`;
-    ctx.fillStyle = 'rgba(230,218,190,0.85)';
+    ctx.fillStyle = dark ? 'rgba(48,40,30,0.9)' : 'rgba(230,218,190,0.85)';
     ctx.fillText(c.sub, canvas.width / 2, canvas.height * 0.24 + 32 * ts());
   }
   ctx.shadowBlur = 0;

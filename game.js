@@ -3418,7 +3418,6 @@ function prologueUpdate(dt) {
           frail: 0.55,   // winter-thin: the first hunt is meant to be won
         });
         setCaption('An elk, winter-thin.', 3.5);
-        pointOut('elk', 4);
         showPrompt('Run it down.', [], 6);
       }
       break;
