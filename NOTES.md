@@ -883,3 +883,16 @@ the wolves, come ~240u from their yards, then turn back inside.
 Follow-ups: the old den, made home, reads "The Den" (shared nodeLabel, world +
 map); resolved water-rumor springs (S.foundWater) are RENDERED so drinkable water
 is always visible where Q works. Harness 324 green, x3.
+
+## Bram's aging memory (2026-07-26)
+
+Bram's rumors are wrong sometimes now. When bramTellsRumor surfaces a rumor,
+~34% of the time it also pushes the id to S.bramWrong — his memory is off and
+there is nothing there. rumorUpdate(dt) (now dt-driven) handles those separately:
+she must search near the spot (~4.5s within 160u) before it reveals itself, so
+she is never left hunting an empty place forever. The mark then clears
+(rumorsSeen). The FIRST wrong rumor explains why ("Bram's memory is older than
+the land… not all he offers will still be there"); later ones are terse. A wrong
+water rumor yields no foundWater, so it stays consistent with item B (Q only
+works where water actually is). Saved/migrated (S.bramWrong). The B3 resolution
+tests clear S.bramWrong first so they test the right-memory outcomes. 327 green, x5.

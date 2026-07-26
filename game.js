@@ -399,6 +399,7 @@ function newGame() {
     trains: [], trainCd: 25,      // what runs on the rail — lethal, even to her
     rumorsSeen: [],               // rumors she has walked to and cashed
     rumorsTold: [],               // rumors Bram has surfaced onto the map
+    bramWrong: [],                // rumors his aging memory got wrong (nothing there)
     bramRumorCd: 35,              // cooldown before Bram remembers the next one
     foundWater: [],               // clean springs a rumor resolved into being
     vantageT: 0,                  // a high place briefly widens her sight
@@ -2857,6 +2858,9 @@ function bramTellsRumor(dt) {
   if (!pick) pick = untold.reduce((a, r) =>
     dist(r.x, r.y, S.wolf.x, S.wolf.y) < dist(a.x, a.y, S.wolf.x, S.wolf.y) ? r : a, untold[0]);
   S.rumorsTold.push(pick.id);
+  // his memory is aging: sometimes what he remembers is gone, or was never quite
+  // where he thinks. He believes it all the same — she learns the truth on arrival.
+  if (Math.random() < 0.34) S.bramWrong.push(pick.id);
   const dir = compass(Math.atan2(pick.y - S.wolf.y, pick.x - S.wolf.x));
   const what = { water: 'clean water', carrion: 'an old kill, maybe still meat on it',
     den: 'a bank a den could go in', vantage: 'high ground to read the land from' }[pick.type] || 'something';
@@ -2866,12 +2870,35 @@ function bramTellsRumor(dt) {
 }
 
 // B3: reaching a rumor cashes it — into a real feature, or an empty promise,
-// or a memory the world has since changed.
-function rumorUpdate() {
+// or a memory the world has since changed. A rumor Bram MISremembered has
+// nothing at all: she casts about a while, then his aging memory shows itself,
+// so she is never left searching an empty spot forever.
+function rumorUpdate(dt) {
   if (S.era === 'past') return;
   for (const r of RUMORS) {
     if (S.rumorsSeen.includes(r.id)) continue;
-    if (dist(S.wolf.x, S.wolf.y, r.x, r.y) >= 130) continue;
+    const d = dist(S.wolf.x, S.wolf.y, r.x, r.y);
+    if (S.bramWrong.includes(r.id)) {
+      if (d < 160) {
+        S.bramSearchT = (S.bramSearchT || 0) + (dt || 0);
+        if (S.bramSearchT > 4.5) {
+          S.rumorsSeen.push(r.id);
+          markSeen(r.x, r.y, SIGHT_WORLD);
+          S.bramSearchT = 0;
+          if (!S.tut.bramWrongSeen) {
+            S.tut.bramWrongSeen = true;
+            say(`Nothing here. Bram's memory is older than the land — the years have moved what he knew. Not all he offers will still be there.`);
+          } else {
+            say(`Nothing here. Bram misremembered — his nose is not what it was.`);
+          }
+          saveGame();
+        }
+      } else {
+        S.bramSearchT = Math.max(0, (S.bramSearchT || 0) - (dt || 0));
+      }
+      continue;
+    }
+    if (d >= 130) continue;
     S.rumorsSeen.push(r.id);
     markSeen(r.x, r.y, SIGHT_WORLD);
     if (r.resolvesTo === 'changed') {
@@ -4297,7 +4324,7 @@ function saveGame() {
       fear: S.fear, food: S.food,
       water: S.water, sickT: S.sickT || 0,
       snares: S.snares, roadkill: S.roadkill,
-      rumorsSeen: S.rumorsSeen, rumorsTold: S.rumorsTold, bramRumorCd: S.bramRumorCd,
+      rumorsSeen: S.rumorsSeen, rumorsTold: S.rumorsTold, bramWrong: S.bramWrong, bramRumorCd: S.bramRumorCd,
       foundWater: S.foundWater, carcass: S.carcass,
       exposure: S.exposure, westLaneT: S.westLaneT,
       yearlingKnows: [...S.yearlingKnows],
@@ -4325,7 +4352,7 @@ function migrateSave(d) {
     clockMin: 8 * 60, wolf: { x: DEN.x, y: DEN.y }, injuredT: 0,
     edges: [], visited: ['den'], bridged: [], foundPaths: {}, seen: null,
     firstTear: false, pack: [], fear: 0, food: 70, water: 90, sickT: 0,
-    snares: [], roadkill: null, rumorsSeen: [], rumorsTold: [], bramRumorCd: 35, carcass: null,
+    snares: [], roadkill: null, rumorsSeen: [], rumorsTold: [], bramWrong: [], bramRumorCd: 35, carcass: null,
     foundWater: [], exposure: 0, westLaneT: 0, yearlingKnows: [],
     denId: null, denSite: null, seenDens: [], pups: null,
     weather: null, wind: { a: 0 }, overpassCross: 0, herdAnchors: null,
@@ -4382,6 +4409,7 @@ function loadGame() {
   S.roadkill = d.roadkill || null;
   S.rumorsSeen = d.rumorsSeen || [];
   S.rumorsTold = d.rumorsTold || [];
+  S.bramWrong = d.bramWrong || [];
   S.carcass = d.carcass || null;
   S.bramRumorCd = typeof d.bramRumorCd === 'number' ? d.bramRumorCd : 35;
   S.foundWater = d.foundWater || [];
@@ -4515,7 +4543,7 @@ function update(dt) {
     snareUpdate(dt);
     roadkillUpdate(dt);
     trainUpdate(dt);
-    rumorUpdate();
+    rumorUpdate(dt);
     bramTellsRumor(dt);
     carcassUpdate();
     S.vantageT = Math.max(0, (S.vantageT || 0) - dt);

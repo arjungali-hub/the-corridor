@@ -877,3 +877,12 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
 - [x] B Bram's water rumor: where he says water is, there is no VISIBLE water yet
       Q drinks and works — the resolved/rumored spring must be RENDERED so
       drinkable water is always visible where you can drink it.
+
+## Part 26 — Bram's aging memory (Arjun, 2026-07-26)
+
+- [x] Bram is wrong sometimes: when he surfaces a rumor there's a ~34% chance his
+      memory is off (S.bramWrong) and there is nothing there. She searches the
+      spot (~4.5s within 160u), then it reveals itself and the mark clears, so she
+      is never left hunting an empty place. The FIRST wrong one explains why
+      (his aging memory — not all he offers is still there); later ones are terse.
+      Saved/migrated. Harness: a wrong rumor waits, then reveals as nothing.
