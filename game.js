@@ -157,33 +157,45 @@ const DEN = NbyId.get('den');
 // herd anchors migrate during the year; remember where they truly live
 for (const H of HERDS) H.anchor0 = { x: H.anchor.x, y: H.anchor.y };
 
-// Individual trees. Far scarcer than a solid canopy — loose groves you weave
-// through, each a real obstacle: its trunk blocks wolves and prey in the
-// present. Shared by render (to draw) and collision (to block), and carved
+// Individual trees. Scarce, scattered groves you weave between — but each is a
+// WHOLE obstacle: its full canopy blocks wolves and prey in the present, none
+// passable. Shared by render (to draw) and collision (to block), and carved
 // away from nodes, den sites, herd anchors, ponds, and the road so nothing
-// critical is ever walled in or made unstandable.
-const TREE_R = 0.42;   // collision radius as a fraction of the canopy size
+// critical is ever walled in or made unstandable. Spacing keeps trees from
+// fully overlapping into an impassable wall.
+const TREE_R = 0.85;   // collision radius as a fraction of the canopy size (whole tree)
 const TREES = (() => {
   const clearings = [];
-  for (const n of NODES) clearings.push({ x: n.x, y: n.y, r: 76 });
-  for (const s of DEN_SITES) clearings.push({ x: s.x, y: s.y, r: 76 });
-  for (const H of HERDS) clearings.push({ x: H.anchor.x, y: H.anchor.y, r: 96 });
-  for (const p of PONDS) clearings.push({ x: p.x, y: p.y, r: p.r + 42 });
-  if (TERRAIN.springsPond) clearings.push({ x: TERRAIN.springsPond.x, y: TERRAIN.springsPond.y, r: TERRAIN.springsPond.r + 42 });
+  for (const n of NODES) clearings.push({ x: n.x, y: n.y, r: 88 });
+  for (const s of DEN_SITES) clearings.push({ x: s.x, y: s.y, r: 88 });
+  for (const H of HERDS) clearings.push({ x: H.anchor.x, y: H.anchor.y, r: 104 });
+  for (const p of PONDS) clearings.push({ x: p.x, y: p.y, r: p.r + 48 });
+  if (TERRAIN.springsPond) clearings.push({ x: TERRAIN.springsPond.x, y: TERRAIN.springsPond.y, r: TERRAIN.springsPond.r + 48 });
   const clear = (x, y) => {
     if (x > 800 && x < 1040) return false;   // the road bed and its shoulders
     for (const c of clearings) if ((x - c.x) ** 2 + (y - c.y) ** 2 < c.r * c.r) return false;
+    // the node-to-node trails stay walkable — worn paths through the wood, so a
+    // full-canopy grove never walls a known route (every tree that DOES stand is
+    // still a whole obstacle; they just don't stand on the trail)
+    for (const e of EDGES) {
+      const A = NbyId.get(e.a), B = NbyId.get(e.b);
+      if (A && B && distSeg(x, y, A.x, A.y, B.x, B.y).d < 48) return false;
+    }
     return true;
   };
   const out = [];
+  // keep trees from packing into a solid wall: centres spaced so a wolf (and
+  // prey) always fit between two full canopies
+  const MIN_GAP = 84;
+  const spaced = (x, y) => { for (const t of out) if ((x - t.x) ** 2 + (y - t.y) ** 2 < MIN_GAP * MIN_GAP) return false; return true; };
   for (const f of TERRAIN.forests) {
     const rng = makePrng(hashStr('grove' + f.x + ',' + f.y));
-    const n = Math.max(3, Math.round(f.r * f.r / 5600));
+    const n = Math.max(3, Math.round(f.r * f.r / 7200));
     for (let i = 0; i < n; i++) {
       const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * f.r;
       const x = f.x + Math.cos(a) * d, y = f.y + Math.sin(a) * d;
       const s = 13 + rng() * 15;                 // canopy draw size
-      if (clear(x, y)) out.push({ x, y, s });
+      if (clear(x, y) && spaced(x, y)) out.push({ x, y, s });
     }
   }
   const lrng = makePrng(4242);
@@ -191,12 +203,12 @@ const TREES = (() => {
   for (let i = 0; i < 60; i++) {
     const x = X0 + lrng() * WORLD.w, y = lrng() * WORLD.h;
     const s = 11 + lrng() * 12;
-    if (clear(x, y)) out.push({ x, y, s });
+    if (clear(x, y) && spaced(x, y)) out.push({ x, y, s });
   }
   return out;
 })();
 
-// A tree's trunk blocks — but only in the present; the scripted prologue paths
+// A whole tree blocks — but only in the present; the scripted prologue paths
 // run clear (matching how the built obstacles hold off until Act I).
 function inTreeAt(x, y, pad) {
   if (!S || S.era === 'past') return false;
