@@ -842,3 +842,44 @@ the real deployed URL, and a 1200x630 og-cover.png (a representative screenshot)
 must sit at the site root — og:image has to be absolute, crawlers won't resolve
 a relative path. No harness check (head only); verify by pasting the deployed
 link into a link-preview debugger.
+
+## playtest batch (2026-07-25) — 19 fixes + 2 follow-ups
+
+Pack: held wolves latch a per-wolf holdX/holdY and hold WHERE THEY STAND (not at
+Aspen); the pack/rail crossing gate was highway-only (sealed) so a trailing pack
+hit a phantom wall at the rail — road and rail are now gated separately
+(roadOk/railOk), each lifting when she has crossed that barrier ahead of the wolf.
+
+Train: TRAIN_WARN 3.2->5.5; the ground now trembles (S.shake) DURING the warning
+scaled by warnT and railProximity, the horn's volume scales with railProximity
+(distant = faint), and render lights the whole rail amber + a bigger headlight +
+more dust with a visibility floor — the warning is felt and seen, not only heard.
+
+Trees: all whole obstacles now (TREE_R 0.85, ~193 trees), spaced (MIN_GAP 84) and
+with node-to-node trails carved clear so nothing walls a route.
+
+Suggestions: carry a `kind`; FINITE ones (den, carcass) advance the moment they
+finish. A real S.carcass spawns on reachable ground, is named by DIRECTION and
+drawn (carcass + scent bloom + raven); reaching it eats it for 40 food (a bit
+under an elk) and completes the suggestion.
+
+Prompts/HUD: the drink hint holds the whole time she's over water and lingers a
+few seconds after (drinkHintDone); the route-plan hint only fires day<=3; choosing
+a den clears the choose-a-den prompt/suggestion; "Run it down." clears once the
+chase is on; on a light background (winter prologue, raised map, white passage,
+bright day) prompt+caption text goes near-black (lightBg); moveAspen names the
+edge of her territory at a world bound.
+
+Teaching (9/10): capOf()/moveCaps() make every taught key + the help overlay read
+the LIVE bindings (rebind WASD->IJKL and you're taught IJKL); arrows always move
+and the prologue/help/options say so.
+
+Prologue: a cold wash + drifting snow (drawPrologueWinter); the elk isn't circled
+at "An elk, winter-thin."; Willow's dying circle waits for the hold-SPACE ask.
+
+People: when the pack is Seen, townsfolk (+dogs) spill out of the houses toward
+the wolves, come ~240u from their yards, then turn back inside.
+
+Follow-ups: the old den, made home, reads "The Den" (shared nodeLabel, world +
+map); resolved water-rumor springs (S.foundWater) are RENDERED so drinkable water
+is always visible where Q works. Harness 324 green, x3.
