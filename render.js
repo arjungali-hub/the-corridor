@@ -1292,6 +1292,28 @@ function drawWorld() {
       ctx.stroke();
     }
   }
+  // a carcass a suggestion has pointed her to: a dark carcass with a soft brown
+  // scent bloom + a wheeling raven, so it can be found from a distance
+  if (S.carcass && S.era !== 'past') {
+    const c = S.carcass;
+    const bloom = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, 60);
+    bloom.addColorStop(0, `rgba(150,90,60,${0.3 + 0.12 * Math.sin(S.time * 2)})`);
+    bloom.addColorStop(1, 'rgba(150,90,60,0)');
+    ctx.fillStyle = bloom;
+    ctx.beginPath(); ctx.arc(c.x, c.y, 60, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(60,44,38,0.9)';
+    ctx.beginPath(); ctx.ellipse(c.x, c.y, 18, 10, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(180,170,158,0.6)'; ctx.lineWidth = 1.5;
+    for (let i = -2; i <= 2; i++) {   // ribs
+      ctx.beginPath(); ctx.moveTo(c.x + i * 4, c.y - 6); ctx.lineTo(c.x + i * 4 + 2, c.y + 6); ctx.stroke();
+    }
+    const rx = c.x + Math.cos(S.time * 0.9) * 34, ry = c.y - 40 + Math.sin(S.time * 1.4) * 6;
+    ctx.strokeStyle = 'rgba(25,22,20,0.8)'; ctx.lineWidth = 2;
+    const flap = Math.sin(S.time * 7) * 0.4;
+    ctx.beginPath();
+    ctx.moveTo(rx - 6, ry - 6 * (0.4 + flap)); ctx.quadraticCurveTo(rx, ry + 1, rx, ry);
+    ctx.quadraticCurveTo(rx, ry + 1, rx + 6, ry - 6 * (0.4 + flap)); ctx.stroke();
+  }
   for (const e of S.elk) drawPrey(e);
 
   // pups at the den, tumbling

@@ -383,6 +383,7 @@ function newGame() {
     sedgeMark: null,   // where Sedge went, if hunger took her
     lastSeason: 0, bondT: 0, bondC: null,
     suggestion: null,   // the current non-binding nudge (replaces tasks)
+    carcass: null,      // a findable carcass a suggestion has pointed her to
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
@@ -2975,12 +2976,18 @@ function pickSuggestion() {
     return { text: `This ground is hunted thin. Try the ${pb ? compass(pb.a) : exploreDir()} — and bring meat home for the pack.`, dur: 90 };
   }
   if (si === 0 && !S.denId) {
-    return { text: `The pups will come with the late spring. Walk the land and weigh where they should be born.`, dur: 110 };
+    // FINITE: done when a den is chosen
+    return { text: `The pups will come with the late spring. Walk the land and weigh where they should be born.`, dur: 110, kind: 'den' };
   }
-  // always something: a rotating nudge outward
+  // always something: a rotating nudge — one of them is a finite carcass hunt
   const opts = [
     () => ({ text: `Grey ground lies to the ${exploreDir()}. Walk it into your own ink.`, dur: 90 }),
-    () => ({ text: `Carry a carcass home in your belly — the pack eats what you bring.`, dur: 75 }),
+    () => {   // FINITE: a real carcass, in a direction — done when she reaches it
+      spawnCarcass();
+      if (!S.carcass) return { text: `Follow your nose to the living land, and lead the pack to it.`, dur: 80 };
+      const dir = compass(Math.atan2(S.carcass.y - S.wolf.y, S.carcass.x - S.wolf.x));
+      return { text: `A carcass lies to the ${dir}. Reach it — old meat, but enough to matter.`, dur: 160, kind: 'carcass' };
+    },
     () => ({ text: `Push into new country to the ${exploreDir()}; a wider map is a fuller year.`, dur: 90 }),
     () => ({ text: `Follow your nose to the living land, and lead the pack to it.`, dur: 80 }),
   ];
@@ -2990,7 +2997,35 @@ function suggestionUpdate(dt) {
   if (S.mode !== 'play' || !S.hud.day) { S.suggestion = null; return; }
   if (!S.suggestion) { S.suggestion = pickSuggestion(); S.suggestion.t = 0; return; }
   S.suggestion.t += dt;
-  if (S.suggestion.t > S.suggestion.dur) { S.suggestion = pickSuggestion(); S.suggestion.t = 0; }
+  // a FINITE suggestion advances the moment it is finished, not only on timeout
+  const finished = (S.suggestion.kind === 'den' && S.denId)
+                || (S.suggestion.kind === 'carcass' && !S.carcass);
+  if (finished || S.suggestion.t > S.suggestion.dur) { S.suggestion = pickSuggestion(); S.suggestion.t = 0; }
+}
+
+// A findable carcass (items 13/14): a real thing in a direction she can reach,
+// worth a significant meal — a little less than an elk. Reaching it eats it and
+// completes the carcass suggestion.
+const CARCASS_FOOD = 40;
+function spawnCarcass() {
+  if (S.carcass) return;
+  for (let tries = 0; tries < 28; tries++) {
+    const a = Math.random() * Math.PI * 2, d = 550 + Math.random() * 650;
+    const x = S.wolf.x + Math.cos(a) * d, y = S.wolf.y + Math.sin(a) * d;
+    if (!blockedAt(x, y, 22, false, 0) && !onRoad(x, y) && !onRail(x, y) && !waterAt(x, y)) {
+      S.carcass = { x, y };
+      return;
+    }
+  }
+}
+function carcassUpdate() {
+  if (!S.carcass || S.mode !== 'play') return;
+  if (dist(S.wolf.x, S.wolf.y, S.carcass.x, S.carcass.y) < 46) {
+    S.food = Math.min(100, S.food + CARCASS_FOOD);
+    say('An old kill, half-frozen. Meat enough to matter.');
+    S.carcass = null;
+    saveGame();
+  }
 }
 
 // ── the long tutorial (in-game path; the prologue teaches the early verbs) ───
@@ -4227,7 +4262,7 @@ function saveGame() {
       water: S.water, sickT: S.sickT || 0,
       snares: S.snares, roadkill: S.roadkill,
       rumorsSeen: S.rumorsSeen, rumorsTold: S.rumorsTold, bramRumorCd: S.bramRumorCd,
-      foundWater: S.foundWater,
+      foundWater: S.foundWater, carcass: S.carcass,
       exposure: S.exposure, westLaneT: S.westLaneT,
       yearlingKnows: [...S.yearlingKnows],
       denId: S.denId, denSite: S.denSite, seenDens: S.seenDens,
@@ -4254,7 +4289,7 @@ function migrateSave(d) {
     clockMin: 8 * 60, wolf: { x: DEN.x, y: DEN.y }, injuredT: 0,
     edges: [], visited: ['den'], bridged: [], foundPaths: {}, seen: null,
     firstTear: false, pack: [], fear: 0, food: 70, water: 90, sickT: 0,
-    snares: [], roadkill: null, rumorsSeen: [], rumorsTold: [], bramRumorCd: 35,
+    snares: [], roadkill: null, rumorsSeen: [], rumorsTold: [], bramRumorCd: 35, carcass: null,
     foundWater: [], exposure: 0, westLaneT: 0, yearlingKnows: [],
     denId: null, denSite: null, seenDens: [], pups: null,
     weather: null, wind: { a: 0 }, overpassCross: 0, herdAnchors: null,
@@ -4311,6 +4346,7 @@ function loadGame() {
   S.roadkill = d.roadkill || null;
   S.rumorsSeen = d.rumorsSeen || [];
   S.rumorsTold = d.rumorsTold || [];
+  S.carcass = d.carcass || null;
   S.bramRumorCd = typeof d.bramRumorCd === 'number' ? d.bramRumorCd : 35;
   S.foundWater = d.foundWater || [];
   S.exposure = d.exposure || 0;
@@ -4445,6 +4481,7 @@ function update(dt) {
     trainUpdate(dt);
     rumorUpdate();
     bramTellsRumor(dt);
+    carcassUpdate();
     S.vantageT = Math.max(0, (S.vantageT || 0) - dt);
 
     // B4: the home range dies. In winter, when she paces the emptied ground

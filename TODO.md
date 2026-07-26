@@ -869,3 +869,11 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
 - [ ] 18 The prologue elk is NOT circled at "An elk, winter-thin." (drop the
       point-out there).
 - [ ] 19 The prologue should look more like winter.
+
+## Part 25 — Follow-ups (Arjun, 2026-07-25)
+
+- [ ] A If the OLD den is chosen as home, its node label should read "The Den",
+      not "The Old Den" (rename the node when the old den becomes home).
+- [ ] B Bram's water rumor: where he says water is, there is no VISIBLE water yet
+      Q drinks and works — the resolved/rumored spring must be RENDERED so
+      drinkable water is always visible where you can drink it.
