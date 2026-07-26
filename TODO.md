@@ -896,12 +896,11 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       first clear tangent. Applied to the follow AND hunt moves. Harness: a wolf
       rounds a circular trunk to the far side where plain tryMove sticks.
 
-## Part 28 — Prologue thaw + tree shape (Arjun, 2026-07-26)
+## Part 28 — Prologue look + tree shape (Arjun, 2026-07-26)
 
-- [x] The winter-before-spring reads as a THAW, not early winter: the deep-blue
-      freeze wash is now a thin lightening haze, the steady snowfall is a few last
-      flurries, and a world-space melting-snow layer (drawPrologueThawGround)
-      lays retreating snow patches (green showing through) with spring shoots.
+- [x] Prologue winter: (thaw version REVERSED by Arjun) — instead of melting-snow
+      patches, the wash is now a soft GREEN so the land reads lush/green, and the
+      snowfall is a little lighter (90 flakes, was 120). No ground layer.
 - [x] Trees are circles/ellipses with soft imperfections, not many-sided
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).

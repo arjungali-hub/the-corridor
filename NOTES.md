@@ -927,3 +927,10 @@ and a slight random ellipse/rotation, then fills a smooth closed curve
 (quadratics through the edge midpoints): a rounded circle/ellipse with soft
 imperfections, no jagged edges. Trees live in the base layer (built once), so
 this is free per frame.
+
+## prologue look — reversed thaw (2026-07-26)
+
+Arjun reversed the thaw: removed drawPrologueThawGround (the melting-snow patches
++ shoots) entirely. drawPrologueWinter now lays a soft GREEN wash
+(rgba(120,168,104,0.10)) so the past land reads lush/green, and the snowfall is a
+little lighter (90 flakes, was 120). Purely visual.
