@@ -710,11 +710,24 @@ function moveAspen(dt) {
     if (S.water <= 0) penalty *= 0.85;        // thirst dulls everything
     if (waterAt(S.wolf.x, S.wolf.y)) penalty *= 0.7;   // wading drags at her legs
     sp *= Math.max(0.5, penalty);
+    const px = S.wolf.x, py = S.wolf.y;
     tryMove(S.wolf, vx / m * sp * dt, vy / m * sp * dt, wolfBlockedAt);
     S.wolf.heading = Math.atan2(vy, vx);
     S.wolf.moving = true;
     S.wolf.gait += sp * dt;
     S.tut.moved += sp * dt;
+    // the edge of her territory: pushing against a world bound and going nowhere
+    // is the land ending, not a glitch — say so, but do not nag
+    S.edgeMsgCd = Math.max(0, (S.edgeMsgCd || 0) - dt);
+    if (S.mode === 'play' && S.edgeMsgCd <= 0) {
+      const L = (WORLD.x0 || 0) + WOLF_R, R = WORLD.w - WOLF_R, T = WOLF_R, B = WORLD.h - WOLF_R;
+      const stuckX = Math.abs(S.wolf.x - px) < 0.4, stuckY = Math.abs(S.wolf.y - py) < 0.4;
+      if ((input.left && stuckX && S.wolf.x <= L + 3) || (input.right && stuckX && S.wolf.x >= R - 3)
+       || (input.up && stuckY && S.wolf.y <= T + 3) || (input.down && stuckY && S.wolf.y >= B - 3)) {
+        say('The edge of her territory. The land she knows runs out here.');
+        S.edgeMsgCd = 12;
+      }
+    }
   } else {
     S.wolf.moving = false;
   }
