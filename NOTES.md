@@ -918,3 +918,12 @@ steady snowfall (120 flakes) is a few last flurries (34), and drawPrologueThawGr
 lays a world-space melting-snow layer — ~150 retreating patches (soft-edged, so
 the greening ground shows through), culled to the view, drawn under the wolves,
 with spring shoots poking up between them. Purely visual; prologue draws clean.
+
+## tree shape (2026-07-26)
+
+Canopies were 8 straight segments with a big radius jitter (0.85-1.15) — a
+jagged octagon. drawTree now builds 16 points with a gentle wobble (0.93-1.05)
+and a slight random ellipse/rotation, then fills a smooth closed curve
+(quadratics through the edge midpoints): a rounded circle/ellipse with soft
+imperfections, no jagged edges. Trees live in the base layer (built once), so
+this is free per frame.

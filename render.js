@@ -713,12 +713,24 @@ function drawTree(b, x, y, r, frng, si, past) {
   g.addColorStop(0, conifer ? lightenTone(tone, 20) : lightenTone(tone, 34));
   g.addColorStop(1, darkenTone(tone, 22));
   b.fillStyle = g;
+  // a soft rounded canopy: many points with only a GENTLE radius wobble and a
+  // slight random ellipse, smoothed with quadratics through the edge midpoints —
+  // a circle/ellipse with imperfections, never a jagged polygon
+  const N = 16;
+  const squash = 0.86 + frng() * 0.2;      // a little out-of-round
+  const rot = frng() * Math.PI, cr = Math.cos(rot), sr = Math.sin(rot);
+  const pts = [];
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2;
+    const rr2 = r * (0.93 + frng() * 0.12);
+    const ex = Math.cos(a) * rr2, ey = Math.sin(a) * rr2 * squash;
+    pts.push([x + ex * cr - ey * sr, y + ex * sr + ey * cr]);
+  }
   b.beginPath();
-  for (let i = 0; i <= 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const rr2 = r * (0.85 + frng() * 0.3);
-    const px = x + Math.cos(a) * rr2, py = y + Math.sin(a) * rr2;
-    if (i === 0) b.moveTo(px, py); else b.lineTo(px, py);
+  b.moveTo((pts[N - 1][0] + pts[0][0]) / 2, (pts[N - 1][1] + pts[0][1]) / 2);
+  for (let i = 0; i < N; i++) {
+    const nxt = pts[(i + 1) % N];
+    b.quadraticCurveTo(pts[i][0], pts[i][1], (pts[i][0] + nxt[0]) / 2, (pts[i][1] + nxt[1]) / 2);
   }
   b.closePath(); b.fill();
   if (si === 3 && !past) {

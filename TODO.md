@@ -902,5 +902,6 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       freeze wash is now a thin lightening haze, the steady snowfall is a few last
       flurries, and a world-space melting-snow layer (drawPrologueThawGround)
       lays retreating snow patches (green showing through) with spring shoots.
-- [ ] Trees should be circles/ellipses with soft imperfections, not visibly
-      many-sided polygons — smooth the canopy outline.
+- [x] Trees are circles/ellipses with soft imperfections, not many-sided
+      polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
+      1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
