@@ -32,7 +32,7 @@ const SENSE_OUT     = 0.5;   // the locked 0.5 s blend back
 const SCALE_WORLD   = 1.1;
 const SCALE_MAP     = 0.17;  // the map pulls well back — a document, not a lens
 const APRON         = 600;   // land drawn beyond the walkable world — no black void
-const TRAIN_WARN    = 3.2;    // a train telegraphs (horn, headlight, tremble) this
+const TRAIN_WARN    = 5.5;    // a train telegraphs (horn, headlight, tremble) this
                              // long before it can strike — the only outright death
 const SCALE_VISTA   = 0.5;
 const YEAR_DAYS     = 360;
@@ -2697,7 +2697,7 @@ function trainUpdate(dt) {
       met: new Set(),
     });
     playRumble();
-    playTrainHorn();             // the first horn — the train is still off the map
+    playTrainHorn(railProximity());   // the first horn — fainter the farther she is
   }
   const rl = OBSTACLES.rail;
   const cx = (rl.x0 + rl.x1) / 2;
@@ -2710,7 +2710,11 @@ function trainUpdate(dt) {
     if (t.warning) {
       const was = t.warnT;
       t.warnT += dt;
-      if (was < TRAIN_WARN - 1 && t.warnT >= TRAIN_WARN - 1) playTrainHorn();   // a nearer, final blast
+      if (was < TRAIN_WARN - 1.5 && t.warnT >= TRAIN_WARN - 1.5) playTrainHorn(railProximity());   // a nearer, final blast
+      // the ground trembles harder the longer it nears and the closer she stands
+      // to the rail — a felt warning, not only a heard one
+      const near = railProximity();
+      if (near > 0.05) S.shake = Math.max(S.shake, 6 * near * (t.warnT / TRAIN_WARN));
       if (t.warnT >= TRAIN_WARN) t.warning = false;
       continue;
     }
@@ -4089,19 +4093,25 @@ function playHorn() {
 // The rail's own horn — a variant of beat 8's diesel: lower, longer, a hollow
 // minor chord on sawtooths, so it reads as the oncoming train and nothing else.
 // This is the warning that makes the train's death a chosen risk.
-function playTrainHorn() {
+function playTrainHorn(vol) {
   const ac = getAudioCtx(); if (!ac) return;
   const now = ac.currentTime;
+  const v = Math.max(0.03, (vol === undefined ? 1 : vol));   // fainter the farther she is from the rail
   for (const f of [77.8, 98, 130.8]) {   // ~D#1 / G1 / C2
     const o = ac.createOscillator(), g = ac.createGain();
     o.type = 'sawtooth'; o.frequency.value = f;
     g.gain.setValueAtTime(0.001, now);
-    g.gain.linearRampToValueAtTime(0.12, now + 0.08);
-    g.gain.setValueAtTime(0.12, now + 1.3);
+    g.gain.linearRampToValueAtTime(0.12 * v, now + 0.08);
+    g.gain.setValueAtTime(0.12 * v, now + 1.3);
     g.gain.exponentialRampToValueAtTime(0.001, now + 1.9);
     o.connect(g); g.connect(masterGain);
     o.start(now); o.stop(now + 2.0);
   }
+}
+// how loud a rail warning reads from where she stands (near the rail = full)
+function railProximity() {
+  const rl = OBSTACLES.rail;
+  return clamp(1 - Math.abs(S.wolf.x - (rl.x0 + rl.x1) / 2) / 2200, 0, 1);
 }
 
 // ── save / load ──────────────────────────────────────────────────────────────

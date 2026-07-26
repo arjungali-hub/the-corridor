@@ -1227,27 +1227,35 @@ function drawWorld() {
       // the headlight: while the warning runs it races down the rail ahead of
       // the still-parked train; after launch it rides the leading edge
       const headY = t.warning ? t.y + dir * (t.warnT / TRAIN_WARN) * 4200 : t.y;
-      const intensity = t.warning ? clamp(t.warnT / TRAIN_WARN, 0, 1) : 1;
+      // a visibility floor so the cues read from the first second, not near-zero
+      const intensity = t.warning ? clamp(0.3 + 0.7 * (t.warnT / TRAIN_WARN), 0, 1) : 1;
+      // during the warning the whole rail lights amber and pulses — the track is
+      // "live" at a glance, before the head is even close
+      if (t.warning) {
+        const pulse = 0.6 + 0.4 * Math.sin(S.time * 6);
+        ctx.fillStyle = `rgba(255,176,86,${0.2 * intensity * pulse})`;
+        ctx.fillRect(tcx - 32, -APRON, 64, WORLD.h + 2 * APRON);
+      }
       // a bright beam thrown ahead down the track
-      const beam = ctx.createLinearGradient(tcx, headY, tcx, headY + dir * 520);
-      beam.addColorStop(0, `rgba(255,246,205,${0.5 * intensity})`);
+      const beam = ctx.createLinearGradient(tcx, headY, tcx, headY + dir * 620);
+      beam.addColorStop(0, `rgba(255,246,205,${0.6 * intensity})`);
       beam.addColorStop(1, 'rgba(255,246,205,0)');
       ctx.fillStyle = beam;
-      ctx.fillRect(tcx - 26, Math.min(headY, headY + dir * 520), 52, 520);
-      // the lamp itself
-      const glow = ctx.createRadialGradient(tcx, headY, 5, tcx, headY, 150);
-      glow.addColorStop(0, `rgba(255,250,225,${0.95 * intensity})`);
-      glow.addColorStop(0.4, `rgba(255,240,190,${0.4 * intensity})`);
+      ctx.fillRect(tcx - 34, Math.min(headY, headY + dir * 620), 68, 620);
+      // the lamp itself — big and bright
+      const glow = ctx.createRadialGradient(tcx, headY, 6, tcx, headY, 200);
+      glow.addColorStop(0, `rgba(255,252,236,${intensity})`);
+      glow.addColorStop(0.35, `rgba(255,240,190,${0.5 * intensity})`);
       glow.addColorStop(1, 'rgba(255,240,190,0)');
       ctx.fillStyle = glow;
-      ctx.beginPath(); ctx.arc(tcx, headY, 150, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(tcx, headY, 200, 0, Math.PI * 2); ctx.fill();
       // the ballast trembles: dust jittering off the bed near the oncoming head
-      const motes = Math.round(10 * intensity);
-      ctx.fillStyle = `rgba(120,110,96,${0.5 * intensity})`;
+      const motes = Math.round(16 * intensity);
+      ctx.fillStyle = `rgba(120,110,96,${0.6 * intensity})`;
       for (let d = 0; d < motes; d++) {
-        const mx = tcx + (Math.random() - 0.5) * 70;
-        const my = headY + (Math.random() - 0.5) * 240;
-        ctx.beginPath(); ctx.arc(mx, my - Math.random() * 6, 1.5 + Math.random() * 2, 0, Math.PI * 2); ctx.fill();
+        const mx = tcx + (Math.random() - 0.5) * 80;
+        const my = headY + (Math.random() - 0.5) * 300;
+        ctx.beginPath(); ctx.arc(mx, my - Math.random() * 6, 1.5 + Math.random() * 2.5, 0, Math.PI * 2); ctx.fill();
       }
     }
   }
