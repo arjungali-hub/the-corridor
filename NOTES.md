@@ -896,3 +896,16 @@ the land… not all he offers will still be there"); later ones are terse. A wro
 water rumor yields no foundWater, so it stays consistent with item B (Q only
 works where water actually is). Saved/migrated (S.bramWrong). The B3 resolution
 tests clear S.bramWrong first so they test the right-memory outcomes. 327 green, x5.
+
+## pack rounds trees (2026-07-26)
+
+Axis-separated tryMove sticks on a convex obstacle dead ahead: a tree directly
+between a packmate and its target leaves neither the x nor the y step clear and
+no axis to slide on, so the wolf pressed into the trunk's face. moveAround() does
+the cheap tryMove first (still slides along the long building/road walls) and,
+only when that yields ~no progress, sweeps the heading outward (±0.6…±2.2 rad)
+and takes the first clear tangent — rounding the trunk; next frame the wolf is
+off-axis and the normal slide resumes. No per-wolf state; reuses the same blockFn
+(road/rail gating intact). Applied to the follow and hunt moves. Harness unit-
+tests it against a synthetic circular obstacle (moveAround reaches the far side;
+plain tryMove provably sticks). 329 green, x3.

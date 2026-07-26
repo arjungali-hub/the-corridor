@@ -686,6 +686,26 @@ function tryMove(who, dx, dy, blockFn) {
   if (!blockFn(who.x, ny)) who.y = ny;
 }
 
+// Like tryMove, but if the axis-separated slide gets STUCK — a tree (or any
+// convex obstacle) dead ahead, with nowhere to slide because the target lies
+// straight through it — sweep the heading outward and take the first clear
+// tangent, so a packmate rounds the trunk instead of pressing into its face.
+// The cheap slide still handles long walls (they never fully stick).
+function moveAround(who, dx, dy, blockFn) {
+  const bx = who.x, by = who.y;
+  tryMove(who, dx, dy, blockFn);
+  if ((who.x - bx) ** 2 + (who.y - by) ** 2 > 0.25) return;   // made real progress
+  const mag = Math.hypot(dx, dy);
+  if (mag < 0.001) return;
+  const base = Math.atan2(dy, dx);
+  // shallow deflections first, alternating sides — the nearest way around wins
+  for (const off of [0.6, -0.6, 1.0, -1.0, 1.4, -1.4, 1.8, -1.8, 2.2, -2.2]) {
+    const a = base + off;
+    const cx = bx + Math.cos(a) * mag, cy = by + Math.sin(a) * mag;
+    if (!blockFn(cx, cy)) { who.x = cx; who.y = cy; return; }
+  }
+}
+
 function onRoad(x, y) {
   const h = OBSTACLES.highway;
   if (x <= h.x0 - 8 || x >= h.x1 + 8) return false;
@@ -1500,7 +1520,7 @@ function packUpdate(dt) {
         w.hunting = true;
         const d = pd || 1;
         const sp = 250 * w.mult * lag;
-        tryMove(w, (prey.x - w.x) / d * sp * dt, (prey.y - w.y) / d * sp * dt,
+        moveAround(w, (prey.x - w.x) / d * sp * dt, (prey.y - w.y) / d * sp * dt,
           (x, y) => packBlockedAt(x, y) || onRoad(x, y));
         w.heading = Math.atan2(prey.y - w.y, prey.x - w.x);
         w.gait += sp * dt;
@@ -1558,7 +1578,7 @@ function packUpdate(dt) {
     const sheLeads = packRefuses(S.wolf.x, S.wolf.y);   // she is on a barrier, calling
     const roadOk = sheLeads || onRoad(w.x, w.y) || ((S.wolf.x < hMid) !== (w.x < hMid));
     const railOk = sheLeads || onRail(w.x, w.y) || ((S.wolf.x < railMid) !== (w.x < railMid));
-    tryMove(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, (x, y) => {
+    moveAround(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, (x, y) => {
       if (packBlockedAt(x, y)) return true;
       if (!roadOk && (onRoad(x, y) || (onDeck(x, y) && overpassOpen() && !overpassTrusted()))) return true;
       if (!railOk && onRail(x, y)) return true;

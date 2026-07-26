@@ -886,3 +886,12 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       is never left hunting an empty place. The FIRST wrong one explains why
       (his aging memory — not all he offers is still there); later ones are terse.
       Saved/migrated. Harness: a wrong rumor waits, then reveals as nothing.
+
+## Part 27 — Pack rounds trees (Arjun, 2026-07-26)
+
+- [x] A packmate stuck to the near face of a tree between it and Aspen now rounds
+      it. The axis-separated tryMove sticks on a convex obstacle dead-ahead (no
+      slide axis); moveAround() keeps that cheap slide for walls but, when it
+      yields no progress, sweeps the heading outward (±0.6…±2.2 rad) and takes the
+      first clear tangent. Applied to the follow AND hunt moves. Harness: a wolf
+      rounds a circular trunk to the far side where plain tryMove sticks.
