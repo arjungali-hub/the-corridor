@@ -32,7 +32,7 @@ const C_PATCH     = '#E4DCC0';
 const C_STITCH    = '#8A795A';
 const C_NODE      = '#5B4632';
 
-const SEASON_GROUND = ['#8fa06f', '#a09b63', '#a68f5c', '#ccd0d4'];
+const SEASON_GROUND = ['#79ac54', '#a09b63', '#a68f5c', '#ccd0d4'];   // spring = lush green (matches the prologue); summer/autumn/winter unchanged
 const SEASON_GROUND_DARK = ['#7a8c5c', '#8a8752', '#93794a', '#b4bac0'];
 const SEASON_FOREST = ['#5e7a4e', '#647547', '#7d6f3f', '#7c878c'];
 const PAST_GROUND = '#79ac54';   // the remembered valley — lush spring green
