@@ -9,6 +9,11 @@ function ts() { return (typeof OPTIONS !== 'undefined' && OPTIONS) ? OPTIONS.tex
 // Is the ground behind on-screen text LIGHT? (raised map, the winter prologue,
 // the white passage, bright midday.) On light ground, text goes dark for
 // contrast; on dark ground it stays pale.
+// The old-den node becomes "The Den" once she has made it home (not "The Old
+// Den"); every other name is Aspen's own. Used for both world and map labels.
+function nodeLabel(n) {
+  return (n.id === 'den' && S.denId === 'oldDen') ? 'The Den' : n.name;
+}
 function lightBg() {
   if (!S) return false;
   if (S.senseBlend > 0.5) return true;
@@ -1292,6 +1297,24 @@ function drawWorld() {
       ctx.stroke();
     }
   }
+  // hidden springs a water rumor resolved into being: real, drinkable water, so
+  // it is always VISIBLE where she can drink (Bram's promise, made ground)
+  if (S.foundWater && S.foundWater.length && S.era !== 'past') {
+    for (const sp of S.foundWater) {
+      const g = ctx.createRadialGradient(sp.x, sp.y, sp.r * 0.12, sp.x, sp.y, sp.r);
+      g.addColorStop(0, 'rgba(118,158,178,0.8)');
+      g.addColorStop(0.6, 'rgba(92,132,158,0.6)');
+      g.addColorStop(1, 'rgba(92,132,158,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.arc(sp.x, sp.y, sp.r, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(216,231,239,0.45)';   // a rippling sky-glint
+      ctx.beginPath();
+      ctx.ellipse(sp.x - sp.r * 0.2, sp.y - sp.r * 0.15, sp.r * 0.3,
+        sp.r * 0.12 * (0.8 + 0.2 * Math.sin(S.time * 2)), 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
   // a carcass a suggestion has pointed her to: a dark carcass with a soft brown
   // scent bloom + a wheeling raven, so it can be found from a distance
   if (S.carcass && S.era !== 'past') {
@@ -1476,7 +1499,7 @@ function drawWorld() {
       ctx.shadowColor = 'rgba(0,0,0,0.5)'; ctx.shadowBlur = 4;
       ctx.fillStyle = 'rgba(245,240,225,0.92)';
       ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-      ctx.fillText(n.name, p.x, p.y - 12);
+      ctx.fillText(nodeLabel(n), p.x, p.y - 12);
       ctx.shadowBlur = 0;
     }
   }
@@ -2270,8 +2293,7 @@ function drawMap() {
       ctx.font = `italic 11px ${FONT}`;
       ctx.textAlign = 'center'; ctx.textBaseline = 'top';
       ctx.fillStyle = `rgba(74,58,38,${m})`;
-      const label = n.id === 'den' && S.denId === 'oldDen' ? 'The Den' : n.name;
-      ctx.fillText(label, p.x, p.y + 14);
+      ctx.fillText(nodeLabel(n), p.x, p.y + 14);
     }
     ctx.globalAlpha = 1;
   }
