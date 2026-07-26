@@ -203,8 +203,10 @@ function buildBaseLayer() {
   const past = S.era === 'past';
   const AX = X0 - APRON, AY = -APRON, AW = WORLD.w - X0 + 2 * APRON, AH = WORLD.h + 2 * APRON;
 
-  // ground — the land continues past where she can walk; no black void
-  b.fillStyle = past ? PAST_GROUND : SEASON_GROUND[si];
+  // ground — the land continues past where she can walk; no black void. The
+  // past reads as green as spring (si is already 0 there); its mottling and
+  // forests are the spring tones too.
+  b.fillStyle = SEASON_GROUND[si];
   b.fillRect(AX, AY, AW, AH);
 
   const rng = makePrng(710);
@@ -1558,11 +1560,8 @@ let _snowSeed = null;
 function drawPrologueWinter() {
   if (!S || S.mode !== 'prologue') return;
   resetTransform();
-  // a soft green wash so the land of the past reads lush and green, with a
-  // little snow still falling on it
-  ctx.fillStyle = 'rgba(120,168,104,0.10)';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // snowfall — a little lighter than a deep winter's
+  // the land itself is spring-green now (base layer), so no wash — just a little
+  // snow still falling over it
   if (!_snowSeed) {
     _snowSeed = [];
     const r = makePrng(20251);
