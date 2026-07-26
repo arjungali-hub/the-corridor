@@ -2600,12 +2600,14 @@ function drawHelp() {
   ctx.fillStyle = 'rgba(15,14,10,0.55)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   const w = 460, rows = [];
-  rows.push(['W A S D', 'walk']);
-  if (S.tut.sawMap) rows.push(['SPACE', 'the map — press to open, press to close']);
-  if (S.tut.scentHold > 0.6) rows.push(['E (hold)', 'smell the wind']);
+  // keys read the live bindings (9/10); arrows always move and say so
+  rows.push([moveCaps().join(' '), 'walk — the arrow keys move her, too']);
+  if (S.tut.sawMap) rows.push([capOf('map'), 'the map — press to open, press to close']);
+  if (S.tut.scentHold > 0.6) rows.push([capOf('scent') + ' (hold)', 'smell the wind']);
   if (S.tut.fTaught) rows.push(['F', 'the pack holds, or follows']);
-  if (S.tut.drinkTaught || S.mode === 'play') rows.push(['Q (hold)', 'drink, standing in water']);
+  if (S.tut.drinkTaught || S.mode === 'play') rows.push([capOf('drink') + ' (hold)', 'drink, standing in water']);
   rows.push(['M', 'quiet']);
+  rows.push(['ESC', 'pause']);
   rows.push(['R  R', 'restart the game (skips prologue)']);
   rows.push(['H', 'open or close this']);
   const h = 90 + rows.length * 40;
@@ -2701,6 +2703,11 @@ function drawOptions() {
   y += 30;
   ctx.fillText('− / +  Text size', lx, y);
   ctx.textAlign = 'right'; ctx.fillText(OPTIONS.textScale.toFixed(1) + '×', lx + 380, y); ctx.textAlign = 'left';
+  y += 34;
+  ctx.font = `italic 13px ${FONT}`;
+  ctx.fillStyle = '#8a8066';
+  ctx.textAlign = 'center';
+  ctx.fillText('The arrow keys always move her, whatever you bind.', cx, y);
 }
 
 // A quiet pause overlay (9e): the year is held, not ended.

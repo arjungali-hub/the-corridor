@@ -536,6 +536,16 @@ function releaseVista() {
   }
 }
 
+// The display label for a remappable action's current key (9/10): teaching text
+// and keycaps read the LIVE binding, so a player who moved WASD to IJKL is taught
+// IJKL. Arrow keys always move and are never remapped.
+function capOf(action) {
+  const k = (typeof OPTIONS !== 'undefined' && OPTIONS && OPTIONS.bindings) ? OPTIONS.bindings[action] : null;
+  if (!k) return '?';
+  return k === ' ' ? 'Space' : k.toUpperCase();
+}
+function moveCaps() { return [capOf('up'), capOf('left'), capOf('down'), capOf('right')]; }
+
 function pointOut(tag, dur) { S.pointTag = tag; S.pointTagT = dur || 3.4; }
 function resolvePointTarget(tag) {
   if (tag === 'aspen') return S.wolf;
@@ -2629,7 +2639,7 @@ function waterAt(x, y) {
   return null;
 }
 
-const DRINK_HINT = 'Water underfoot. Hold Q to drink.';
+function drinkHint() { return `Water underfoot. Hold ${capOf('drink')} to drink.`; }
 function waterUpdate(dt) {
   S.water = Math.max(0, S.water - WATER_PER_SEC * dt);
   S.sickT = Math.max(0, (S.sickT || 0) - dt);
@@ -2638,7 +2648,7 @@ function waterUpdate(dt) {
   // thirst teaches itself before she ever finds a bank
   if (!S.tut.drinkTaught && S.water < 55 && S.mode === 'play') {
     S.tut.drinkTaught = true;
-    showPrompt('Thirst. Find water — the creek, a pond — stand in it and hold Q to drink.', ['Q'], 9);
+    showPrompt(`Thirst. Find water — the creek, a pond — stand in it and hold ${capOf('drink')} to drink.`, [capOf('drink')], 9);
   }
   const ws = waterAt(S.wolf.x, S.wolf.y);
 
@@ -2648,10 +2658,10 @@ function waterUpdate(dt) {
   if (!S.tut.drinkHintDone && S.mode === 'play') {
     if (ws) {
       S.drinkHintT = 3.5;
-      if (!S.prompt) stickyPrompt(DRINK_HINT, ['Q']);
+      if (!S.prompt) stickyPrompt(drinkHint(), [capOf('drink')]);
     } else {
       S.drinkHintT = Math.max(0, (S.drinkHintT || 0) - dt);
-      if (S.drinkHintT <= 0 && S.prompt && S.prompt.text === DRINK_HINT) clearPrompt();
+      if (S.drinkHintT <= 0 && S.prompt && S.prompt.text === drinkHint()) clearPrompt();
     }
   }
 
@@ -2675,7 +2685,7 @@ function waterUpdate(dt) {
     S.water = Math.min(100, S.water + 30 * dt);
     if (!S.tut.drinkHintDone) {   // she has learned it — the hint retires
       S.tut.drinkHintDone = true;
-      if (S.prompt && S.prompt.text === DRINK_HINT) clearPrompt();
+      if (S.prompt && S.prompt.text === drinkHint()) clearPrompt();
     }
     if (!ws.clean && S.sickT <= 0 && S.foulCd <= 0) {
       S.sickT = 75;
@@ -3061,10 +3071,10 @@ function tutorialUpdate(dt) {
   T.t += dt;
 
   if (!S.prompt) {
-    if (T.step === 2) stickyPrompt('Walk.', ['W', 'A', 'S', 'D']);
-    if (T.step === 4) stickyPrompt('She left you her map of this land. Press SPACE to remember it.', ['SPACE']);
-    if (T.step === 5) stickyPrompt('SPACE again returns her to the land.', ['SPACE']);
-    if (T.step === 8) stickyPrompt('Prey leaves its scent on the land. Hold E to smell the wind.', ['E']);
+    if (T.step === 2) stickyPrompt('Walk — the arrow keys move her, too.', moveCaps());
+    if (T.step === 4) stickyPrompt(`She left you her map of this land. Press ${capOf('map')} to remember it.`, [capOf('map')]);
+    if (T.step === 5) stickyPrompt(`${capOf('map')} again returns her to the land.`, [capOf('map')]);
+    if (T.step === 8) stickyPrompt(`Prey leaves its scent on the land. Hold ${capOf('scent')} to smell the wind.`, [capOf('scent')]);
     if (T.step === 10) stickyPrompt('Run the prey until it tires. F asks the pack to wait in ambush.', ['F']);
   }
 
@@ -3252,7 +3262,7 @@ function applyPostPrologue() {
   setCaption('Spring.', 3.5, 'the first thaw after her — the pack is yours now');
   // the year's first decision, named at once
   S.tut.denPrompt = true;
-  showPrompt('The pups will come with the late spring. A den must be chosen — raise the map; the hollows are marked.', ['SPACE'], 9);
+  showPrompt(`The pups will come with the late spring. A den must be chosen — raise the map (${capOf('map')}); the hollows are marked.`, [capOf('map')], 9);
 }
 
 function willowSetPath(points) {
@@ -3340,7 +3350,7 @@ function prologueUpdate(dt) {
   switch (S.beat) {
     // Beat 1 — waking in the den: movement and scent, in the calmest place
     case 1:
-      if (S.beatT > 5 && !S.prompt && T.moved < 120) stickyPrompt('Walk.', ['W', 'A', 'S', 'D']);
+      if (S.beatT > 5 && !S.prompt && T.moved < 120) stickyPrompt('Walk — the arrow keys move her, too.', moveCaps());
       // before the world, the family: you first, then the pack, each named and
       // pointed out as it wakes
       if (T.moved >= 120 && !T._b1pack) {
@@ -3374,7 +3384,7 @@ function prologueUpdate(dt) {
         }
         if (T._b1packT > 19) {
           T._b1scent = true;
-          stickyPrompt('The world speaks in scent. Hold E.', ['E']);
+          stickyPrompt(`The world speaks in scent. Hold ${capOf('scent')}.`, [capOf('scent')]);
           // a deer crosses the morning from offscreen, close by, writing
           // its gold across her nose as the lesson is given
           S.elk.push({
@@ -3500,7 +3510,7 @@ function prologueUpdate(dt) {
         S.beat = 6; S.beatT = 0;
         setCaption('The far side.', 3);
         S.prompt = null; S.promptQueue.length = 0;  // crossing talk ends at the crossing
-        stickyPrompt('Lean into her — press SPACE.', ['SPACE']);
+        stickyPrompt(`Lean into her — press ${capOf('map')}.`, [capOf('map')]);
       }
       break;
 
@@ -3612,7 +3622,7 @@ function prologueUpdate(dt) {
           if (T._b9askT > 6) {
             T._b9ask = true;
             setCaption('She has been waiting for you.', 3.5);
-            stickyPrompt('Stay at her side. Hold SPACE.', ['SPACE']);
+            stickyPrompt(`Stay at her side. Hold ${capOf('map')}.`, [capOf('map')]);
           }
         }
         if (T._b9ask && nearHer && input.sense) {
