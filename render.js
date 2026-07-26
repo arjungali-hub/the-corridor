@@ -35,7 +35,7 @@ const C_NODE      = '#5B4632';
 const SEASON_GROUND = ['#8fa06f', '#a09b63', '#a68f5c', '#ccd0d4'];
 const SEASON_GROUND_DARK = ['#7a8c5c', '#8a8752', '#93794a', '#b4bac0'];
 const SEASON_FOREST = ['#5e7a4e', '#647547', '#7d6f3f', '#7c878c'];
-const PAST_GROUND = '#96a468';   // the remembered valley, warm and whole
+const PAST_GROUND = '#79ac54';   // the remembered valley — lush spring green
 
 const WOLF_TONES = {
   aspen:  { base: '#8f959b', dark: '#666c72', light: '#c6cacd' },
@@ -204,9 +204,9 @@ function buildBaseLayer() {
   const AX = X0 - APRON, AY = -APRON, AW = WORLD.w - X0 + 2 * APRON, AH = WORLD.h + 2 * APRON;
 
   // ground — the land continues past where she can walk; no black void. The
-  // past reads as green as spring (si is already 0 there); its mottling and
-  // forests are the spring tones too.
-  b.fillStyle = SEASON_GROUND[si];
+  // remembered past is a LUSH spring green (its mottling + forests keep the
+  // spring tones); the real seasons keep their own muted ground.
+  b.fillStyle = past ? PAST_GROUND : SEASON_GROUND[si];
   b.fillRect(AX, AY, AW, AH);
 
   const rng = makePrng(710);

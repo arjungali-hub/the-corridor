@@ -898,10 +898,10 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
 
 ## Part 28 — Prologue look + tree shape (Arjun, 2026-07-26)
 
-- [x] Prologue winter: (thaw REVERSED) the past land is now as green as SPRING —
-      base ground uses SEASON_GROUND[0] (si is already 0 in past; mottling +
-      forests were already spring tones), the green wash is dropped, snow is a
-      little lighter (90 flakes). PAST_GROUND now unused.
+- [x] Prologue winter: (thaw REVERSED) the past land is now a LUSH spring green.
+      PAST_GROUND was #96a468 (olive, ~= spring's own #8fa06f — so matching spring
+      was invisible); bumped it to #79ac54 (G-R 14 -> 51, clearly green). Green
+      wash dropped; snow a little lighter (90). Act I's own seasons unchanged.
 - [x] Trees are circles/ellipses with soft imperfections, not many-sided
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).

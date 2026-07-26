@@ -942,3 +942,11 @@ past), so the prologue land is the same green as Act I spring — its mottling
 (SEASON_GROUND_DARK[si]) and forests (SEASON_FOREST[0]) were already spring
 tones. Dropped the green wash from drawPrologueWinter (the ground does it now);
 light snow (90 flakes) still falls. PAST_GROUND is now unused.
+
+## prologue land — actually green now (2026-07-26)
+
+Matching the past ground to spring was invisible: PAST_GROUND #96a468 and
+spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
+#79ac54 (G-R 14 -> 51), so the prologue land reads clearly green. The real
+seasons keep their own muted ground; if Act I spring should match, bump
+SEASON_GROUND[0] too.
