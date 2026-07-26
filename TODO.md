@@ -895,3 +895,12 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       yields no progress, sweeps the heading outward (±0.6…±2.2 rad) and takes the
       first clear tangent. Applied to the follow AND hunt moves. Harness: a wolf
       rounds a circular trunk to the far side where plain tryMove sticks.
+
+## Part 28 — Prologue thaw + tree shape (Arjun, 2026-07-26)
+
+- [x] The winter-before-spring reads as a THAW, not early winter: the deep-blue
+      freeze wash is now a thin lightening haze, the steady snowfall is a few last
+      flurries, and a world-space melting-snow layer (drawPrologueThawGround)
+      lays retreating snow patches (green showing through) with spring shoots.
+- [ ] Trees should be circles/ellipses with soft imperfections, not visibly
+      many-sided polygons — smooth the canopy outline.

@@ -909,3 +909,12 @@ off-axis and the normal slide resumes. No per-wolf state; reuses the same blockF
 (road/rail gating intact). Applied to the follow and hunt moves. Harness unit-
 tests it against a synthetic circular obstacle (moveAround reaches the far side;
 plain tryMove provably sticks). 329 green, x3.
+
+## prologue thaw (2026-07-26)
+
+The winter-before-spring now reads as a THAW, not deep/early winter. The wash
+dropped from a deep blue freeze (0.20) to a thin lightening haze (0.10), the
+steady snowfall (120 flakes) is a few last flurries (34), and drawPrologueThawGround
+lays a world-space melting-snow layer — ~150 retreating patches (soft-edged, so
+the greening ground shows through), culled to the view, drawn under the wolves,
+with spring shoots poking up between them. Purely visual; prologue draws clean.

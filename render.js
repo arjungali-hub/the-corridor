@@ -1096,6 +1096,9 @@ function drawWorld() {
       wx0, wy0, wx1 - wx0, wy1 - wy0);
   }
 
+  // late-winter thaw: melting snow patches + shoots on the ground (prologue)
+  drawPrologueThawGround();
+
   // living water glints
   ctx.fillStyle = 'rgba(255,255,255,0.5)';
   for (let i = 0; i < TERRAIN.creekFlow.length - 1; i++) {
@@ -1546,23 +1549,64 @@ let _snowSeed = null;
 function drawPrologueWinter() {
   if (!S || S.mode !== 'prologue') return;
   resetTransform();
-  // cold winter light over the warm past
-  ctx.fillStyle = 'rgba(202,216,234,0.20)';
+  // LATE winter, on the turn toward spring: a thin, cool-but-lightening haze —
+  // not the deep-blue freeze — so the greening ground shows through
+  ctx.fillStyle = 'rgba(216,222,222,0.10)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // drifting snow — deterministic flakes, animated by time (falls + sways)
+  // only a few last flurries drift down (the snow is going, not coming)
   if (!_snowSeed) {
     _snowSeed = [];
     const r = makePrng(20251);
-    for (let i = 0; i < 120; i++) _snowSeed.push({ x: r(), y: r(), s: r(), sp: 16 + r() * 34, sw: 14 + r() * 26 });
+    for (let i = 0; i < 34; i++) _snowSeed.push({ x: r(), y: r(), s: r(), sp: 20 + r() * 30, sw: 12 + r() * 22 });
   }
-  ctx.fillStyle = 'rgba(246,249,253,0.9)';
+  ctx.fillStyle = 'rgba(246,249,253,0.85)';
   for (const f of _snowSeed) {
     const y = (f.y * canvas.height + S.time * f.sp) % canvas.height;
     const x = (f.x * canvas.width + Math.sin(S.time * 0.5 + f.x * 40) * f.sw + canvas.width) % canvas.width;
-    ctx.globalAlpha = 0.35 + 0.55 * f.s;
-    ctx.beginPath(); ctx.arc(x, y, 1 + f.s * 1.9, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.3 + 0.45 * f.s;
+    ctx.beginPath(); ctx.arc(x, y, 1 + f.s * 1.6, 0, Math.PI * 2); ctx.fill();
   }
   ctx.globalAlpha = 1;
+}
+
+// Melting snow on the ground of the thawing prologue: patches of retreating
+// snow (thinning at their edges so the green shows), with shoots poking up
+// through the gaps. World-space, culled to the view, drawn under the wolves.
+let _thawSeed = null;
+function drawPrologueThawGround() {
+  if (!S || S.mode !== 'prologue') return;
+  if (!_thawSeed) {
+    _thawSeed = [];
+    const r = makePrng(31337);
+    const X0 = WORLD.x0 || 0;
+    for (let i = 0; i < 150; i++) {
+      _thawSeed.push({
+        x: X0 - APRON + r() * (WORLD.w - X0 + 2 * APRON),
+        y: -APRON + r() * (WORLD.h + 2 * APRON),
+        rr: 24 + r() * 66, a: 0.35 + r() * 0.4, rot: r() * Math.PI, shoots: r(),
+      });
+    }
+  }
+  const vw = canvas.width / S.cam.scale, vh = canvas.height / S.cam.scale;
+  const cx0 = S.cam.x - vw / 2 - 90, cy0 = S.cam.y - vh / 2 - 90;
+  const cx1 = S.cam.x + vw / 2 + 90, cy1 = S.cam.y + vh / 2 + 90;
+  for (const p of _thawSeed) {
+    if (p.x < cx0 || p.x > cx1 || p.y < cy0 || p.y > cy1) continue;
+    const g = ctx.createRadialGradient(p.x, p.y, p.rr * 0.2, p.x, p.y, p.rr);
+    g.addColorStop(0, `rgba(242,247,250,${p.a})`);
+    g.addColorStop(0.65, `rgba(236,243,248,${p.a * 0.5})`);
+    g.addColorStop(1, 'rgba(236,243,248,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.ellipse(p.x, p.y, p.rr, p.rr * 0.72, p.rot, 0, Math.PI * 2); ctx.fill();
+    // spring shoots through the bared ground between the patches
+    if (p.shoots > 0.55) {
+      ctx.strokeStyle = 'rgba(96,134,64,0.7)'; ctx.lineWidth = 1.5; ctx.lineCap = 'round';
+      for (let k = 0; k < 4; k++) {
+        const sx = p.x + (p.shoots - 0.5) * p.rr * 1.6 + k * 5, sy = p.y + p.rr * 0.5;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx + 1.5, sy - 6 - (k % 2) * 3); ctx.stroke();
+      }
+    }
+  }
 }
 
 // The porthole: past her senses the land goes dark. A world-unit sight
