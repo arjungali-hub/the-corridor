@@ -2033,6 +2033,11 @@ function chooseDen(site) {
   if (!S.seenDens.includes(site.id)) S.seenDens.push(site.id);
   S.history.push({ type: 'den', day: day(), site: site.id });
   say(`${site.name} is home now.`);
+  // the den is chosen — every "choose a den" line retires at once (the objective
+  // and map labels already gate on S.denId; clear a lingering prompt/suggestion)
+  if (S.prompt && /den must be chosen/i.test(S.prompt.text)) clearPrompt();
+  if (S.promptQueue) S.promptQueue = S.promptQueue.filter(p => !/den must be chosen/i.test(p.text));
+  if (S.suggestion && /where they should be born/i.test(S.suggestion.text)) S.suggestion = null;
   // home chosen: the last two verbs are given, one at a time — each fades on
   // its own after a few seconds; no need to press the key to dismiss it
   showPrompt('R twice restarts the game (if you ever want to).', ['R'], 3.5);
@@ -2624,6 +2629,7 @@ function waterAt(x, y) {
   return null;
 }
 
+const DRINK_HINT = 'Water underfoot. Hold Q to drink.';
 function waterUpdate(dt) {
   S.water = Math.max(0, S.water - WATER_PER_SEC * dt);
   S.sickT = Math.max(0, (S.sickT || 0) - dt);
@@ -2635,6 +2641,20 @@ function waterUpdate(dt) {
     showPrompt('Thirst. Find water — the creek, a pond — stand in it and hold Q to drink.', ['Q'], 9);
   }
   const ws = waterAt(S.wolf.x, S.wolf.y);
+
+  // item 5: the "hold Q to drink" hint holds the WHOLE time she stands over
+  // water (until her first drink), and lingers a few seconds after she steps
+  // off if she never drank — then it clears. Never nags once she has drunk.
+  if (!S.tut.drinkHintDone && S.mode === 'play') {
+    if (ws) {
+      S.drinkHintT = 3.5;
+      if (!S.prompt) stickyPrompt(DRINK_HINT, ['Q']);
+    } else {
+      S.drinkHintT = Math.max(0, (S.drinkHintT || 0) - dt);
+      if (S.drinkHintT <= 0 && S.prompt && S.prompt.text === DRINK_HINT) clearPrompt();
+    }
+  }
+
   if (!ws) return;
   // thin ice bites whether or not she means to drink
   if (seasonIndex() === 3 && S.iceCd <= 0 && Math.random() < 0.05 * dt * 20) {
@@ -2650,13 +2670,13 @@ function waterUpdate(dt) {
       setCaption('Through the ice.', 4.5, 'winter water bites — warmth and meat lost');
     }
   }
-  if (!S.tut.drinkHere && S.water < 90) {
-    S.tut.drinkHere = true;
-    showPrompt('Water underfoot. Hold Q to drink.', ['Q'], 6);
-  }
   // drinking is an ACT: standing in the water, head down, holding Q
   if (input.drink && !S.wolf.moving && S.water < 99) {
     S.water = Math.min(100, S.water + 30 * dt);
+    if (!S.tut.drinkHintDone) {   // she has learned it — the hint retires
+      S.tut.drinkHintDone = true;
+      if (S.prompt && S.prompt.text === DRINK_HINT) clearPrompt();
+    }
     if (!ws.clean && S.sickT <= 0 && S.foulCd <= 0) {
       S.sickT = 75;
       S.foulCd = 40;
@@ -3132,9 +3152,10 @@ function tutorialUpdate(dt) {
     T.redSeen = true;
     queueCallout('red');
   }
+  // only if she opens the map in the beginning: a first-days hint, never later
   if (!T.routeTaught && T.step >= 6 && S.senseBlend > 0.85) {
     T.routeTaught = true;
-    showPrompt('Click a place she knows — the map will show her the way.', [], 6);
+    if (day() <= 3) showPrompt('Click a place she knows — the map will show her the way.', [], 6);
   }
   if (!T.ownInkSeen && S.edges.some(e => e.state.startsWith('current'))) {
     T.ownInkSeen = true;
@@ -3437,6 +3458,10 @@ function prologueUpdate(dt) {
 
     // Beat 4 — first hunt, tuned generous
     case 4:
+      // "Run it down." retires the moment the chase is on or the elk is down —
+      // a bottom-line instruction that no longer applies must not linger
+      if (S.prompt && S.prompt.text === 'Run it down.'
+          && (S.elk.length === 0 || (S.elk[0] && S.elk[0].fleeing))) clearPrompt();
       if (S.elk.length === 0) {
         S.beat = 5; S.beatT = 0;
         S.prologueElk = false;
