@@ -372,6 +372,7 @@ function newGame() {
     ],
     gift: { given: false, taken: false },
     alarm: 0,                                    // the silence zone's rising light
+    townsfolk: [],                               // people (and pets) out of the houses when seen
     standoff: null, standoffCd: 0,               // rivals: {t, rivals:[{x,y,...}]}
     lichenJoined: false,
     // the fire picks its own summer day, once per year
@@ -2239,10 +2240,45 @@ function silenceUpdate(dt) {
       S.fear = Math.min(1, S.fear + 0.3);
       S.flickerT = 0.3;
       playBark();
-      say('Porch lights. Barking, house to house. Seen.');
+      say('Porch lights. Doors open. People spill out toward the pack. Seen.');
+      spawnTownsfolk();
     }
   } else {
     S.alarm = Math.max(0, S.alarm - dt * 0.15);
+  }
+  townsfolkUpdate(dt);
+}
+
+// When the pack is seen, people (and a dog or two) come out of the houses and
+// advance toward the wolves — only so far from their own yards — then, after a
+// moment, they turn back inside. Ephemeral: never saved.
+function spawnTownsfolk() {
+  const c = OBSTACLES.subdivision;
+  const ex = clamp(S.wolf.x, c.x0, c.x1), ey = clamp(S.wolf.y, c.y0, c.y1);
+  const span = (c.x1 - c.x0);
+  S.townsfolk = [];
+  const n = 3 + Math.floor(Math.random() * 3);
+  for (let i = 0; i < n; i++) {
+    const hx = ex + (Math.random() - 0.5) * span * 0.7;
+    const hy = ey + (Math.random() - 0.5) * (c.y1 - c.y0) * 0.3;
+    S.townsfolk.push({ x: hx, y: hy, hx, hy, t: 0, life: 6 + Math.random() * 4,
+      pet: Math.random() < 0.35, walk: 0, heading: 0 });
+  }
+}
+function townsfolkUpdate(dt) {
+  if (!S.townsfolk || !S.townsfolk.length) return;
+  for (let i = S.townsfolk.length - 1; i >= 0; i--) {
+    const p = S.townsfolk[i];
+    p.t += dt;
+    const retreat = p.t > p.life;
+    const goal = retreat ? { x: p.hx, y: p.hy } : { x: S.wolf.x, y: S.wolf.y };
+    const far = dist(p.x, p.y, p.hx, p.hy) > 240;   // they won't chase into the wild
+    const moving = retreat || !far;
+    const sp = (retreat ? 82 : 46) * (p.pet ? 1.3 : 1);
+    const a = Math.atan2(goal.y - p.y, goal.x - p.x);
+    if (moving) { p.x += Math.cos(a) * sp * dt; p.y += Math.sin(a) * sp * dt; p.walk += sp * dt; }
+    p.heading = a;
+    if (retreat && dist(p.x, p.y, p.hx, p.hy) < 24) S.townsfolk.splice(i, 1);
   }
 }
 

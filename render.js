@@ -1316,6 +1316,32 @@ function drawWorld() {
   }
   for (const e of S.elk) drawPrey(e);
 
+  // people (and a dog) spilling out of the houses when the pack is seen
+  if (S.townsfolk && S.townsfolk.length && S.era !== 'past') {
+    for (const p of S.townsfolk) {
+      const bob = Math.sin(p.walk * 0.14) * 2;
+      const dir = Math.cos(p.heading) >= 0 ? 1 : -1;
+      if (p.pet) {
+        ctx.fillStyle = 'rgba(58,48,40,0.92)';
+        ctx.beginPath(); ctx.ellipse(p.x, p.y + bob, 9, 5, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x + dir * 9, p.y - 3 + bob, 3.6, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(58,48,40,0.9)'; ctx.lineWidth = 2;   // legs
+        ctx.beginPath(); ctx.moveTo(p.x - 5, p.y + 4); ctx.lineTo(p.x - 5, p.y + 9);
+        ctx.moveTo(p.x + 5, p.y + 4); ctx.lineTo(p.x + 5, p.y + 9); ctx.stroke();
+      } else {
+        const lp = Math.sin(p.walk * 0.16) * 4;
+        ctx.strokeStyle = 'rgba(28,26,24,0.9)'; ctx.lineWidth = 3;   // legs
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y - 3 + bob); ctx.lineTo(p.x - lp * 0.5, p.y + 9);
+        ctx.moveTo(p.x, p.y - 3 + bob); ctx.lineTo(p.x + lp * 0.5, p.y + 9); ctx.stroke();
+        ctx.fillStyle = 'rgba(62,58,70,0.95)';   // coat
+        ctx.beginPath(); ctx.ellipse(p.x, p.y - 8 + bob, 5, 8, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(208,178,150,0.95)';   // head
+        ctx.beginPath(); ctx.arc(p.x, p.y - 18 + bob, 4, 0, Math.PI * 2); ctx.fill();
+      }
+    }
+  }
+
   // pups at the den, tumbling
   if (S.pups && !S.pups.traveling && S.pups.count > 0 && S.denSite) {
     for (let i = 0; i < S.pups.count; i++) {
