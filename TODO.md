@@ -905,3 +905,17 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
 - [x] Trees are circles/ellipses with soft imperfections, not many-sided
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
+
+## Part 29 — Prompt wording + touch controls (Arjun, 2026-07-27)
+
+- [x] Act I spring ground now matches the prologue's lush green (SEASON_GROUND[0]
+      #8fa06f -> #79ac54); summer/autumn/winter unchanged.
+- [x] The opening movement prompt reads "Walk — WASD or the arrow keys." (built
+      from moveCaps() so a remap shows the real keys), instead of "the arrow keys
+      move her, too." Fixes the WSAD confusion — the letters are spelled in order.
+- [x] The held prologue vista now says "press a key to exit" instead of "press
+      any key when you have seen it".
+- [ ] Touch devices (no keyboard) get on-screen controls instead of the "play on
+      a computer" card: a LEFT action panel (drink / smell / map) whose size
+      scales with the device so the same amount of land always shows, and a
+      MOVEMENT pad in the bottom-right corner.

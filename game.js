@@ -3189,7 +3189,7 @@ function tutorialUpdate(dt) {
   T.t += dt;
 
   if (!S.prompt) {
-    if (T.step === 2) stickyPrompt('Walk — the arrow keys move her, too.', moveCaps());
+    if (T.step === 2) stickyPrompt('Walk — ' + moveCaps().join('') + ' or the arrow keys.', moveCaps());
     if (T.step === 4) stickyPrompt(`She left you her map of this land. Press ${capOf('map')} to remember it.`, [capOf('map')]);
     if (T.step === 5) stickyPrompt(`${capOf('map')} again returns her to the land.`, [capOf('map')]);
     if (T.step === 8) stickyPrompt(`Prey leaves its scent on the land. Hold ${capOf('scent')} to smell the wind.`, [capOf('scent')]);
@@ -3468,7 +3468,7 @@ function prologueUpdate(dt) {
   switch (S.beat) {
     // Beat 1 — waking in the den: movement and scent, in the calmest place
     case 1:
-      if (S.beatT > 5 && !S.prompt && T.moved < 120) stickyPrompt('Walk — the arrow keys move her, too.', moveCaps());
+      if (S.beatT > 5 && !S.prompt && T.moved < 120) stickyPrompt('Walk — ' + moveCaps().join('') + ' or the arrow keys.', moveCaps());
       // before the world, the family: you first, then the pack, each named and
       // pointed out as it wakes
       if (T.moved >= 120 && !T._b1pack) {
@@ -3529,7 +3529,7 @@ function prologueUpdate(dt) {
       if (!T._b2held && dist(S.wolf.x, S.wolf.y, OVERLOOK.x, OVERLOOK.y) < 130) {
         T._b2held = true;
         S.vistaT = 3.4; S.vistaTMax = 3.4; S.inputLockT = 999; S.vistaWait = true;
-        setCaption('The valley. Whole.', 900, 'press any key when you have seen it');
+        setCaption('The valley. Whole.', 900, 'press a key to exit');
         // Willow appears and the map begins
         S.willow = {
           x: OVERLOOK.x - 60, y: OVERLOOK.y - 30, heading: Math.PI,
@@ -3712,7 +3712,7 @@ function prologueUpdate(dt) {
         S.ghostPulse = 3.6;
         S.shake = 6;
         recomputeGhosts();
-        setCaption('Three winters later.', 900, 'press any key when you have seen it');
+        setCaption('Three winters later.', 900, 'press a key to exit');
       }
       if (T._b8cut && !S.vistaWait && S.beatT > 9.5 && S.beat === 8) {
         S.beat = 9; S.beatT = 0;
