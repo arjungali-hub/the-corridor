@@ -2733,16 +2733,18 @@ function drawIntro() {
   ctx.font = `bold 15px ${FONT}`;
   ctx.fillStyle = C_PARCHMENT;
   ctx.globalAlpha = 0.55 + 0.45 * Math.sin(Date.now() / 420);
-  ctx.fillText('press any key', cx, cy + 90);
+  ctx.fillText(touchMode ? 'tap to begin' : 'press any key', cx, cy + 90);
   ctx.globalAlpha = 1;
   if (hasResumableSave()) {
     ctx.font = `14px ${FONT}`;
     ctx.fillStyle = '#b8ac8d';
-    ctx.fillText('R — resume the year from where you left off', cx, cy + 152);
+    ctx.fillText(touchMode ? 'tap to resume the year where you left off' : 'R — resume the year from where you left off', cx, cy + 152);
   }
-  ctx.font = `13px ${FONT}`;
-  ctx.fillStyle = '#8a8066';
-  ctx.fillText('O — options (keys, hold-to-toggle, text size)', cx, cy + 182);
+  if (!touchMode) {   // options are reached with the O key — no equivalent on touch
+    ctx.font = `13px ${FONT}`;
+    ctx.fillStyle = '#8a8066';
+    ctx.fillText('O — options (keys, hold-to-toggle, text size)', cx, cy + 182);
+  }
 }
 
 // The options screen (9a remap · 9b hold-toggle · 9d text scale). Reached with O
@@ -2803,7 +2805,84 @@ function drawPause() {
   ctx.fillText('paused', canvas.width / 2, canvas.height / 2 - 8);
   ctx.font = `${Math.round(13 * (OPTIONS ? OPTIONS.textScale : 1))}px ${FONT}`;
   ctx.fillStyle = 'rgba(160,152,132,0.85)';
-  ctx.fillText('any key to go on', canvas.width / 2, canvas.height / 2 + 22);
+  ctx.fillText(touchMode ? 'tap to go on' : 'any key to go on', canvas.width / 2, canvas.height / 2 + 22);
+}
+
+// ── touch controls (keyboard-less devices) ───────────────────────────────────
+// A phone/tablet visitor gets on-screen controls instead of the game being out
+// of reach: a MOVEMENT pad in the lower-right, and a column of ACTION buttons on
+// the left. Everything scales off the screen's shorter side, so the controls
+// take the same slice of the view on any device and leave the same land showing.
+// The layout is shared with the input code (main.js) so hit-tests and drawing
+// agree exactly — button slots keep fixed positions even as some unlock, so a
+// finger never lands on a button that just moved.
+function touchLayout() {
+  const w = canvas.width, h = canvas.height;
+  const u = Math.min(w, h);
+  const pr = clamp(u * 0.16, 66, 150);          // movement-pad radius
+  const m = clamp(u * 0.05, 18, 46);            // screen-edge margin
+  const pad = { x: w - m - pr, y: h - m - pr, r: pr };
+  const br = clamp(u * 0.072, 30, 60);          // action-button radius
+  const gap = br * 0.55;
+  const btns = [
+    { name: 'scent', label: 'Smell', enabled: true },
+    { name: 'drink', label: 'Drink', enabled: true },
+    // the map is usable once it is hers — plus the two prologue beats that ask
+    // for the same key: the beat-6 lean-in, and the beat-9 vigil (holding Map =
+    // input.sense is how she keeps her mother company as the map is handed down)
+    { name: 'map',   label: 'Map',   enabled: (((typeof mapAllowed === 'function') && mapAllowed())
+                                               || !!(S && S.mode === 'prologue' && (S.beat === 6
+                                                     || (S.beat === 9 && S.tut && S.tut._b9ask && !S.inherited)))) },
+    { name: 'wait',  label: 'Wait',  enabled: !!(S && S.tut && S.tut.fTaught && S.mode === 'play') },
+  ];
+  const totalH = btns.length * br * 2 + (btns.length - 1) * gap;
+  let by = Math.max(br + m, h / 2 - totalH / 2 + br);
+  const bx = m + br;
+  for (const b of btns) { b.x = bx; b.y = by; b.r = br; by += br * 2 + gap; }
+  return { pad, btns, u };
+}
+
+function drawTouchControls() {
+  if (!touchMode || !S) return;
+  if (S.mode !== 'play' && S.mode !== 'prologue') return;
+  if (S.vistaWait) return;
+  if (typeof gamePaused !== 'undefined' && gamePaused) return;
+  if (typeof optionsOpen !== 'undefined' && optionsOpen) return;
+  const L = touchLayout();
+  const held = (typeof touchState !== 'undefined') ? touchState : { joyId: null, joyDX: 0, joyDY: 0, btn: {} };
+  resetTransform();
+  ctx.save();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineWidth = 2;
+  ctx.font = `bold ${Math.round(L.u * 0.026)}px ${FONT}`;
+  for (const b of L.btns) {
+    const pressed = (b.name in held.btn);
+    const lit = pressed
+      || (b.name === 'map' && S.senseBlend > 0.5)
+      || (b.name === 'wait' && !!S.zoneAnchor)
+      || (b.name === 'scent' && input.scent)
+      || (b.name === 'drink' && input.drink);
+    ctx.globalAlpha = b.enabled ? (lit ? 0.92 : 0.5) : 0.16;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = lit ? '#c9b98e' : 'rgba(20,18,10,0.5)';
+    ctx.fill();
+    ctx.strokeStyle = '#efe6cd'; ctx.stroke();
+    ctx.fillStyle = lit ? '#241d10' : '#efe6cd';
+    ctx.fillText(b.label, b.x, b.y);
+  }
+  // movement pad — outer ring and a knob that follows the thumb
+  ctx.globalAlpha = 0.42;
+  ctx.beginPath(); ctx.arc(L.pad.x, L.pad.y, L.pad.r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(20,18,10,0.5)'; ctx.fill();
+  ctx.strokeStyle = '#efe6cd'; ctx.stroke();
+  const active = held.joyId !== null && held.joyId !== undefined;
+  const kx = L.pad.x + (active ? held.joyDX : 0);
+  const ky = L.pad.y + (active ? held.joyDY : 0);
+  ctx.globalAlpha = active ? 0.85 : 0.6;
+  ctx.beginPath(); ctx.arc(kx, ky, L.pad.r * 0.42, 0, Math.PI * 2);
+  ctx.fillStyle = '#efe6cd'; ctx.fill();
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 // ── the ending: the satellite dissolve ───────────────────────────────────────
@@ -3184,5 +3263,6 @@ function draw() {
   drawPrompt();
   drawCaption();
   drawHelp();
+  drawTouchControls();
   if (typeof gamePaused !== 'undefined' && gamePaused) drawPause();
 }

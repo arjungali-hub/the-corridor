@@ -915,7 +915,16 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       move her, too." Fixes the WSAD confusion — the letters are spelled in order.
 - [x] The held prologue vista now says "press a key to exit" instead of "press
       any key when you have seen it".
-- [ ] Touch devices (no keyboard) get on-screen controls instead of the "play on
-      a computer" card: a LEFT action panel (drink / smell / map) whose size
-      scales with the device so the same amount of land always shows, and a
-      MOVEMENT pad in the bottom-right corner.
+- [x] Touch devices (no keyboard) get on-screen controls instead of the "play on
+      a computer" card: a LEFT action column (Smell / Drink / Map / Wait) and a
+      MOVEMENT pad in the bottom-right corner. Everything scales off the screen's
+      shorter side (clamped), so the controls take the same slice of the view on
+      any device and leave the same land showing. touchMode (set by the boot gate
+      via isTouchOnly) drives it; touchLayout() is shared by render + input so
+      hit-tests match what's drawn. The pad gives 8-way movement (per-axis
+      thresholds); Smell/Drink are held verbs, Map mirrors the map key (toggle +
+      input.sense so the beat-9 vigil and beat-6 lean-in still work — Map is
+      force-enabled in those two beats even before the map is hers), Wait = F.
+      capOf() now returns button names on touch, so every teaching prompt reads
+      "Hold Smell…", "Press Map…" etc. Intro/vista/pause say "tap…". Removed the
+      block card. Harness: layout/draw/capOf/pad-drive/held-verb all covered.

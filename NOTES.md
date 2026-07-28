@@ -950,3 +950,15 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 #79ac54 (G-R 14 -> 51), so the prologue land reads clearly green. The real
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
+
+## on-screen touch controls (2026-07-27)
+
+A keyboard-less visitor used to get a "play on a computer" card. Now the game
+boots for them in touchMode (set by the boot gate via isTouchOnly): a movement
+pad lower-right, an action column (Smell/Drink/Map/Wait) on the left, both scaled
+off the screen's shorter side so the controls take the same slice of view on any
+device. touchLayout() (render.js) is the single source of geometry, shared with
+the touch handlers in main.js so hit-tests match the drawing. Map mirrors the map
+key (toggle + input.sense) and is force-enabled in beats 6 and 9 so the lean-in
+and the vigil still work before the map is inherited. capOf() returns button
+names in touchMode, so every teaching prompt reads in touch terms for free.

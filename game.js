@@ -304,6 +304,12 @@ function distToEdgePath(e) {
 
 // ── game state ───────────────────────────────────────────────────────────────
 
+// Set true by the boot gate on a keyboard-less touch device (main.js). When it
+// is on, the game draws on-screen controls and the teaching text names the
+// buttons ("Smell", "Drink", "Map") instead of keys. `var` so every file can
+// read it without a temporal-dead-zone hazard.
+var touchMode = false;
+
 const input = { up: false, down: false, left: false, right: false, sense: false, scent: false, drink: false };
 
 let S = null;
@@ -543,6 +549,12 @@ function releaseVista() {
 // and keycaps read the LIVE binding, so a player who moved WASD to IJKL is taught
 // IJKL. Arrow keys always move and are never remapped.
 function capOf(action) {
+  // On a touch device there are no keys — the teaching text names the on-screen
+  // buttons instead, so "Hold E to smell" becomes "Hold Smell to smell".
+  if (touchMode) {
+    const label = { map: 'Map', scent: 'Smell', drink: 'Drink' }[action];
+    if (label) return label;
+  }
   const k = (typeof OPTIONS !== 'undefined' && OPTIONS && OPTIONS.bindings) ? OPTIONS.bindings[action] : null;
   if (!k) return '?';
   return k === ' ' ? 'Space' : k.toUpperCase();
@@ -3189,11 +3201,11 @@ function tutorialUpdate(dt) {
   T.t += dt;
 
   if (!S.prompt) {
-    if (T.step === 2) stickyPrompt('Walk — ' + moveCaps().join('') + ' or the arrow keys.', moveCaps());
+    if (T.step === 2) stickyPrompt(touchMode ? 'Walk — the pad, lower-right.' : ('Walk — ' + moveCaps().join('') + ' or the arrow keys.'), touchMode ? [] : moveCaps());
     if (T.step === 4) stickyPrompt(`She left you her map of this land. Press ${capOf('map')} to remember it.`, [capOf('map')]);
     if (T.step === 5) stickyPrompt(`${capOf('map')} again returns her to the land.`, [capOf('map')]);
     if (T.step === 8) stickyPrompt(`Prey leaves its scent on the land. Hold ${capOf('scent')} to smell the wind.`, [capOf('scent')]);
-    if (T.step === 10) stickyPrompt('Run the prey until it tires. F asks the pack to wait in ambush.', ['F']);
+    if (T.step === 10) stickyPrompt(`Run the prey until it tires. ${touchMode ? 'Wait' : 'F'} asks the pack to wait in ambush.`, [touchMode ? 'Wait' : 'F']);
   }
 
   switch (T.step) {
@@ -3529,7 +3541,7 @@ function prologueUpdate(dt) {
       if (!T._b2held && dist(S.wolf.x, S.wolf.y, OVERLOOK.x, OVERLOOK.y) < 130) {
         T._b2held = true;
         S.vistaT = 3.4; S.vistaTMax = 3.4; S.inputLockT = 999; S.vistaWait = true;
-        setCaption('The valley. Whole.', 900, 'press a key to exit');
+        setCaption('The valley. Whole.', 900, touchMode ? 'tap to exit' : 'press a key to exit');
         // Willow appears and the map begins
         S.willow = {
           x: OVERLOOK.x - 60, y: OVERLOOK.y - 30, heading: Math.PI,
@@ -3712,7 +3724,7 @@ function prologueUpdate(dt) {
         S.ghostPulse = 3.6;
         S.shake = 6;
         recomputeGhosts();
-        setCaption('Three winters later.', 900, 'press a key to exit');
+        setCaption('Three winters later.', 900, touchMode ? 'tap to exit' : 'press a key to exit');
       }
       if (T._b8cut && !S.vistaWait && S.beatT > 9.5 && S.beat === 8) {
         S.beat = 9; S.beatT = 0;

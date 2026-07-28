@@ -2,6 +2,7 @@
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+if (canvas.style) canvas.style.touchAction = 'none';   // we own every touch — no browser scroll/zoom
 
 function resize() {
   canvas.width = window.innerWidth;
@@ -135,12 +136,97 @@ window.addEventListener('keyup', (ev) => {
 
 // clicking the raised map plans a route to a known place
 canvas.addEventListener('click', (ev) => {
+  if (touchMode) return;   // touch handles its own taps (and a touch fires a synthetic click)
   resumeAudio();
   if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
   const wx = (ev.clientX - canvas.width / 2) / S.cam.scale + S.cam.x;
   const wy = (ev.clientY - canvas.height / 2) / S.cam.scale + S.cam.y;
   mapClick(wx, wy);
 });
+
+// ── touch input (keyboard-less devices) ──────────────────────────────────────
+// A movement pad (lower-right) drives the four direction inputs — including
+// diagonals — and a column of action buttons (left) drives the held verbs and
+// the map/wait toggles. Each finger is tracked by its identifier so a player can
+// steer with one thumb while smelling with the other. Geometry comes from
+// touchLayout() (render.js) so hit-tests match exactly what is drawn.
+var touchState = { joyId: null, joyDX: 0, joyDY: 0, btn: {} };
+
+function clearMoveInput() { input.up = input.down = input.left = input.right = false; }
+
+function updateJoy(px, py, L) {
+  let dx = px - L.pad.x, dy = py - L.pad.y;
+  const mag = Math.hypot(dx, dy) || 0.0001;
+  if (mag > L.pad.r) { dx = dx / mag * L.pad.r; dy = dy / mag * L.pad.r; }   // clamp the knob to the ring
+  touchState.joyDX = dx; touchState.joyDY = dy;
+  const dead = L.pad.r * 0.28, t = L.pad.r * 0.22;
+  if (mag < dead) { clearMoveInput(); return; }
+  input.left = dx < -t; input.right = dx > t;   // per-axis thresholds give 8-way movement
+  input.up = dy < -t; input.down = dy > t;
+}
+
+function pressTouchButton(name) {
+  if (name === 'scent') input.scent = true;
+  else if (name === 'drink') input.drink = true;
+  else if (name === 'map') { toggleMap(); input.sense = true; }   // mirrors the map key: toggles, and holds for the beat-9 vigil
+  else if (name === 'wait') togglePackStay();
+}
+function releaseTouchButton(name) {
+  if (name === 'scent') input.scent = false;
+  else if (name === 'drink') input.drink = false;
+  else if (name === 'map') input.sense = false;
+}
+
+function classifyTouch(px, py, L) {
+  if (Math.hypot(px - L.pad.x, py - L.pad.y) <= L.pad.r * 1.3) return { zone: 'move' };
+  for (const b of L.btns) {
+    if (b.enabled && Math.hypot(px - b.x, py - b.y) <= b.r * 1.25) return { zone: 'btn', btn: b };
+  }
+  return { zone: 'world' };
+}
+
+canvas.addEventListener('touchstart', (ev) => {
+  resumeAudio();
+  ev.preventDefault();
+  if (crashed) { try { location.reload(); } catch (_) {} return; }
+  // full-screen "any key" moments: a single tap advances them, and nothing else
+  if (S && S.mode === 'intro') {
+    if (hasResumableSave() && loadGame()) return;
+    clearSave(); beginFromIntro(); return;
+  }
+  if (typeof gamePaused !== 'undefined' && gamePaused) { gamePaused = false; return; }
+  if (S && S.vistaWait) { releaseVista(); return; }
+  const L = touchLayout();
+  for (const t of ev.changedTouches) {
+    const c = classifyTouch(t.clientX, t.clientY, L);
+    if (c.zone === 'move') { touchState.joyId = t.identifier; updateJoy(t.clientX, t.clientY, L); }
+    else if (c.zone === 'btn') { touchState.btn[c.btn.name] = t.identifier; pressTouchButton(c.btn.name); }
+    else if (S && S.senseBlend > 0.5) {   // a tap on the raised map plans a route
+      const wx = (t.clientX - canvas.width / 2) / S.cam.scale + S.cam.x;
+      const wy = (t.clientY - canvas.height / 2) / S.cam.scale + S.cam.y;
+      mapClick(wx, wy);
+    }
+  }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', (ev) => {
+  if (touchState.joyId === null) return;
+  const L = touchLayout();
+  for (const t of ev.changedTouches) {
+    if (t.identifier === touchState.joyId) { updateJoy(t.clientX, t.clientY, L); ev.preventDefault(); }
+  }
+}, { passive: false });
+
+function endTouches(ev) {
+  for (const t of ev.changedTouches) {
+    if (t.identifier === touchState.joyId) { touchState.joyId = null; touchState.joyDX = touchState.joyDY = 0; clearMoveInput(); }
+    for (const name in touchState.btn) {
+      if (touchState.btn[name] === t.identifier) { releaseTouchButton(name); delete touchState.btn[name]; }
+    }
+  }
+}
+canvas.addEventListener('touchend', endTouches);
+canvas.addEventListener('touchcancel', endTouches);
 
 // right-click also toggles the map
 canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
@@ -153,11 +239,12 @@ window.addEventListener('blur', () => {
 
 // A reload is a clean slate by default: the whole game starts over, prologue
 // included. A save is never loaded at boot — but a year in progress can be
-// reclaimed from the intro screen with R; any other key clears it.
-// (newGame() runs in the boot gate at the bottom, unless this is a phone.)
+// reclaimed from the intro screen with R (or a tap, on touch); any other key
+// clears it. (newGame() runs in the boot at the bottom.)
 
-// A phone visitor can't control a keyboard game — greet them kindly instead of
-// handing them a canvas they can't play. Desktop is unaffected.
+// A keyboard-less visitor (phone/tablet) still gets the game — with on-screen
+// controls (touchMode) instead of a keyboard. A device with a fine pointer keeps
+// the keyboard game untouched.
 function isTouchOnly() {
   try {
     if (typeof window === 'undefined') return false;
@@ -167,20 +254,6 @@ function isTouchOnly() {
       || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0);
     return !!touch && noFine;
   } catch (_) { return false; }
-}
-function drawMobileCard() {
-  if (!ctx) return;
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.fillStyle = '#191b16';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#d8cfb8';
-  ctx.font = 'bold 30px Georgia, "Times New Roman", serif';
-  ctx.fillText('THE CORRIDOR', canvas.width / 2, canvas.height / 2 - 40);
-  ctx.font = 'italic 16px Georgia, "Times New Roman", serif';
-  ctx.fillStyle = '#a29b86';
-  ctx.fillText('The Corridor is a keyboard game.', canvas.width / 2, canvas.height / 2 + 12);
-  ctx.fillText('Please visit on a computer to play.', canvas.width / 2, canvas.height / 2 + 38);
 }
 
 let lastT = 0;
@@ -204,13 +277,8 @@ function frame(t) {
   }
   requestAnimationFrame(frame);
 }
-// Boot gate: a keyboard-less phone gets the kind card; everyone else gets the game.
-if (isTouchOnly()) {
-  const el = typeof document !== 'undefined' && document.getElementById && document.getElementById('loading');
-  if (el) el.classList.add('hidden');
-  drawMobileCard();
-  window.addEventListener('resize', drawMobileCard);
-} else {
-  newGame();
-  if (typeof requestAnimationFrame === 'function') requestAnimationFrame(frame);
-}
+// Boot: everyone gets the game. A keyboard-less device runs in touchMode, which
+// turns on the on-screen controls and swaps teaching text over to button names.
+touchMode = isTouchOnly();
+newGame();
+if (typeof requestAnimationFrame === 'function') requestAnimationFrame(frame);
