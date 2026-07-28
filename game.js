@@ -4313,15 +4313,31 @@ function storageOk() { return typeof localStorage !== 'undefined'; }
 // and preferences survive New Year (which only clears SAVE_KEY). Colorblind
 // scent safety (9c) and the flash ceiling (9f) are always-on and live in
 // render, not here.
-const OPTIONS_KEY = 'the-corridor-options-v1';
+// v2: v1 could persist a scrambled movement set from an early remap session
+// (e.g. "s is right, a is down"); bumping the key retires those stale bindings so
+// a returning player gets the correct WASD defaults back.
+const OPTIONS_KEY = 'the-corridor-options-v2';
 const DEFAULT_BINDINGS = { up: 'w', down: 's', left: 'a', right: 'd', map: ' ', scent: 'e', drink: 'q' };
 let OPTIONS = { bindings: { ...DEFAULT_BINDINGS }, holdToggle: false, textScale: 1 };
+// A persisted set is only usable if every action has a key and no key drives two
+// actions; anything else is corruption and we fall back to the defaults rather
+// than ship scrambled controls. (A clean custom remap is still a valid set.)
+function bindingsValid(b) {
+  const seen = new Set();
+  for (const a of ['up', 'down', 'left', 'right', 'map', 'scent', 'drink']) {
+    const k = b[a];
+    if (typeof k !== 'string' || k.length === 0 || seen.has(k)) return false;
+    seen.add(k);
+  }
+  return true;
+}
 function loadOptions() {
   if (!storageOk()) return;
   try {
     const d = JSON.parse(localStorage.getItem(OPTIONS_KEY) || 'null');
     if (d && typeof d === 'object') {
       OPTIONS.bindings = { ...DEFAULT_BINDINGS, ...(d.bindings || {}) };
+      if (!bindingsValid(OPTIONS.bindings)) OPTIONS.bindings = { ...DEFAULT_BINDINGS };
       if (typeof d.holdToggle === 'boolean') OPTIONS.holdToggle = d.holdToggle;
       if (typeof d.textScale === 'number') OPTIONS.textScale = clamp(d.textScale, 1, 2);
     }

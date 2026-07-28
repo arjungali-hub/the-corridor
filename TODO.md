@@ -910,6 +910,13 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
 
 - [x] Act I spring ground now matches the prologue's lush green (SEASON_GROUND[0]
       #8fa06f -> #79ac54); summer/autumn/winter unchanged.
+- [x] Scrambled movement ("still says WSAD"; "s is right, a is down") traced to a
+      stale persisted binding set in the browser, not the code (DEFAULT_BINDINGS
+      has always been correct WASD, and loadOptions merged the old blob over it).
+      Bumped OPTIONS_KEY v1 -> v2 so those stale bindings are retired (returning
+      player gets WASD back), and loadOptions now rejects a structurally-corrupt
+      set (missing/duplicate key) back to the defaults. Harness: defaults spell
+      WASD; a duplicate-key set self-heals.
 - [x] The opening movement prompt reads "Walk — WASD or the arrow keys." (built
       from moveCaps() so a remap shows the real keys), instead of "the arrow keys
       move her, too." Fixes the WSAD confusion — the letters are spelled in order.
