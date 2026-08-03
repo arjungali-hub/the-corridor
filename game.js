@@ -3879,17 +3879,34 @@ function beginFromIntro() {
 
 let audioCtx = null;
 let masterGain = null;   // every voice routes through here; M closes the valve
-let muted = false;
+let muted = false;       // the player's manual mute (M)
+let tabHidden = false;   // an auto-mute while the tab is in the background
+// The valve is shut if EITHER the player muted or the tab is hidden — so coming
+// back to a foregrounded tab never overrides a manual mute.
+function applyMasterGain() {
+  if (masterGain) masterGain.gain.value = (muted || tabHidden) ? 0 : 1;
+}
 function getAudioCtx() {
   const AC = (typeof window !== 'undefined') && (window.AudioContext || window.webkitAudioContext);
   if (!AC) return null;
   if (!audioCtx) {
     audioCtx = new AC();
     masterGain = audioCtx.createGain();
-    masterGain.gain.value = muted ? 0 : 1;
+    masterGain.gain.value = (muted || tabHidden) ? 0 : 1;
     masterGain.connect(audioCtx.destination);
   }
   return audioCtx;
+}
+
+// Called when the tab is hidden/shown (main.js wires the visibility events). The
+// ambient bed keeps running at gain 0 while hidden, then simply reopens — no
+// constant sound bleeding out of a backgrounded tab.
+function setTabHidden(h) {
+  tabHidden = !!h;
+  if (!tabHidden && audioCtx && audioCtx.state === 'suspended' && typeof audioCtx.resume === 'function') {
+    try { audioCtx.resume(); } catch (_) {}   // some browsers suspend a hidden tab's context
+  }
+  applyMasterGain();
 }
 
 // Browsers create the AudioContext SUSPENDED under autoplay policy (all of
@@ -3909,7 +3926,7 @@ function resumeAudio() {
 function toggleMute() {
   muted = !muted;
   if (!masterGain) getAudioCtx();
-  if (masterGain) masterGain.gain.value = muted ? 0 : 1;
+  applyMasterGain();
   if (S) say(muted ? 'Quiet.' : 'The land has its sounds again.');
 }
 

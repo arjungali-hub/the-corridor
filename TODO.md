@@ -906,6 +906,16 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
 
+## Part 30 — Auto-mute on tab leave (Arjun, 2026-08-02)
+
+- [x] Leaving the tab mutes the land (the constant ambience shouldn't play into a
+      backgrounded tab); returning reopens it. A separate tabHidden flag ORs with
+      the manual mute at the master gain (applyMasterGain), so returning never
+      overrides an M-mute. Wired on visibilitychange, backed by window blur/focus;
+      setTabHidden also resumes a context the browser suspended while hidden.
+      Harness: auto-mute sets/clears, resumes the context, and a manual mute
+      survives a leave/return.
+
 ## Part 29 — Prompt wording + touch controls (Arjun, 2026-07-27)
 
 - [x] Act I spring ground now matches the prologue's lush green (SEASON_GROUND[0]

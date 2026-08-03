@@ -235,6 +235,20 @@ window.addEventListener('blur', () => {
   input.up = input.down = input.left = input.right = input.sense = input.scent = input.drink = false;
 });
 
+// Leaving the tab mutes the land (its constant ambience shouldn't play into a
+// tab you've walked away from); returning reopens the valve — unless you had
+// muted by hand, which setTabHidden preserves. visibilitychange is the reliable
+// signal; blur/focus back it up for browsers that fire it late.
+function goHidden() { if (typeof setTabHidden === 'function') setTabHidden(true); }
+function goVisible() { if (typeof setTabHidden === 'function') setTabHidden(false); }
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) goHidden(); else goVisible();
+  });
+}
+window.addEventListener('blur', goHidden);
+window.addEventListener('focus', goVisible);
+
 // ── boot ─────────────────────────────────────────────────────────────────────
 
 // A reload is a clean slate by default: the whole game starts over, prologue
