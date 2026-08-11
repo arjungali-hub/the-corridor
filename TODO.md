@@ -906,6 +906,255 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
 
+## Part 32 — THE FUN PASS (Arjun, 2026-08-11)
+
+The game is finished and it works. It is also not fun: two verbs (open the map,
+hunt), neither deepening over a year; survival is a pressure, never a pull; the
+pack only shrinks; nothing accumulates. This adds the missing engine — a hunt
+with a skill ceiling, a pack that grows, a bloodline across years, goals that
+teach mastery, and feedback that makes it feel good.
+
+**The explicit trade (authorized):** some austerity is spent on purpose. Numbers
+go up on screen. A level-up is a small celebration. Where the choice is
+"satisfying" vs "restrained", choose satisfying. The thesis survives because the
+new systems CARRY it (the bloodline, Part 4) — not because the game stays quiet.
+Do not soften these back toward solemnity in the name of tone.
+
+Strict order 1→7. Parts 1–3 are the fun engine (stopping after 3 already
+transforms the game). Part 4 is what makes it replayable and must not be skipped
+for Part 5. After each part: harness green (`npm test`), `npm run layout` if
+data.js geometry moved, **a browser play pass** (this order is all feel),
+NOTES.md line, CLAUDE.md amended where a locked rule is superseded, commit+push.
+
+Never in this order: rebuilding the map/tear/ending systems; touching the
+prologue except the 1.7 lessons; multiplayer, crafting, inventory; a skill TREE
+(traits grow by doing, never by spending points).
+
+### Part 1 — The hunt gets a skill ceiling (stalk → ambush → chase)
+
+- [ ] 1.1 Prey `alert` (0..1) + `alertState`: grazing <0.35 (head down, no
+      tracking), wary 0.35–0.7 (head up, stops feeding, orients, drifts),
+      alarmed 0.7–0.999 (trots off, herd bunches), fleeing 1.0 (sprint).
+- [ ] 1.1 Alertness RISE per second while a wolf is inside `detectR`, summed:
+      base `0.9 * clamp01(1 - d/detectR)`; wind (via `windAt`) upwind ×2.6 /
+      crosswind ×1.0 / downwind ×0.45 by dot of wind vs (animal→wolf), dot>0.4
+      upwind, dot<-0.4 downwind; motion sprint ×1.5 / walk ×1.0 / crouch ×0.35;
+      cover (tree/forest disc or tall grass) ×0.55; light via `daylight()` full
+      day ×1.15 / night ×0.7; herd transmission — any animal reaching alarmed
+      raises herd-mates within 260u at +0.5/s.
+- [ ] 1.1 Alertness FALL −0.32/s with no wolf inside `detectR`, but never below
+      0.2 for 25 s after a full flee (no immediate re-stalk).
+- [ ] 1.2 The crouch verb: sustained `crouch` input, default **Shift**, added to
+      `OPTIONS.bindings` / `SLOT_FOR` / `REBIND_ACTIONS` / `HELD_SLOTS` (so
+      hold-toggle works) + a touch button. Speed ×0.42, alert contribution
+      ×0.35, sprite low with a slower gait. Cannot crouch while
+      injured-sprinting, on the road, or during a chase (auto-release).
+- [ ] 1.3 The ambush window: within `ambushR` (~110u) of a grazing/wary animal,
+      an ambush is available — contextual cue + commit on the existing
+      interact/attack input (**add no new key if one can serve**; tap the crouch
+      key while crouched). From grazing → prey enters the chase at 40% stamina
+      and −12% flee speed for 2 s (a stumble); on small prey, an outright kill.
+      From wary → 70% stamina, no stumble. Blown (alarmed/fleeing before commit)
+      → full stamina, full speed, 25 s jumpy floor; most blown stalks should end
+      in escape — that is the teacher.
+- [ ] 1.4 The chase keeps its logic; prey stamina drain scales with active
+      pursuers `1 + 0.25*(pursuers-1)` capped ×2; catch still requires spent
+      (stamina ≤0.12) AND adjacent.
+- [ ] 1.5 The pack in the stalk: packmates in the zone crouch when Aspen
+      crouches and hold position (contributing alert at the crouched rate). A
+      packmate blundering upright inside `detectR` is the main early failure
+      source — this teaches F as a stalking tool. Once, contextually, on the
+      first spoiled stalk: `'Fen went ahead of her. The elk had its head up
+      before she was close.'` + the hint that F holds them.
+- [ ] 1.6 Reading the stalk: a persistent **wind indicator** (drift motes or an
+      edge arrow — now load-bearing info); **alert pips** over prey (raised-head
+      marker at wary, stronger at alarmed; prey visibly lifts its head — shape
+      and posture, no numeric bar); an **ambush cue** (tightening vignette/pulse
+      on the target + key prompt), unmissable the first three times via `S.tut`,
+      then quiet.
+- [ ] 1.7 Teaching: first hunt teaches crouch (`'Low. Slow. The wind in her
+      face.'`); first blown-upwind stalk teaches wind (`'The wind carried her
+      ahead of herself. It knew before it saw.'`); first successful ambush names
+      it (`'Close enough to choose the moment.'`). Each once, `S.tut`, saved.
+- [ ] 1 Harness: upwind vs downwind rates differ by the multipliers; crouch cuts
+      rise and speed; ambush from grazing = 40% stamina, from wary = 70%; a
+      blown stalk sets the 25 s floor; herd transmission alarms within 260u;
+      pursuers scale drain; catch still needs spent+adjacent; a packmate upright
+      inside `detectR` raises alert at the upright rate.
+
+### Part 2 — Prey species with distinct tactics
+
+- [ ] 2 Add a `species` field and per-species stats to `HERDS`:
+      **Elk** food 45, speed 272, stamina high, detectR 300, ambushR 120 —
+      DANGEROUS: needs ≥2 pursuers or the catch fails and the elk turns, 35%
+      chance to injure that wolf (existing injury system, no gore); front-on
+      approach doubles injury chance. Teaches pack coordination.
+      **Deer** 26, 296, low, detectR 420 (skittish), ambushR 95 — solo-able only
+      via a clean ambush; wind and cover mandatory. Teaches the stalk.
+      **Hare** 7, 330 (erratic), very low, detectR 180, ambushR 70 — NEW, always
+      everywhere year-round, ambush = instant kill, tiny food. The
+      anti-death-spiral valve and lean-winter filler.
+      **Cattle** 60, 190, very low, detectR 200, ambushR 130 — slow, rich,
+      watched; conflict ledger unchanged. The greedy option.
+- [ ] 2 Seasonal availability layered on the existing squeeze: hare ×1 all year
+      everywhere; deer plentiful spring/summer, ×2 autumn, ×3 winter; elk ×1
+      until autumn, ×2.5 autumn, none in winter east (existing rule); cattle
+      unchanged. Net: summer fat and forgiving, autumn demands pack elk hunts,
+      winter is hares and desperation — a difficulty curve driven by what you
+      can eat.
+- [ ] 2 Hares spawn as many small scattered singletons (not herds), respawning
+      on a ~40 s timer near cover.
+- [ ] 2 Harness: each species carries its stat block; a solo elk catch fails and
+      can injure; a two-wolf elk catch succeeds; hare ambush is an instant kill;
+      hares exist in every season; per-species seasonal respawn multipliers.
+
+### Part 3 — The pack grows (the progression engine)
+
+- [ ] 3.1 Three trait counters per wolf (and Aspen): **Hunting** +1 within 200u
+      of a kill, +2 as a pursuer at the catch; **Nerve** +2 crossing road/rail
+      with no strike or balk, +1 surviving a near-miss, +2 a won
+      standoff/posture; **Endurance** +1 per 1200u travelled while following.
+- [ ] 3.1 Tiers (all three tracks): untried 0–14, capable 15–39, seasoned 40–79,
+      prime 80+. Effects multiplicative on existing values —
+      Hunting: chase speed ×0.92/×1.00/×1.06/×1.12, prey drain
+      ×0.9/×1.00/×1.15/×1.30; Nerve: balk threshold 0.45/0.55 (current)/0.68/
+      0.80; Endurance: food drain ×1.06/×1.00/×0.94/×0.88, travel
+      ×0.96/×1.00/×1.05/×1.09.
+- [ ] 3.2 Yearlings grow up: Alder and Fen start at `youth` 0.55 on speed,
+      hunting contribution and nerve, rising ONLY through participation
+      (`youth += 0.006` per hunting/nerve gain event, capped 1.0 by autumn). A
+      protected yearling ends the year ~0.7; an invested one reaches 1.0 and
+      earns tiers normally. The central risk/reward: take them along and they
+      become hunters, keep them safe and they stay children.
+- [ ] 3.3 Roster read-out: each wolf shows their name + three small tier marks
+      (shape/position, not colour alone), visibly filling across a year.
+- [ ] 3.4 Loss costs a build — preserve the intent; add NO resurrection or
+      replacement mechanic.
+- [ ] 3 Harness: each gain event increments the right counter by the right
+      amount; tiers flip at the stated values; effects apply multiplicatively to
+      chase speed, prey drain, balk threshold, food drain, travel speed; youth
+      rises only on participation and is capped; traits + youth survive
+      save/load.
+
+### Part 4 — The bloodline: progression that survives the year
+
+- [ ] 4.1 A legacy record under its OWN key (`the-corridor-legacy-v1`), never
+      cleared by `clearSave()` or New Year — only by an explicit "forget the
+      bloodline" on the legacy screen: `{ generation, years[] (outcome,
+      daysLived, packEnd, notableWolf; last 10), heirs[] (name + halved traits),
+      inheritedWays[] (edgeIds), unlocks{} }`.
+- [ ] 4.2 On ANY ending (arrived / failed / dead — a bloodline continues even
+      when its leader does not): **heirs** — every wolf alive at the end carries
+      its three counters at 50% floored; surviving yearlings become adults
+      (`youth` 1.0) and KEEP what they learned; next year's pack is built from
+      heirs first, topped up with untried newcomers to a roster of four.
+- [ ] 4.2 **Inherited ways** — every `foundPath` walked into solid ink carries
+      forward as inherited (amber) ink next year: the player's own map becomes
+      the next generation's frozen inheritance. Build exactly this way; it is
+      the thesis as a mechanic.
+- [ ] 4.2 **And it will be wrong** — each new generation activates one more human
+      obstacle from a defined escalation list (a second construction footprint,
+      an extended subdivision, a new rail spur, a widened powerline) and it TEARS
+      one of the inherited ways the player earned last year: *I walked this. It
+      worked. It is gone.* Escalation caps after 4 generations.
+- [ ] 4.2 Generation counter + the bloodline's best year on the intro; New Year
+      (R) starts the next generation, not a reset.
+- [ ] 4.3 Unlocks (modest, earned, never gating): finish any year → "the long
+      year" (a longer, harder calendar) at the intro; finish with no losses →
+      next founding pack starts one Hunting tier higher; reach prime in any track
+      → that wolf's name persists in the bloodline's story; three generations →
+      the **legacy map** (every generation's route overlaid on one satellite
+      frame — also the best shareable image).
+- [ ] 4.4 The legacy screen, after the ending card and before the intro: the
+      generation, the outcome, which wolves survived and what they became, which
+      ways carried forward, and (gen 2+) previous generations' routes ghosted
+      beneath. Then "Press any key to begin the next year."
+- [ ] 4 Harness: legacy survives `clearSave()` and New Year; traits carry at
+      50%; surviving yearlings adult with traits intact; solid found-ways become
+      inherited ink next generation; exactly one inherited way is torn per
+      generation; escalation caps at 4; unlocks fire at their conditions.
+
+### Part 5 — Goals that teach mastery
+
+Achievements as a CURRICULUM, not a checklist — each points at a system worth
+learning. Stored in the legacy record (they persist across years).
+
+- [ ] 5.1 Hunting: *Downwind* (10 ambush kills); *Patience* (an ambush from
+      grazing on an elk); *The Whole Pack* (an elk with ≥3 pursuers); *Lean
+      Season* (survive a full winter month on hares alone).
+- [ ] 5.1 Map: *Cartographer* (bridge every tear in one year); *Her Ways, Mine*
+      (carry five found-ways into the next generation); *Blind Faith* (reach a
+      node by a planned route without raising the map en route).
+- [ ] 5.1 Pack: *She Taught Them* (both yearlings reach capable Hunting);
+      *Whole* (a year with no losses); *Prime* (any wolf to prime in any track).
+- [ ] 5.1 Nerve: *Through Their Ground, Unseen* (cross the western territory
+      with no posture triggered); *Quiet Neighbour* (finish with rancher
+      conflict at zero); *The Gap* (the whole pack across the highway inside one
+      traffic gap).
+- [ ] 5.1 Legacy: *Second Year* (begin gen 2); *Dynasty* (reach gen 4); *The
+      Long Year* (finish the long calendar).
+- [ ] 5.2 Presentation: a small quiet card on unlock (name + one line, ~3 s,
+      soft chime, never blocking input); a list reachable from the intro;
+      wording in the game's register — observations, not trophies.
+- [ ] 5.3 In-run milestones: **hunt streak** (consecutive successful hunts with
+      no failed chase, a small mark near the food bar; breaking it is silent,
+      past 3 gives a soft acknowledgement); **pack strength** (one derived
+      number, sum of tiers across living wolves, on the roster — it should
+      visibly climb across a good year; this is the wanted "numbers go up");
+      **season summary card** at each season turn beside the existing howl —
+      days survived, hunts, kills by species, pack strength then vs now, ways
+      found, territory mapped %. Four lines, three seconds, dismissible.
+- [ ] 5 Harness: each achievement fires exactly once at its condition and
+      persists; streaks count and break correctly; pack strength recomputes from
+      tiers; the season card assembles real numbers.
+
+### Part 6 — Juice
+
+- [ ] 6.1 The kill: ~110 ms hit-stop on the catch, a low body-fall thud, a dust
+      puff, and the pack converging to feed with a warm idle-feeding cluster.
+- [ ] 6.2 The ambush: on commit a 0.25 s slow-motion (time scale 0.35) through
+      the pounce, then snap back. **Reserved entirely for the ambush** so it
+      reads as THE skill moment.
+- [ ] 6.3 Level-up: on a tier crossing, a short howl, a mark-fill animation on
+      the roster, and one line in the register (`'Fen runs like she means it
+      now.'`).
+- [ ] 6.4 Near-miss/escape: keep the whoosh; add a brief chromatic/desaturation
+      pulse on a prey escape so failure has weight.
+- [ ] 6.5 The pack feels alive: idles when stationary and fed — play-bows
+      between yearlings, a wolf lying down, one drifting to Aspen to touch
+      noses. Attachment is what makes both the fun and the loss land.
+- [ ] 6.6 Wind and weather presence, now that wind is mechanical: drifting
+      motes, grass lean, a stronger gust sound on high wind.
+- [ ] 6 Harness (thin — browser-judged): hit-stop and slow-mo set AND restore
+      the time scale; a tier crossing fires exactly one level-up; idles only
+      when stationary, fed, and unthreatened.
+
+### Part 7 — Rebalance for the new engine
+
+- [ ] 7.1 Food economy: with hares as a floor and ambush efficiency as a skill,
+      raise baseline drain ~+10% so hunting stays a live pressure. Verify a
+      skilled player is comfortable and a careless one is not.
+- [ ] 7.2 The difficulty fork: one diegetic question at year start — "A mild
+      year, or a hard one?" Mild = drains ×0.75 and wider warnings; hard = these
+      values. Persisted in options.
+- [ ] 7.3 Winter: with deer ×3 and no eastern elk, winter is hare-and-nerve —
+      genuinely lean, survivable by a strong pack, brutal for a weak one. Verify
+      both the strong and the ruined run still finish (standing fairness rule).
+- [ ] 7.4 Session length: target 45–70 min for a year. If the stalk pushes past
+      80, shorten the CALENDAR rather than speeding the clock — the stalk needs
+      its time.
+- [ ] 7 Harness: mild/hard multipliers apply and persist; a scripted "strong"
+      run and a scripted "ruined" run both reach an ending.
+
+### Part 32 closing gate
+
+- [ ] `npm test` green three runs; `npm run layout` clean; CLAUDE.md's
+      superseded locked rules (pack only shrinks, hunt = spot-and-chase, no
+      persistent progression, austere feedback) all amended.
+- [ ] **Play a full year in the browser and answer honestly in NOTES.md — was
+      that fun?** If no, the next session tunes Parts 1–3 rather than building
+      anything new.
+
 ## Part 31 — The beat-6 lean-in gets its own mark on touch (Arjun, 2026-08-11)
 
 - [x] On touch, the lean-in after the road crossing with Willow is no longer the
