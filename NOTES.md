@@ -951,6 +951,50 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## the beat-6 lean-in gets its own mark on touch (2026-08-11)
+
+Arjun, playing on a phone: after crossing the road with Willow, the lean-in
+should not be the Map button — it should be a separate button over her that
+disappears after the interaction. He is right about why it grated: the column
+button made an intimate gesture read as operating a control, and "press Map to
+lean into your mother" is a sentence the game should never have to write.
+
+- `touchLayout()` now returns **`over`** beside the four fixed buttons: a single
+  contextual, world-anchored button. Its screen position is projected from
+  `S.willow` through `S.cam` every frame (so it tracks her as the camera moves)
+  and clamped to the viewport so it is always reachable. It exists only while
+  `S.beat === 6 && bondT <= 0 && beatT <= 14` — so it is gone the moment the
+  play-fight starts, the beat times out, or the beat advances. Kept as its own
+  field rather than a fifth entry in `btns`, so the fixed column keeps its
+  stable slots (a finger never lands on a button that moved) and it can be drawn
+  differently: a breathing ring in warm parchment tones, a moment offered rather
+  than a control to operate.
+- `leanIntoWillow()` (game.js) is the verb, guarded to beat 6 and idempotent —
+  it latches `S.tut._bond` exactly as SPACE does, so tapping the mark from
+  across the field still lands the bond once she closes to 90u. The mark stays
+  visible until the bond actually resolves, so a far-away tap never leaves a
+  dead screen with nothing to press.
+- `classifyTouch` tests `over` FIRST, ahead of the pad and the column, so the
+  moment on offer wins on the rare frame the clamp pushes it over them.
+- Map's beat-6 force-enable is **removed**; the beat-9 vigil keeps its own
+  (holding Map = `input.sense` is still how she keeps her mother company).
+- The prompt reads `Lean into her — tap the mark over her.` on touch, with no
+  keycap; the keyboard path is completely untouched (SPACE still routes through
+  `toggleMap`'s beat-6 branch).
+
+Harness 349 green x2 (+11): the mark exists in beat 6, is named `bond`/`Lean`,
+sits above her, is clamped on-screen, resolves under a tap, leans into her when
+pressed, and **is gone once the bond has landed**; the Map button is no longer
+the lean-in; the column still holds four buttons; no mark leaks into ordinary
+play; and — guarding the condition I refactored — the beat-9 vigil still enables
+Map and does not resurrect the beat-6 mark. Verified the new guard actually
+bites by temporarily restoring the old force-enable: exactly one check failed,
+`beat 6 touch: the Map button is no longer the lean-in`.
+
+Still owed on touch, unchanged: the real on-a-phone feel pass is manual — the
+harness proves the geometry and the wiring, never whether the mark falls under
+a thumb.
+
 ## the harness lives in the repo now (2026-08-10)
 
 It had been surviving in a session scratchpad under `AppData\Local\Temp` this

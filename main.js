@@ -170,6 +170,7 @@ function pressTouchButton(name) {
   else if (name === 'drink') input.drink = true;
   else if (name === 'map') { toggleMap(); input.sense = true; }   // mirrors the map key: toggles, and holds for the beat-9 vigil
   else if (name === 'wait') togglePackStay();
+  else if (name === 'bond') leanIntoWillow();   // the mark over Willow: the beat-6 lean-in, its own verb on touch
 }
 function releaseTouchButton(name) {
   if (name === 'scent') input.scent = false;
@@ -178,6 +179,9 @@ function releaseTouchButton(name) {
 }
 
 function classifyTouch(px, py, L) {
+  // the contextual mark (the beat-6 lean-in) is the moment on offer — it wins
+  // over the pad and the column beneath it, on the rare frame they overlap
+  if (L.over && Math.hypot(px - L.over.x, py - L.over.y) <= L.over.r * 1.25) return { zone: 'btn', btn: L.over };
   if (Math.hypot(px - L.pad.x, py - L.pad.y) <= L.pad.r * 1.3) return { zone: 'move' };
   for (const b of L.btns) {
     if (b.enabled && Math.hypot(px - b.x, py - b.y) <= b.r * 1.25) return { zone: 'btn', btn: b };

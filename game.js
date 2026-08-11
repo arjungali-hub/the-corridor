@@ -1631,6 +1631,17 @@ function toggleMap() {
   S.mapOpen = !S.mapOpen;
 }
 
+// The beat-6 lean-in, as its own verb. On a keyboard it rides the map key
+// (toggleMap's beat-6 branch above, since SPACE is the only key she has yet).
+// On touch it is a mark that stands OVER Willow instead — a gesture toward her,
+// not a control in the column — so the player is never asked to press "Map" to
+// touch her shoulder. Idempotent: it latches, and the bond lands once she is
+// close enough (beat 6 checks the distance).
+function leanIntoWillow() {
+  if (!S || S.mode !== 'prologue' || S.beat !== 6) return;
+  S.tut._bond = true;
+}
+
 function togglePackStay() {
   // in the prologue, F is the bond gesture in beat 6, and from beat 7 —
   // once taught — the real verb, tested under Willow's eye
@@ -3640,7 +3651,9 @@ function prologueUpdate(dt) {
         S.beat = 6; S.beatT = 0;
         setCaption('The far side.', 3);
         S.prompt = null; S.promptQueue.length = 0;  // crossing talk ends at the crossing
-        stickyPrompt(`Lean into her — press ${capOf('map')}.`, [capOf('map')]);
+        // on touch the verb is the mark standing over her, not a column button
+        stickyPrompt(touchMode ? 'Lean into her — tap the mark over her.' : `Lean into her — press ${capOf('map')}.`,
+                     touchMode ? [] : [capOf('map')]);
       }
       break;
 

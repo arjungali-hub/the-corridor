@@ -906,6 +906,21 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
 
+## Part 31 — The beat-6 lean-in gets its own mark on touch (Arjun, 2026-08-11)
+
+- [x] On touch, the lean-in after the road crossing with Willow is no longer the
+      Map button in the fixed column — it is a separate contextual mark that
+      stands OVER Willow and disappears once the interaction is spent. Being
+      told to press "Map" to lean into your mother read as operating a control,
+      not making a gesture. `touchLayout()` returns `over` (a world-anchored
+      button, projected from Willow's position each frame and clamped on-screen)
+      alongside the four fixed buttons; it exists only in beat 6 before the bond
+      lands. `leanIntoWillow()` is the verb; the mark is checked first in
+      `classifyTouch` so it wins the rare frame it overlaps the pad. Map's
+      beat-6 force-enable is gone (the beat-9 vigil keeps its own). The prompt
+      reads "Lean into her — tap the mark over her." on touch, and the keyboard
+      path (SPACE via `toggleMap`'s beat-6 branch) is untouched.
+
 ## Part 30 — Auto-mute on tab leave (Arjun, 2026-08-02)
 
 - [x] Leaving the tab mutes the land (the constant ambience shouldn't play into a

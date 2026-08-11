@@ -199,6 +199,40 @@ check('crossed behind her', stepTo(850, 1460, 20) || G('S.wolf.x') < 880);
 waitFor("S.beat >= 6", 5);
 check('beat 5 → 6', G('S.beat') >= 6);
 
+// beat 6 on TOUCH: the lean-in is a mark that stands OVER Willow, not the Map
+// button down in the column — being told to press "Map" to lean into your dying
+// mother reads as operating a control, not making a gesture. Checked here, then
+// reset so the keyboard path below still drives the actual bond.
+G('touchMode = true;');
+const b6 = G(`(function(){
+  var L = touchLayout();
+  var sc = S.cam.scale || 1;
+  var herY = (S.willow.y - S.cam.y) * sc + canvas.height / 2;
+  var map = L.btns.find(function(b){ return b.name === 'map'; });
+  var hit = L.over ? classifyTouch(L.over.x, L.over.y, L) : null;
+  return {
+    has: !!L.over, name: L.over && L.over.name, label: L.over && L.over.label,
+    aboveHer: L.over ? L.over.y < herY : false,
+    onScreen: L.over ? (L.over.x > 0 && L.over.x < canvas.width && L.over.y > 0 && L.over.y < canvas.height) : false,
+    mapEnabled: !!(map && map.enabled),
+    hits: hit && hit.btn && hit.btn.name,
+    btnCount: L.btns.length,
+  };
+})()`);
+check('beat 6 touch: a contextual mark stands over Willow',
+  b6.has === true && b6.name === 'bond' && b6.label === 'Lean');
+check('beat 6 touch: the mark sits above her, clear of her body', b6.aboveHer === true);
+check('beat 6 touch: the mark is clamped on-screen, so it is always reachable', b6.onScreen === true);
+check('beat 6 touch: the Map button is no longer the lean-in', b6.mapEnabled === false);
+check('beat 6 touch: the fixed column still holds its four buttons', b6.btnCount === 4);
+check('beat 6 touch: a tap on the mark resolves to the bond button', b6.hits === 'bond');
+G('drawTouchControls();');   // the new mark must draw without throwing
+G("pressTouchButton('bond');");
+check('beat 6 touch: tapping the mark leans into her', G('S.tut._bond') === true);
+// hand the beat back to the keyboard, unspent (no step() in between, so the
+// bond cannot have landed yet)
+G('S.tut._bond = false; touchMode = false;');
+
 // beat 6: lean into her — SPACE is the gesture now, not F
 for (let i = 0; i < 10 && G('S.beat') === 6; i++) {
   const w = G('({x: S.willow.x, y: S.willow.y})');
@@ -208,6 +242,11 @@ for (let i = 0; i < 10 && G('S.beat') === 6; i++) {
 }
 G('input.sense = false');
 check('beat 6 → 7: the bond', G('S.beat') === 7);
+// and the mark is spent: it must not linger past the moment it belonged to
+G('touchMode = true;');
+const overGone = G('(function(){ var L = touchLayout(); return L.over === null || L.over === undefined; })()');
+G('drawTouchControls(); touchMode = false;');
+check('beat 6 touch: the mark is gone once the bond has landed', overGone === true);
 
 // beat 7: no verb lesson — F belongs to spring. She simply walks on.
 waitFor('S.tut._b7go === true', 20);
@@ -248,6 +287,18 @@ check('walked to her side', stepTo(G('DEN.x') + 26, G('DEN.y') - 6, 40));
 check('the stillness comes before the ask', G('S.tut._b9near') === true && G('S.tut._b9ask') !== true);
 waitFor('S.tut._b9ask === true', 12);
 check('then, the ask', G('S.tut._b9ask') === true);
+// the vigil still belongs to the Map button on touch (holding it = input.sense).
+// Refactoring the beat-6 lean-in out of that condition must not take beat 9 with
+// it — and the beat-6 mark must not reappear here.
+G('touchMode = true;');
+const b9 = G(`(function(){
+  var L = touchLayout();
+  var map = L.btns.find(function(b){ return b.name === 'map'; });
+  return { mapEnabled: !!(map && map.enabled), over: L.over === null || L.over === undefined };
+})()`);
+G('touchMode = false;');
+check('beat 9 touch: the vigil still enables the Map button', b9.mapEnabled === true);
+check('beat 9 touch: the beat-6 mark does not reappear at the vigil', b9.over === true);
 G('input.sense = true');
 step(1 / 20, 60);   // 3 s in: still holding, not yet done
 check('the hold is not the map (suppressed at her side)', G('S.senseBlend') < 0.3 && G('S.inherited') === false);
@@ -1185,6 +1236,9 @@ try {
   // layout gives a pad and four action buttons
   check('touch: layout has a movement pad and four action buttons',
     G('(function(){var L=touchLayout(); return L.btns.length===4 && L.pad.r>0;})()') === true);
+  // the beat-6 lean-in mark is a prologue moment and must never leak into the year
+  check('touch: no contextual mark during ordinary play',
+    G('(function(){var L=touchLayout(); return L.over === null || L.over === undefined;})()') === true);
   // teaching text names the buttons, not keys
   check('touch: capOf names the on-screen buttons',
     G("capOf('scent')") === 'Smell' && G("capOf('map')") === 'Map' && G("capOf('drink')") === 'Drink');

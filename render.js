@@ -2827,19 +2827,39 @@ function touchLayout() {
   const btns = [
     { name: 'scent', label: 'Smell', enabled: true },
     { name: 'drink', label: 'Drink', enabled: true },
-    // the map is usable once it is hers — plus the two prologue beats that ask
-    // for the same key: the beat-6 lean-in, and the beat-9 vigil (holding Map =
-    // input.sense is how she keeps her mother company as the map is handed down)
+    // the map is usable once it is hers — plus the beat-9 vigil, where holding
+    // Map (= input.sense) is how she keeps her mother company as the map is
+    // handed down. The beat-6 lean-in is NOT here: it has its own mark, over
+    // Willow (see `over` below), because leaning into her is not a map act.
     { name: 'map',   label: 'Map',   enabled: (((typeof mapAllowed === 'function') && mapAllowed())
-                                               || !!(S && S.mode === 'prologue' && (S.beat === 6
-                                                     || (S.beat === 9 && S.tut && S.tut._b9ask && !S.inherited)))) },
+                                               || !!(S && S.mode === 'prologue' && S.beat === 9
+                                                     && S.tut && S.tut._b9ask && !S.inherited)) },
     { name: 'wait',  label: 'Wait',  enabled: !!(S && S.tut && S.tut.fTaught && S.mode === 'play') },
   ];
   const totalH = btns.length * br * 2 + (btns.length - 1) * gap;
   let by = Math.max(br + m, h / 2 - totalH / 2 + br);
   const bx = m + br;
   for (const b of btns) { b.x = bx; b.y = by; b.r = br; by += br * 2 + gap; }
-  return { pad, btns, u };
+
+  // A contextual mark that stands OVER the thing it acts on rather than in the
+  // fixed column, and is gone the moment that moment is spent: the beat-6
+  // lean-in. Anchored to Willow in world space, so it tracks her as the camera
+  // moves, and clamped into the viewport so it is always reachable. It outlives
+  // the tap (the bond latches, then lands when Aspen is close enough) and
+  // disappears when the play-fight starts or the beat times out.
+  let over = null;
+  if (S && S.mode === 'prologue' && S.beat === 6
+      && (S.bondT || 0) <= 0 && (S.beatT || 0) <= 14
+      && S.willow && S.cam) {
+    const r = br * 0.92;
+    const sc = S.cam.scale || 1;
+    const sx = (S.willow.x - S.cam.x) * sc + w / 2;
+    const sy = (S.willow.y - S.cam.y) * sc + h / 2 - r * 2;   // above her, clear of her body
+    const edge = r + 6;
+    over = { name: 'bond', label: 'Lean', enabled: true, r,
+             x: clamp(sx, edge, w - edge), y: clamp(sy, edge, h - edge) };
+  }
+  return { pad, btns, over, u };
 }
 
 function drawTouchControls() {
@@ -2870,6 +2890,25 @@ function drawTouchControls() {
     ctx.fillStyle = lit ? '#241d10' : '#efe6cd';
     ctx.fillText(b.label, b.x, b.y);
   }
+  // the contextual mark over Willow — warmer, and breathing, so it reads as a
+  // moment offered rather than a control to operate
+  if (L.over) {
+    const b = L.over;
+    const pressed = (b.name in held.btn);
+    const pulse = 0.5 + 0.5 * Math.sin((S.time || 0) * 3.2);
+    ctx.globalAlpha = 0.26 + pulse * 0.22;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r * (1.26 + pulse * 0.16), 0, Math.PI * 2);
+    ctx.strokeStyle = '#f0dfae'; ctx.lineWidth = 3; ctx.stroke();
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = pressed ? 0.96 : 0.88;
+    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fillStyle = pressed ? '#f0dfae' : 'rgba(30,24,12,0.62)';
+    ctx.fill();
+    ctx.strokeStyle = '#f0dfae'; ctx.stroke();
+    ctx.fillStyle = pressed ? '#241d10' : '#f6ecd0';
+    ctx.fillText(b.label, b.x, b.y);
+  }
+
   // movement pad — outer ring and a knob that follows the thumb
   ctx.globalAlpha = 0.42;
   ctx.beginPath(); ctx.arc(L.pad.x, L.pad.y, L.pad.r, 0, Math.PI * 2);
