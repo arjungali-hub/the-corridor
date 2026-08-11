@@ -20,6 +20,15 @@ the ending card.
   `requestAnimationFrame` exists, so the whole game runs headless under
   Node's `vm` for testing (stub `document`/`window`/`localStorage`, call
   `update`/`draw` directly).
+- `test/harness.js` — the headless harness, 338 checks, no dependencies:
+  `npm test` (or `node test/harness.js`). Drives the real keydown handler and
+  the real `update(dt)` through the prologue and the year. Must print
+  `ALL CHECKS PASSED` before every commit. Three stack traces just before the
+  verdict are deliberate (the error-boundary and corrupt-save checks).
+- `test/layout-probe.js` — `npm run layout`: reports `data.js` geometry that
+  overlaps where it shouldn't. Prints `NO OVERLAPS` when clean. Run it after
+  moving anything in `data.js`. See `test/README.md` for what neither can
+  verify (feel, real WebAudio policy, touch, anything pre-JS).
 
 ## Locked design rules
 
@@ -86,6 +95,9 @@ group's ends, it bridges instantly — the knowledge already existed.
 - Deterministic PRNG (mulberry32 + string hash) for every texture/wobble.
 - Feel numbers (speeds, decay days, fear rates, wave timing) are named
   constants — tuning is hands-on work, systems are delegable.
-- Verify with the headless harness pattern before committing; an outside
-  person plays at every phase end.
-- Every session ends with NOTES.md updated and everything committed.
+- Verify with `npm test` before committing — green, every time. The harness
+  proves correctness, never feel: speeds, decay rates, fear rates, crossing
+  timing and camera blends are a browser pass. An outside person plays at
+  every phase end.
+- Every session ends with NOTES.md updated and everything committed **and
+  pushed** (standing instruction from Arjun — never ask first).

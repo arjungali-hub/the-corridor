@@ -951,6 +951,47 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## the harness lives in the repo now (2026-08-10)
+
+It had been surviving in a session scratchpad under `AppData\Local\Temp` this
+whole time — one temp purge from gone, and NOTES told future sessions to
+"re-create harness3.js from this session's transcript or rebuild", which for
+338 checks accumulated over twenty-odd batches was never realistic. It was the
+single highest-value unversioned artifact in the project. Now committed:
+
+- `test/harness.js` (was scratchpad `harness3.js`, 338 checks) — `DIR` derived
+  from `__dirname/..` instead of a hardcoded `C:/Users/arjun/...`, so a clone
+  works anywhere. Verified green from the new location, 338 ok / 0 FAIL.
+- `test/layout-probe.js` (was `overlap-probe.js`) — same path fix.
+- `package.json` — `npm test` and `npm run layout`. No dependencies; nothing to
+  install. It exists only to name the two scripts.
+- `test/README.md` — how to run, what the 338 checks cover, the helper API for
+  adding checks, and explicitly **what the harness cannot verify**: feel, real
+  WebAudio autoplay policy, anything pre-JS, and the touch/mobile path.
+
+Two things worth recording from doing it:
+
+**Node is installed now** — `C:\Program Files\nodejs\node.exe` (v24.18.0).
+The old note "No Node on the machine, portable node lives in the scratchpad"
+is obsolete; the 77 MB portable copy is no longer needed and was deliberately
+NOT committed. Harness verified green under both.
+
+**The layout probe was crying wolf.** It reported `NODE theBend inside
+mudSink` — which is the design, not a bug: `theBend` sits at exactly the mud
+sink's centre (2700,2800) and is the INTERIOR node of the `drycreek` tear
+chain whose `footprint` is `mudSink`. The impoundment drowning The Bend is the
+earned tear, and interior chain nodes are supposed to be swallowed by the rip
+(only end-node stubs survive). A probe with permanent false noise trains you
+to ignore its output, so it now exempts interior chain nodes of a group whose
+footprint is that obstacle — exactly two pairs (`theBend|mudSink`,
+`fenceLine|construction`) — and prints `NO OVERLAPS`. Verified the exemption is
+scoped: a *new* node dropped in the sink still reports.
+
+Also folded the standing rule into CLAUDE.md: commit **and push** every batch,
+never ask first. Skipped `forest-probe.js` and `edge-forest.js` from the old
+scratchpad — both test `inForestCore`, the blocked-canopy-core approach that
+Part 22 replaced with individual `TREES`; they would only mislead.
+
 ## on-screen touch controls (2026-07-27)
 
 A keyboard-less visitor used to get a "play on a computer" card. Now the game
