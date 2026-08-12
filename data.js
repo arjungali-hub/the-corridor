@@ -243,9 +243,12 @@ const POWERLINE = { x0: 4000, y0: 1900, x1: 4400, y1: 2800 };
 // runs fouled where it passes the impoundment; the human ponds are wrong
 // from the start. Drinking is an act (hold Q, standing in the shallows).
 const PONDS = [
-  { x: 3350, y: 3150, r: 150, clean: true,  name: 'the marsh pond' },
+  // moved off the springs (it overlapped TERRAIN.springsPond by ~88u and swallowed
+  // the springs node whole — two ponds drawn into one puddle)
+  { x: 3080, y: 3230, r: 150, clean: true,  name: 'the marsh pond' },
   { x: 2200, y: 730,  r: 80,  clean: false, name: 'the pit sump' },      // gravel-pit runoff
-  { x: 4180, y: 950,  r: 85,  clean: false, name: 'the stock pond' },    // cattle-fouled
+  // nudged clear of the cattle's own grazing anchor, which stood in the water
+  { x: 4270, y: 1030, r: 85,  clean: false, name: 'the stock pond' },    // cattle-fouled
   { x: -1550, y: 1750, r: 110, clean: true, name: 'the cold pool' },     // the far west's own
 ];
 

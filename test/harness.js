@@ -738,8 +738,74 @@ G("(() => { const g = TEAR_GROUPS.find(x => x.key === 'drycreek'); g.trigger.x =
 G('S.wolf.x = 920; S.wolf.y = 700;');
 G('tearCheck()');
 check('tear on asphalt: forced map deferred', G('S.pendingForcedSense') === true && G('S.forcedSenseT') === 0);
+// The forced view now waits for TWO things: quiet ground, and a free moment. A
+// tear claims the moment gate itself, so stepping off the asphalt is no longer
+// enough on its own — this is the fix for "everything happened at once".
 G('S.wolf.x = 1100;'); step();
-check('off the road, the lesson fires', G('S.forcedSenseT') > 0);
+check('off the road but mid-moment, the lesson still holds back',
+  G('S.forcedSenseT') === 0 && G('S.pendingForcedSense') === true && G('S.momentCd') > 0);
+G('S.momentCd = 0;'); step();
+check('once the moment is free, the lesson fires', G('S.forcedSenseT') > 0);
+check('…and it claims quiet after itself, so nothing stacks on it', G('S.momentCd') > 0);
+
+// The spacing guarantee itself: two teaching moments ready on the SAME frame must
+// not both land, and the loser must be deferred rather than dropped.
+// Retire every OTHER teaching trigger first, so exactly two are contending. (The
+// first run of this test proved the point by accident: `ownInkSeen` runs earlier
+// in the list, took the gate, and made the tear prompt wait — which is the system
+// behaving correctly and the test being wrong about who was in the room.)
+G(`S.forcedSenseT = 0; S.pendingForcedSense = false; S.momentCd = 0; S.calloutActive = null;
+   S.callouts.length = 0; S.inputLockT = 0; S.seasonGhostT = 0; S.prompt = null; S.promptQueue.length = 0;
+   S.tut.ownInkSeen = true; S.tut.violetSeen = true; S.tut.redSeen = true;
+   S.tut.routeTaught = true; S.tut.goalSet = true; S.tut.lastStarveDay = day();
+   S.firstTear = true; S.tut.tearPrompt = false;
+   S.tut.fearSeen = false; S.fear = 0.3;`);   // over the 0.12 lesson trigger, under FEAR_BALK — must not scatter the pack
+step();
+const firedFirst = G('({ tear: S.tut.tearPrompt, fear: S.tut.fearSeen })');
+check('spacing: two moments ready at once, only one lands',
+  (firedFirst.tear ? 1 : 0) + (firedFirst.fear ? 1 : 0) === 1);
+check('spacing: …and the frame it lands on closes the gate', G('S.momentCd') > 0);
+// several seconds of world with the gate shut: the other must still be waiting
+G('S.forcedSenseT = 0; S.pendingForcedSense = false;');
+step(1 / 20, 20);
+const stillHeld = G('({ tear: S.tut.tearPrompt, fear: S.tut.fearSeen })');
+check('spacing: the second is held back, not fired early',
+  (stillHeld.tear ? 1 : 0) + (stillHeld.fear ? 1 : 0) === 1);
+// once the gate frees, it arrives — deferred, never dropped
+G('S.momentCd = 0; S.forcedSenseT = 0; S.pendingForcedSense = false; S.calloutActive = null; S.callouts.length = 0;');
+step();
+const bothIn = G('({ tear: S.tut.tearPrompt, fear: S.tut.fearSeen })');
+if (!(bothIn.tear && bothIn.fear)) {
+  console.log('DEBUG-SPACE', G(`JSON.stringify({ tear:S.tut.tearPrompt, fear:S.tut.fearSeen,
+    fearVal:+S.fear.toFixed(3), momentCd:+(S.momentCd||0).toFixed(2), forced:+S.forcedSenseT.toFixed(2),
+    pending:S.pendingForcedSense, callout:!!S.calloutActive, queued:S.callouts.length,
+    lock:+S.inputLockT.toFixed(2), ghost:+(S.seasonGhostT||0).toFixed(2), firstTear:S.firstTear,
+    free:momentFree() })`));
+}
+check('spacing: the deferred moment is not lost — it arrives once there is room',
+  bothIn.tear === true && bothIn.fear === true);
+G('S.fear = 0; S.momentCd = 0;');
+
+// Settings reachable mid-year (O), and the world holds while they are open —
+// rebinding a key with traffic still coming would be its own cruelty.
+G('optionsOpen = false;');
+key('o');
+check('O opens the settings mid-year', G('optionsOpen') === true);
+const tBeforeOptions = G('S.time');
+step(1 / 20, 5);
+check('…and the world holds while the settings are open', G('S.time') === tBeforeOptions);
+key('o');
+check('…and O closes them again', G('optionsOpen') === false);
+
+// The pounce always ANSWERS. Pressing it with nothing to take used to do
+// literally nothing, which reads as a broken key rather than a missed moment.
+G("_elkHold = S.elk.slice(); S.elk.length = 0; S.pounceMsgCd = 0; S.msg = null;");
+key('x');
+check('a refused pounce explains itself instead of going silent', !!G('S.msg') === true);
+G('S.msg = null;');
+key('x');
+check('…but it does not nag on a cooldown', G('S.msg') === null);
+G('S.elk = _elkHold; S.pounceMsgCd = 0;');
 G("(() => { const g = TEAR_GROUPS.find(x => x.key === 'drycreek'); g.trigger.x = g.trigger._x; g.trigger.y = g.trigger._y; g.trigger.r = 95; })()");
 step(1 / 20, 60);  // let the forced view play out
 
@@ -1123,12 +1189,20 @@ check('she scouts it herself; it reeks', G('S.tut.overpassWalked') === true);
 G('S.task = null; S.taskCooldown = 999; S.fear = 0; S.packFrozen = false;');
 G('S.pack.forEach(w => { w.lost = false; w.balked = false; w.frozenT = 0; w.fleeTo = null; w.hunting = false; if (w.state === "stay" || w.state === "balk") w.state = "follow"; });');
 G('_wq = alivePack()[0];');
-for (let k = 0; k < 3; k++) {
+// Drive until it has actually made three crossings, not exactly three attempts.
+// Each attempt is a teleport on and off the deck, and an attempt can be swallowed
+// (the wolf's own movement in packUpdate can carry it off the deck within the same
+// frame the crossing is being counted), which made a fixed 3-iteration loop flaky.
+// The rule under test is "three conducted crossings teach the bridge" — so achieve
+// three crossings, then assert the rule fired.
+for (let k = 0; k < 12 && !G('overpassTrusted()'); k++) {
   G('_wq.x = 905; _wq.y = (OBSTACLES.overpass.y0 + OBSTACLES.overpass.y1) / 2;');
   step();
   G('_wq.x = 1060;');
   step();
 }
+check('the bridge is not trusted before three crossings are actually made',
+  G('S.overpassCross') >= 3);
 if (!G('overpassTrusted()')) {
   console.log('DEBUG-OP cross', G('S.overpassCross'), 'deckFrom', G('_wq.deckFrom'),
     'lost', G('_wq.lost'), 'frozen', G('S.packFrozen'), 'state', G('_wq.state'),

@@ -951,6 +951,65 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## playtest batch — pacing, overlaps, the wind mark, X and O (2026-08-11)
+
+Five things from Arjun's first play of the stalk. Harness **393 green ×8**,
+layout probe clean.
+
+**Everything happened at once.** The real complaint, and the biggest fix: answer
+a prompt with SPACE and the next lesson opened on that same frame, and if she was
+walking she could also trigger a tear — sting, flicker, forced map view, rip
+callout — all inside a second. There is now a shared **moment gate**: every
+teaching trigger, callout and lesson transition must claim it, `MOMENT_GAP` 4.5 s
+apart. The important property is that nothing is *lost*: each trigger is latched
+on state that only grows (a timer, distance walked, a flag), and its condition is
+re-tested every frame, so a moment that cannot be had right now is had a few
+seconds later. Two deliberate decisions inside that:
+- the tear itself is NOT deferred — tears fire on arrival, and that rule is
+  load-bearing — but its *teaching* queues, and a tear claims a longer quiet so
+  nothing stacks on top of it. The existing `pendingForcedSense` already existed
+  to defer the forced view off the road, so it just grew a second condition.
+- the gate is deliberately NOT "wait until no prompt is showing". Several lessons
+  are STICKY prompts that are only cleared by the transition that follows them,
+  so that version deadlocks the tutorial outright. Learned by reasoning it
+  through rather than by shipping it.
+
+**The wind mark was behind the wolves' names.** Top-right is the pack roster;
+top-left is the day and objective; captions ride at 24% height; prompts sit at the
+bottom. Top centre is the only strip nothing else claims, so that is where it went.
+
+**The ponds really were overlapping, and the probe was blind to it.**
+`TERRAIN.springsPond` is a pond declared outside the `PONDS` array, so
+`layout-probe.js` had never once looked at it — it overlapped the marsh pond by
+88u and swallowed the springs node whole, in plain sight. The probe now checks
+every drawn water body against every other and against nodes, dens, forests,
+obstacle rects, herd anchors, the powerline, rail and highway, plus dens vs dens,
+rects vs rects, and rumors sitting inside impassable ground. It found the stock
+pond standing on the cattle's own grazing anchor too. Marsh pond → (3080,3230),
+stock pond → (4270,1030). Two overlaps are exempted with reasons rather than
+"fixed": the springs pond *is* the springs node, and a `resolvesTo: 'changed'`
+rumor is supposed to sit on the thing that changed (r-oldwater points at the water
+the impoundment drowned — finding the sink where the water was IS the payoff).
+
+**X did nothing.** Not a binding bug — the mechanic worked. Pressing it outside
+the ambush window was simply *silent*, which reads as a broken key rather than a
+missed moment. It answers every time now and names the reason: nothing near, it
+has already seen her, or too far and too tall (naming the crouch key), on a 5 s
+cooldown so it cannot nag.
+
+**O opens the settings mid-year**, not only from the intro, listed on the H
+overlay, and the world holds while they are open.
+
+Two harness flakes chased down, both test-driver problems rather than game bugs:
+the overpass check drove exactly three teleports on and off the deck, but an
+attempt can be swallowed when the wolf's own movement carries it off the deck in
+the same frame the crossing is counted — it now drives until three crossings are
+actually made and asserts the count. And my own new spacing test was wrong before
+it was right: it asserted two contenders when `ownInkSeen` was a third, took the
+gate first, and made the tear prompt wait — the system behaving correctly and the
+test being wrong about who was in the room. It now retires the other triggers so
+exactly two contend.
+
 ## fun pass, Part 1 — the hunt gets a skill ceiling (2026-08-11)
 
 The approach is the skill now; the chase is the consequence. Prey carry

@@ -115,6 +115,9 @@ window.addEventListener('keydown', (ev) => {
 
   if (k === 'r') { requestNewYear(); return; }
   if (k === 'm') { toggleMute(); return; }
+  // settings, mid-year as well as from the intro — the world holds while they are
+  // open (rebinding a key with traffic still coming would be its own cruelty)
+  if (k === 'o' && S && (S.mode === 'play' || S.mode === 'prologue')) { optionsOpen = true; return; }
   if (k === 'h' && S && S.tut && S.tut.taughtHelp
       && (S.mode === 'play' || S.mode === 'prologue')) { S.showHelp = !S.showHelp; return; }
   if (k === 'f' && S && (S.mode === 'play' || S.mode === 'prologue')) { togglePackStay(); return; }

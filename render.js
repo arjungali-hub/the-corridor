@@ -2651,7 +2651,11 @@ function drawBar(x, y, w, label, frac, color) {
 function drawWindMark() {
   if (!S.wind || S.era === 'past') return;
   if (S.mode !== 'play' && S.mode !== 'prologue') return;
-  const cx = canvas.width - 62, cy = 52;
+  // Top CENTRE, deliberately: the top-right corner is the pack roster (the names
+  // were sitting straight on top of this), the top-left is the day and objective,
+  // captions ride at 24% height and prompts at the bottom. This strip is the only
+  // place nothing else claims.
+  const cx = canvas.width / 2, cy = 34;
   const a = S.wind.a;
   const ux = Math.cos(a), uy = Math.sin(a);
   ctx.save();
@@ -2791,6 +2795,7 @@ function drawHelp() {
     rows.push([capOf('pounce'), 'take it — only when you are close enough']);
   }
   rows.push(['M', 'quiet']);
+  rows.push(['O', 'settings — keys, hold-to-toggle, text size']);
   rows.push(['ESC', 'pause']);
   rows.push(['R  R', 'restart the game (skips prologue)']);
   rows.push(['H', 'open or close this']);

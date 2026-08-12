@@ -906,6 +906,38 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
 
+## Part 33 — Playtest batch (Arjun, 2026-08-11, after Part 32/1)
+
+- [x] The wind indicator was hidden behind the pack roster's names. Moved to the
+      top CENTRE — the only strip nothing else claims (roster top-right, day and
+      objective top-left, captions at 24% height, prompts at the bottom).
+- [x] Ponds overlapped. `TERRAIN.springsPond` is a pond that is NOT in the
+      `PONDS` array, so the layout probe never saw it — it overlapped the marsh
+      pond by 88u and swallowed the springs node whole. The probe now checks
+      every drawn water body against every other and against nodes, dens,
+      forests, obstacles, herd anchors, the powerline, rail and highway; plus
+      dens vs dens, rects vs rects, and rumors inside impassable ground. Marsh
+      pond moved to (3080,3230) and the stock pond to (4270,1030), off the
+      cattle's own grazing anchor. Two overlaps are exempted as intentional with
+      reasons in the probe: the springs pond IS the springs node, and a
+      `resolvesTo: 'changed'` rumor is *supposed* to sit on what changed.
+- [x] Teaching moments piled up: answering a prompt with SPACE opened the next
+      lesson on the same frame, and a tear could arrive on top with its forced
+      map view and rip callout. A shared **moment gate** (`MOMENT_GAP` 4.5 s)
+      now spaces them: every teaching trigger and callout must claim it, and each
+      is latched on state that only grows, so a moment that cannot be had is
+      **deferred, never dropped**. The tear itself still fires on arrival (that
+      rule is load-bearing) but its teaching queues; a tear also claims a longer
+      quiet so nothing stacks on it. Deliberately NOT gated on "no prompt
+      showing" — several lessons are sticky prompts cleared only by the
+      transition that follows them, which would deadlock the tutorial.
+- [x] `X` (pounce) appeared to do nothing: pressing it outside the ambush window
+      was completely silent, which reads as a broken key. It always answers now
+      and names the reason — nothing near, already seen her, or too tall (with
+      the crouch key named) — on a 5 s cooldown so it cannot nag.
+- [x] `O` opens the settings mid-year, not just from the intro, and is listed on
+      the `H` overlay. The world holds while they are open.
+
 ## Part 32 — THE FUN PASS (Arjun, 2026-08-11)
 
 The game is finished and it works. It is also not fun: two verbs (open the map,

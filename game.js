@@ -432,6 +432,8 @@ function newGame() {
     carcass: null,      // a findable carcass a suggestion has pointed her to
     crouched: false,    // the stalk, resolved once a frame in moveAspen
     ambushT: 0,         // the pounce's afterglow, for the cue and the camera
+    pounceMsgCd: 0,     // so a refused pounce explains itself without nagging
+    momentCd: 0,        // the gate that keeps teaching moments from piling up
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
@@ -981,11 +983,15 @@ function tearCheck() {
       S.history.push({ type: 'tear', day: day(), group: g.key });
       if (!S.firstTear) {
         // The scripted first tear: the map is forced up so the player watches
-        // the rip appear — but never while she is standing in traffic.
+        // the rip appear — but never while she is standing in traffic, and never
+        // on top of a lesson. It ALWAYS goes through the pending path now, which
+        // waits for quiet ground and a free moment; the tear itself has already
+        // happened (sting, flicker, rip), only its teaching is queued.
         S.firstTear = true;
-        if (onRoad(S.wolf.x, S.wolf.y)) S.pendingForcedSense = true;
-        else S.forcedSenseT = 2.6;
+        S.pendingForcedSense = true;
       }
+      // a tear is a lot to take in — nothing else gets taught on top of it
+      claimMoment(2);
       say('The land is not what she remembered.');
       // a tear is a plan that no longer exists
       if (S.routeTo) {
@@ -1940,9 +1946,32 @@ function ambushTarget() {
 
 // Commit. Out of a grazing animal she gets it half-spent and stumbling; out of a
 // wary one it is already most of the way to running.
+// Pressing the pounce key with no window used to do NOTHING AT ALL, which reads
+// as a broken key rather than a missed moment. It always answers now, and names
+// the reason, so the verb teaches itself.
+function pounceRefused() {
+  if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
+  if ((S.pounceMsgCd || 0) > 0) return;
+  S.pounceMsgCd = 5;
+  let best = null, bd = 1e9;
+  for (const e of S.elk) {
+    const d = dist(e.x, e.y, S.wolf.x, S.wolf.y);
+    if (d < bd) { bd = d; best = e; }
+  }
+  if (!best || bd > 900) { say('Nothing near enough to take.'); return; }
+  const st = alertStateOf(best);
+  if (st === 'alarmed' || st === 'fleeing') {
+    say('It has already seen her. Run it down, or let it go and find another.');
+  } else if (!S.crouched) {
+    say(`Too far, and too tall. Hold ${capOf('crouch')} and come at it low, downwind.`);
+  } else {
+    say('Closer. Close enough to touch it.');
+  }
+}
+
 function commitAmbush() {
   const e = ambushTarget();
-  if (!e) return false;
+  if (!e) { pounceRefused(); return false; }
   const fromGrazing = alertStateOf(e) === 'grazing';
   e.stamina = Math.min(e.stamina, fromGrazing ? AMBUSH_GRAZE_STAM : AMBUSH_WARY_STAM);
   if (fromGrazing) e.stumbleT = AMBUSH_STUMBLE_T;
@@ -3483,6 +3512,34 @@ function calloutUpdate(dt) {
 
 function tutStep(step) { S.tut.step = step; S.tut.t = 0; }
 
+// ── one thing at a time ──────────────────────────────────────────────────────
+// Teaching moments, map callouts and world events could all land in the same
+// second: a prompt answered with SPACE, the next lesson opening on that very
+// frame, and — if she happened to be walking — a tear arriving on top with its
+// forced map view and rip callout. Far too much at once.
+//
+// Every such moment now has to claim a shared gate. Anything that cannot have it
+// WAITS: each trigger's condition is re-tested every frame and every one of them
+// is latched on state that only grows (a timer, a distance walked, a flag), so a
+// moment is deferred, never dropped. The one thing NOT deferred is a tear itself
+// — tears fire on arrival, that rule is load-bearing — but its teaching (the
+// forced view, the rip callout, the prompt) queues behind the gate like the rest.
+const MOMENT_GAP = 4.5;   // seconds of quiet between teaching moments, minimum
+function momentFree() {
+  if (!S) return false;
+  if ((S.momentCd || 0) > 0) return false;
+  if (S.forcedSenseT > 0 || S.pendingForcedSense) return false;
+  if ((S.seasonGhostT || 0) > 0) return false;
+  if (S.calloutActive) return false;       // a callout is still being read
+  if (S.inputLockT > 0) return false;      // a scripted beat owns her body
+  if (S.vistaWait) return false;
+  return true;
+}
+// Deliberately NOT gated on S.prompt: several lessons are STICKY prompts that are
+// only cleared by the transition that follows them, so waiting on an empty prompt
+// line would deadlock the tutorial outright.
+function claimMoment(extra) { S.momentCd = MOMENT_GAP + (extra || 0); }
+
 function tutorialUpdate(dt) {
   const T = S.tut;
   T.t += dt;
@@ -3505,104 +3562,117 @@ function tutorialUpdate(dt) {
       if (T.t > 7) tutStep(2);
       break;
     case 2:
-      if (T.moved > 150) {
+      if (T.moved > 150 && momentFree()) {
         clearPrompt();
         S.hud.pack = true;
         showPrompt('They follow you now. Your mother led them for nine years.', [], 5.5);
-        tutStep(3);
+        tutStep(3); claimMoment();
       }
       break;
     case 3:
-      if (T.moved > 900 || T.t > 40) tutStep(4);
+      if (T.moved > 900 || T.t > 40) tutStep(4);   // silent: nothing to space
       break;
     case 4:
-      if (S.senseBlend > 0.8) {
+      // latched: she may well close the map again before the gate frees, and
+      // having seen her mother's ink is not something to make her repeat
+      if (S.senseBlend > 0.8) T.mapSeenPending = true;
+      if (T.mapSeenPending && momentFree()) {
         clearPrompt();
         T.sawMap = true;
         queueCallout('willow-ink');
         queueCallout('den');
-        tutStep(5);
+        tutStep(5); claimMoment();
       }
       break;
     case 5:
-      if (S.senseBlend < 0.2 && T.t > 4) {
+      if (S.senseBlend < 0.2 && T.t > 4 && momentFree()) {
         showPrompt('Her memory is old. The land may have moved on.', [], 5.5);
-        tutStep(6);
+        tutStep(6); claimMoment();
       }
       break;
     case 6:
-      if ((day() >= 2 || S.food < 58) && T.t > 14) {
+      if ((day() >= 2 || S.food < 58) && T.t > 14 && momentFree()) {
         S.hud.food = true;
         S.hud.day = true;
         showPrompt('The pack is hungry.', [], 4.5);
-        tutStep(7);
+        tutStep(7); claimMoment();
       }
       break;
     case 7:
-      if (T.t > 8) tutStep(8);
+      if (T.t > 8) tutStep(8);   // silent
       break;
     case 8:
       if (input.scent && S.senseBlend < 0.2) T.scentHold += dt;
-      if (T.scentHold > 0.8) {
+      if (T.scentHold > 0.8 && momentFree()) {
         clearPrompt();
         queueCallout('gold');
-        tutStep(9);
+        tutStep(9); claimMoment();
       }
       break;
     case 9:
-      if (T.t > 6) { T.fTaught = true; tutStep(10); }
+      if (T.t > 6 && momentFree()) { T.fTaught = true; tutStep(10); claimMoment(); }
       break;
     case 10:
-      if (T.usedHold) {
+      if (T.usedHold && momentFree()) {
         clearPrompt();
-        tutStep(11);
+        tutStep(11); claimMoment();
       }
       break;
     case 11:
-      if (!T.taughtHelp && T.t > 6) {
+      if (!T.taughtHelp && T.t > 6 && momentFree()) {
         T.taughtHelp = true;
         showPrompt('What she knows how to do: H.', ['H'], 5);
-        tutStep(12);
+        tutStep(12); claimMoment();
       }
       break;
   }
 
-  if (!T.fearSeen && S.fear > 0.12) {
+  // Every one of these waits its turn. Each is latched on a flag or a growing
+  // value, so a moment that cannot be had right now is had a few seconds later —
+  // it is never lost.
+  if (!T.fearSeen && S.fear > 0.12 && momentFree()) {
     T.fearSeen = true;
     S.hud.fear = true;
     showPrompt('The roar of the Black River frightens them.', [], 4.5);
+    claimMoment();
   }
-  if (!T.violetSeen && input.scent && violetAt(S.wolf.x, S.wolf.y) > 0.3) {
+  if (!T.violetSeen && input.scent && violetAt(S.wolf.x, S.wolf.y) > 0.3 && momentFree()) {
     T.violetSeen = true;
     queueCallout('violet');
+    claimMoment();
   }
   if (!T.redSeen && input.scent
-      && SCENT_RED.some(r => dist(S.wolf.x, S.wolf.y, r.x, r.y) < 700)) {
+      && SCENT_RED.some(r => dist(S.wolf.x, S.wolf.y, r.x, r.y) < 700) && momentFree()) {
     T.redSeen = true;
     queueCallout('red');
+    claimMoment();
   }
   // only if she opens the map in the beginning: a first-days hint, never later
-  if (!T.routeTaught && T.step >= 6 && S.senseBlend > 0.85) {
+  if (!T.routeTaught && T.step >= 6 && S.senseBlend > 0.85 && momentFree()) {
     T.routeTaught = true;
-    if (day() <= 3) showPrompt('Click a place she knows — the map will show her the way.', [], 6);
+    if (day() <= 3) { showPrompt('Click a place she knows — the map will show her the way.', [], 6); claimMoment(); }
   }
-  if (!T.ownInkSeen && S.edges.some(e => e.state.startsWith('current'))) {
+  if (!T.ownInkSeen && S.edges.some(e => e.state.startsWith('current')) && momentFree()) {
     T.ownInkSeen = true;
     queueCallout('own-ink');
+    claimMoment();
   }
-  if (!T.tearPrompt && S.firstTear && S.forcedSenseT <= 0 && !S.pendingForcedSense) {
+  if (!T.tearPrompt && S.firstTear && momentFree()) {
     T.tearPrompt = true;
     showPrompt('Her map ends at the tear. Find your own way around.', [], 6);
     queueCallout('rip');
+    claimMoment();
   }
-  if (!T.goalSet && day() >= 181) {
+  if (!T.goalSet && day() >= 181 && momentFree()) {
     T.goalSet = true;
     showPrompt('The cold is coming. The pack cannot winter here — the range lies far west.', [], 8);
     queueCallout('goal');
+    claimMoment();
   }
-  if (S.food < 22 && day() - T.lastStarveDay > 2 && T.step > 10) {
+  if (S.food < 22 && day() - T.lastStarveDay > 2 && T.step > 10 && momentFree()) {
     T.lastStarveDay = day();
     showPrompt('They starve. Hunt, or lose them.', [], 5);
+    claimMoment();
   }
 }
 
@@ -4846,6 +4916,8 @@ function update(dt) {
   if (S.mode === 'intro') return;
   if (S.mode === 'ending') { S.endT += dt; return; }
   if (gamePaused) return;   // ESC-pause: the whole world holds its breath
+  // …and so does it while the settings are open, mid-year
+  if (typeof optionsOpen !== 'undefined' && optionsOpen) return;
 
   S.time += dt;
   promptTick(dt);
@@ -4858,6 +4930,8 @@ function update(dt) {
   S.injuredT = Math.max(0, S.injuredT - dt);
   S.passageFade = Math.max(0, (S.passageFade || 0) - dt);
   S.ambushT = Math.max(0, (S.ambushT || 0) - dt);
+  S.pounceMsgCd = Math.max(0, (S.pounceMsgCd || 0) - dt);
+  S.momentCd = Math.max(0, (S.momentCd || 0) - dt);   // one teaching moment at a time
   // count how many times the ambush window has OPENED (not frames it was open),
   // so the cue can be loud while it is still being learned and quiet after
   const ambNow = !!ambushTarget();
@@ -4882,9 +4956,12 @@ function update(dt) {
     if (day() !== S.lastDay) { S.lastDay = day(); applyDecay(); herdDriftUpdate(); }
     suggestionUpdate(dt);
 
-    if (S.pendingForcedSense && !onRoad(S.wolf.x, S.wolf.y)) {
+    // the first tear's forced view: off the asphalt, and not on top of a lesson
+    if (S.pendingForcedSense && !onRoad(S.wolf.x, S.wolf.y) && (S.momentCd || 0) <= 0
+        && S.inputLockT <= 0 && (S.seasonGhostT || 0) <= 0 && !S.calloutActive) {
       S.pendingForcedSense = false;
       S.forcedSenseT = 2.6;
+      S.momentCd = MOMENT_GAP + 2.6;   // the gap begins when the view lets go
     }
 
     moveAspen(dt);
