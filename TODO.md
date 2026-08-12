@@ -932,24 +932,24 @@ prologue except the 1.7 lessons; multiplayer, crafting, inventory; a skill TREE
 
 ### Part 1 — The hunt gets a skill ceiling (stalk → ambush → chase)
 
-- [ ] 1.1 Prey `alert` (0..1) + `alertState`: grazing <0.35 (head down, no
+- [x] 1.1 Prey `alert` (0..1) + `alertState`: grazing <0.35 (head down, no
       tracking), wary 0.35–0.7 (head up, stops feeding, orients, drifts),
       alarmed 0.7–0.999 (trots off, herd bunches), fleeing 1.0 (sprint).
-- [ ] 1.1 Alertness RISE per second while a wolf is inside `detectR`, summed:
+- [x] 1.1 Alertness RISE per second while a wolf is inside `detectR`, summed:
       base `0.9 * clamp01(1 - d/detectR)`; wind (via `windAt`) upwind ×2.6 /
       crosswind ×1.0 / downwind ×0.45 by dot of wind vs (animal→wolf), dot>0.4
       upwind, dot<-0.4 downwind; motion sprint ×1.5 / walk ×1.0 / crouch ×0.35;
       cover (tree/forest disc or tall grass) ×0.55; light via `daylight()` full
       day ×1.15 / night ×0.7; herd transmission — any animal reaching alarmed
       raises herd-mates within 260u at +0.5/s.
-- [ ] 1.1 Alertness FALL −0.32/s with no wolf inside `detectR`, but never below
+- [x] 1.1 Alertness FALL −0.32/s with no wolf inside `detectR`, but never below
       0.2 for 25 s after a full flee (no immediate re-stalk).
-- [ ] 1.2 The crouch verb: sustained `crouch` input, default **Shift**, added to
+- [x] 1.2 The crouch verb: sustained `crouch` input, default **Shift**, added to
       `OPTIONS.bindings` / `SLOT_FOR` / `REBIND_ACTIONS` / `HELD_SLOTS` (so
       hold-toggle works) + a touch button. Speed ×0.42, alert contribution
       ×0.35, sprite low with a slower gait. Cannot crouch while
       injured-sprinting, on the road, or during a chase (auto-release).
-- [ ] 1.3 The ambush window: within `ambushR` (~110u) of a grazing/wary animal,
+- [x] 1.3 The ambush window: within `ambushR` (~110u) of a grazing/wary animal,
       an ambush is available — contextual cue + commit on the existing
       interact/attack input (**add no new key if one can serve**; tap the crouch
       key while crouched). From grazing → prey enters the chase at 40% stamina
@@ -957,26 +957,26 @@ prologue except the 1.7 lessons; multiplayer, crafting, inventory; a skill TREE
       From wary → 70% stamina, no stumble. Blown (alarmed/fleeing before commit)
       → full stamina, full speed, 25 s jumpy floor; most blown stalks should end
       in escape — that is the teacher.
-- [ ] 1.4 The chase keeps its logic; prey stamina drain scales with active
+- [x] 1.4 The chase keeps its logic; prey stamina drain scales with active
       pursuers `1 + 0.25*(pursuers-1)` capped ×2; catch still requires spent
       (stamina ≤0.12) AND adjacent.
-- [ ] 1.5 The pack in the stalk: packmates in the zone crouch when Aspen
+- [x] 1.5 The pack in the stalk: packmates in the zone crouch when Aspen
       crouches and hold position (contributing alert at the crouched rate). A
       packmate blundering upright inside `detectR` is the main early failure
       source — this teaches F as a stalking tool. Once, contextually, on the
       first spoiled stalk: `'Fen went ahead of her. The elk had its head up
       before she was close.'` + the hint that F holds them.
-- [ ] 1.6 Reading the stalk: a persistent **wind indicator** (drift motes or an
+- [x] 1.6 Reading the stalk: a persistent **wind indicator** (drift motes or an
       edge arrow — now load-bearing info); **alert pips** over prey (raised-head
       marker at wary, stronger at alarmed; prey visibly lifts its head — shape
       and posture, no numeric bar); an **ambush cue** (tightening vignette/pulse
       on the target + key prompt), unmissable the first three times via `S.tut`,
       then quiet.
-- [ ] 1.7 Teaching: first hunt teaches crouch (`'Low. Slow. The wind in her
+- [x] 1.7 Teaching: first hunt teaches crouch (`'Low. Slow. The wind in her
       face.'`); first blown-upwind stalk teaches wind (`'The wind carried her
       ahead of herself. It knew before it saw.'`); first successful ambush names
       it (`'Close enough to choose the moment.'`). Each once, `S.tut`, saved.
-- [ ] 1 Harness: upwind vs downwind rates differ by the multipliers; crouch cuts
+- [x] 1 Harness: upwind vs downwind rates differ by the multipliers; crouch cuts
       rise and speed; ambush from grazing = 40% stamina, from wary = 70%; a
       blown stalk sets the 25 s floor; herd transmission alarms within 260u;
       pursuers scale drain; catch still needs spent+adjacent; a packmate upright

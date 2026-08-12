@@ -45,7 +45,9 @@ window.addEventListener('unhandledrejection', (e) => handleCrash(e && e.reason))
 // The effective key map is built from OPTIONS.bindings (9a: remappable, persisted
 // separately from the run save) — arrows always stay as movement alternates.
 let KEYMAP = {};
-const SLOT_FOR = { up: 'up', down: 'down', left: 'left', right: 'right', map: 'sense', scent: 'scent', drink: 'drink' };
+// `pounce` is deliberately absent: it is a one-shot commit handled in the keydown
+// body, not a slot on `input` that could be left stuck on.
+const SLOT_FOR = { up: 'up', down: 'down', left: 'left', right: 'right', map: 'sense', scent: 'scent', drink: 'drink', crouch: 'crouch' };
 function rebuildKeymap() {
   KEYMAP = { arrowup: 'up', arrowdown: 'down', arrowleft: 'left', arrowright: 'right' };
   for (const action in OPTIONS.bindings) {
@@ -56,8 +58,8 @@ function rebuildKeymap() {
 loadOptions();
 rebuildKeymap();
 
-const HELD_SLOTS = { sense: 1, scent: 1, drink: 1 };   // the sustained-hold verbs (9b)
-const REBIND_ACTIONS = ['up', 'down', 'left', 'right', 'map', 'scent', 'drink'];
+const HELD_SLOTS = { sense: 1, scent: 1, drink: 1, crouch: 1 };   // the sustained-hold verbs (9b)
+const REBIND_ACTIONS = ['up', 'down', 'left', 'right', 'map', 'scent', 'drink', 'crouch', 'pounce'];
 const RESERVED_KEYS = ['r', 'm', 'h', 'f', 'escape', 'o'];
 let optionsOpen = false;
 let rebinding = null;   // the action awaiting a new key, while the options screen is up
@@ -117,6 +119,9 @@ window.addEventListener('keydown', (ev) => {
       && (S.mode === 'play' || S.mode === 'prologue')) { S.showHelp = !S.showHelp; return; }
   if (k === 'f' && S && (S.mode === 'play' || S.mode === 'prologue')) { togglePackStay(); return; }
   if (k === OPTIONS.bindings.map && !ev.repeat) toggleMap();  // press to open, press to close
+  // the pounce: a one-shot commit, never a held slot
+  if (k === OPTIONS.bindings.pounce && !ev.repeat
+      && S && (S.mode === 'play' || S.mode === 'prologue')) { commitAmbush(); return; }
 
   const slot = KEYMAP[k];
   if (slot) {
@@ -171,11 +176,14 @@ function pressTouchButton(name) {
   else if (name === 'map') { toggleMap(); input.sense = true; }   // mirrors the map key: toggles, and holds for the beat-9 vigil
   else if (name === 'wait') togglePackStay();
   else if (name === 'bond') leanIntoWillow();   // the mark over Willow: the beat-6 lean-in, its own verb on touch
+  else if (name === 'crouch') input.crouch = true;
+  else if (name === 'pounce') commitAmbush();   // a tap, not a hold
 }
 function releaseTouchButton(name) {
   if (name === 'scent') input.scent = false;
   else if (name === 'drink') input.drink = false;
   else if (name === 'map') input.sense = false;
+  else if (name === 'crouch') input.crouch = false;
 }
 
 function classifyTouch(px, py, L) {
@@ -236,7 +244,7 @@ canvas.addEventListener('touchcancel', endTouches);
 canvas.addEventListener('contextmenu', (ev) => ev.preventDefault());
 canvas.addEventListener('mousedown', (ev) => { if (ev.button === 2) toggleMap(); });
 window.addEventListener('blur', () => {
-  input.up = input.down = input.left = input.right = input.sense = input.scent = input.drink = false;
+  input.up = input.down = input.left = input.right = input.sense = input.scent = input.drink = input.crouch = false;
 });
 
 // Leaving the tab mutes the land (its constant ambience shouldn't play into a

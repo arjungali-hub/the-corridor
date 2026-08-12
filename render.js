@@ -900,8 +900,9 @@ function drawPrey(e) {
   ctx.beginPath(); ctx.ellipse(-s * 0.1, 0, s * 1.15, s * 0.62, 0, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = tone.rump;
   ctx.beginPath(); ctx.ellipse(-s * 0.95, 0, s * 0.34, s * 0.4, 0, 0, Math.PI * 2); ctx.fill();
-  // neck + head, dipping when grazing
-  const grazeDip = e.fleeing ? 0 : 0.25 + 0.2 * Math.sin(S.time * 0.6 + s);
+  // neck + head, dipping when grazing — and coming UP the moment it is wary.
+  // This is the stalk's primary tell: posture, read at a glance, no bar.
+  const grazeDip = (e.fleeing || e.headUp) ? 0 : 0.25 + 0.2 * Math.sin(S.time * 0.6 + s);
   ctx.fillStyle = tone.body;
   ctx.beginPath(); ctx.ellipse(s * 0.9, 0, s * 0.5, s * 0.3, 0, 0, Math.PI * 2); ctx.fill();
   ctx.beginPath(); ctx.ellipse(s * (1.35 - grazeDip * 0.2), 0, s * 0.34, s * 0.24, 0, 0, Math.PI * 2); ctx.fill();
@@ -924,6 +925,58 @@ function drawPrey(e) {
         ctx.stroke();
       }
     }
+  }
+  ctx.restore();
+  drawAlertMark(e);
+}
+
+// The second half of the tell: a mark above an animal that has noticed
+// something. One stroke at wary, two and brighter at alarmed — shape and count,
+// never a number, and nothing at all while it is unaware (the state she wants).
+function drawAlertMark(e) {
+  const st = e.alertState || 'grazing';
+  if (st === 'grazing' || st === 'fleeing') return;
+  const H = HERDS[e.herd];
+  const s = H.size;
+  const alarmed = st === 'alarmed';
+  const y = e.y - s * 1.9;
+  ctx.save();
+  ctx.globalAlpha = alarmed ? 0.95 : 0.62;
+  ctx.strokeStyle = alarmed ? '#f0c169' : '#e8dcb8';
+  ctx.lineWidth = alarmed ? 3 : 2.2;
+  ctx.lineCap = 'round';
+  const n = alarmed ? 2 : 1;
+  const lift = alarmed ? 1 + 0.6 * Math.sin(S.time * 7) : 0;   // an alarmed animal jitters
+  for (let i = 0; i < n; i++) {
+    const dx = (i - (n - 1) / 2) * s * 0.42;
+    ctx.beginPath();
+    ctx.moveTo(e.x + dx, y - lift);
+    ctx.lineTo(e.x + dx, y - s * 0.5 - lift);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// The ambush window: a ring that tightens on the animal she could take. Loud for
+// the first few, then it quiets down to a hint — the player only needs teaching
+// once, and an unmissable cue forever would become noise.
+function drawAmbushCue() {
+  if (typeof ambushTarget !== 'function') return;
+  const e = ambushTarget();
+  if (!e) return;
+  const taught = (S.tut.ambushSeen || 0) > 3;
+  const pulse = 0.5 + 0.5 * Math.sin(S.time * 4.5);
+  const H = HERDS[e.herd];
+  const r = H.size * (2.6 + pulse * 0.5);
+  ctx.save();
+  ctx.globalAlpha = taught ? 0.3 + pulse * 0.15 : 0.55 + pulse * 0.35;
+  ctx.strokeStyle = '#f5e2a8';
+  ctx.lineWidth = taught ? 2 : 3;
+  ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, Math.PI * 2); ctx.stroke();
+  if (!taught) {
+    // a second, tighter ring closing in — it reads as "now"
+    ctx.globalAlpha = 0.5 - pulse * 0.3;
+    ctx.beginPath(); ctx.arc(e.x, e.y, H.size * (3.6 - pulse * 0.8), 0, Math.PI * 2); ctx.stroke();
   }
   ctx.restore();
 }
@@ -1439,8 +1492,10 @@ function drawWorld() {
     else drawWolfBody(S.willow.x, S.willow.y, S.willow.heading, 13,
       WOLF_TONES.willow, S.willow.moving, S.willow.gait, false);
   }
-  drawWolfBody(S.wolf.x, S.wolf.y, S.wolf.heading, 11, WOLF_TONES.aspen,
+  // crouched she draws lower and longer — the body reads the verb without a word
+  drawWolfBody(S.wolf.x, S.wolf.y, S.wolf.heading, S.crouched ? 9.2 : 11, WOLF_TONES.aspen,
     S.wolf.moving, S.wolf.gait, isInjured());
+  drawAmbushCue();
 
   drawPrologueWorldBits();
 
@@ -2590,8 +2645,50 @@ function drawBar(x, y, w, label, frac, color) {
   ctx.fillText(label, x + 6, y + 6);
 }
 
+// Which way the air is moving. This used to be flavour; now that the wind sets
+// how early prey smells her, it is information the hunt cannot be played without,
+// so it is always on screen — a drift of motes and the line they travel.
+function drawWindMark() {
+  if (!S.wind || S.era === 'past') return;
+  if (S.mode !== 'play' && S.mode !== 'prologue') return;
+  const cx = canvas.width - 62, cy = 52;
+  const a = S.wind.a;
+  const ux = Math.cos(a), uy = Math.sin(a);
+  ctx.save();
+  ctx.globalAlpha = 0.5;
+  ctx.strokeStyle = S.senseBlend > 0.5 ? 'rgba(74,58,38,0.9)' : 'rgba(238,232,212,0.9)';
+  ctx.lineWidth = 1.6;
+  ctx.lineCap = 'round';
+  // the shaft, and a head that says which way it is going
+  ctx.beginPath();
+  ctx.moveTo(cx - ux * 20, cy - uy * 20);
+  ctx.lineTo(cx + ux * 20, cy + uy * 20);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx + ux * 20, cy + uy * 20);
+  ctx.lineTo(cx + ux * 20 - (ux * 8 + uy * 6), cy + uy * 20 - (uy * 8 - ux * 6));
+  ctx.moveTo(cx + ux * 20, cy + uy * 20);
+  ctx.lineTo(cx + ux * 20 - (ux * 8 - uy * 6), cy + uy * 20 - (uy * 8 + ux * 6));
+  ctx.stroke();
+  // motes riding it, so the direction reads even at a glance
+  for (let i = 0; i < 3; i++) {
+    const t = ((S.time * 0.45 + i / 3) % 1);
+    const px = cx + ux * (t * 40 - 20), py = cy + uy * (t * 40 - 20);
+    ctx.globalAlpha = 0.4 * Math.sin(t * Math.PI);
+    ctx.beginPath(); ctx.arc(px, py, 1.8, 0, Math.PI * 2);
+    ctx.fillStyle = ctx.strokeStyle; ctx.fill();
+  }
+  ctx.globalAlpha = 0.42;
+  ctx.font = `italic 10px ${FONT}`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = ctx.strokeStyle;
+  ctx.fillText('wind', cx, cy + 24);
+  ctx.restore();
+}
+
 function drawHUD() {
   resetTransform();
+  drawWindMark();
   const onMap = S.senseBlend > 0.5;
   const inkText = onMap ? '#4a3a26' : '#f0ead8';
 
@@ -2688,6 +2785,11 @@ function drawHelp() {
   if (S.tut.scentHold > 0.6) rows.push([capOf('scent') + ' (hold)', 'smell the wind']);
   if (S.tut.fTaught) rows.push(['F', 'the pack holds, or follows']);
   if (S.tut.drinkTaught || S.mode === 'play') rows.push([capOf('drink') + ' (hold)', 'drink, standing in water']);
+  // the stalk's two verbs, once the hunt has been taught
+  if (S.tut.step >= 10 || S.mode === 'play') {
+    rows.push([capOf('crouch') + ' (hold)', 'stalk — low and slow, and downwind']);
+    rows.push([capOf('pounce'), 'take it — only when you are close enough']);
+  }
   rows.push(['M', 'quiet']);
   rows.push(['ESC', 'pause']);
   rows.push(['R  R', 'restart the game (skips prologue)']);
@@ -2769,8 +2871,10 @@ function drawOptions() {
   ctx.textAlign = 'left';
   const lx = cx - 190;
   ctx.font = `16px ${FONT}`;
-  const names = { up: 'Up', down: 'Down', left: 'Left', right: 'Right', map: 'Map', scent: 'Smell (hold)', drink: 'Drink (hold)' };
-  const order = ['up', 'down', 'left', 'right', 'map', 'scent', 'drink'];
+  const names = { up: 'Up', down: 'Down', left: 'Left', right: 'Right', map: 'Map',
+    scent: 'Smell (hold)', drink: 'Drink (hold)', crouch: 'Stalk (hold)', pounce: 'Take it' };
+  // the numbers here must stay in step with REBIND_ACTIONS in main.js
+  const order = ['up', 'down', 'left', 'right', 'map', 'scent', 'drink', 'crouch', 'pounce'];
   for (let i = 0; i < order.length; i++) {
     const a = order[i];
     const bound = OPTIONS.bindings[a];
@@ -2835,6 +2939,11 @@ function touchLayout() {
                                                || !!(S && S.mode === 'prologue' && S.beat === 9
                                                      && S.tut && S.tut._b9ask && !S.inherited)) },
     { name: 'wait',  label: 'Wait',  enabled: !!(S && S.tut && S.tut.fTaught && S.mode === 'play') },
+    // the stalk's two verbs: Low is held, Leap is a tap and only lights when
+    // there is actually something to leap at
+    { name: 'crouch', label: 'Low',  enabled: !!(S && (S.mode === 'play'
+                                       || (S.mode === 'prologue' && S.beat >= 4))) },
+    { name: 'pounce', label: 'Leap', enabled: !!(S && typeof ambushTarget === 'function' && ambushTarget()) },
   ];
   const totalH = btns.length * br * 2 + (btns.length - 1) * gap;
   let by = Math.max(br + m, h / 2 - totalH / 2 + br);

@@ -51,6 +51,42 @@ const INHERIT_HOLD  = 3.5;   // seconds of holding, at her side, at the end
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
 const SEASON_RITUAL = 5.5;   // seconds the season-turn map ghost holds
 
+// ── the stalk: alertness, crouch, ambush ─────────────────────────────────────
+// The hunt used to be spot-and-chase: one dimension, identical on day 300 and
+// day 20. Now the APPROACH is the skill and the chase is the consequence. Prey
+// carry `alert` (0..1); it rises while a wolf is inside their detection
+// envelope, faster if she is upwind, upright, in the open, in daylight — and a
+// blown stalk alarms the whole herd. Reaching 1 is the flee.
+const ALERT_WARY      = 0.35;   // head up, stops feeding, drifts away
+const ALERT_ALARMED   = 0.70;   // moves off at a trot, the herd bunches
+const ALERT_BASE_RISE = 0.9;    // per second at point blank, tapering to 0 at detectR
+const ALERT_FALL      = 0.32;   // per second with no wolf inside detectR
+const ALERT_HERD_R    = 260;    // an alarmed animal infects its herd-mates this far
+const ALERT_HERD_RISE = 0.5;    // …at this rate
+const JUMPY_TIME      = 25;     // seconds after a full flee that they stay wound up
+const JUMPY_FLOOR     = 0.2;    // …never settling below this while jumpy
+// wind, by the dot of the wind vector with (wolf → animal): the game's wind.a is
+// the direction the air MOVES (see windDetectMult), so a positive dot means her
+// scent is being carried onto the animal — she is upwind, and it knows early.
+const ALERT_UPWIND    = 2.6;
+const ALERT_CROSSWIND = 1.0;
+const ALERT_DOWNWIND  = 0.45;
+const ALERT_WIND_DOT  = 0.4;    // |dot| above this is up/downwind, between is cross
+const ALERT_MOTION_STILL  = 0.8;   // standing still is quieter than walking
+const ALERT_MOTION_WALK   = 1.0;
+const ALERT_MOTION_CROUCH = 0.35;
+const ALERT_COVER     = 0.55;   // inside a tree or a forest disc
+const ALERT_LIGHT_DAY = 1.15;
+const ALERT_LIGHT_NIGHT = 0.7;
+const CROUCH_SPEED    = 0.42;   // she moves at this fraction of her walk, low and slow
+const AMBUSH_R_DEFAULT = 110;   // Part 2 gives each species its own
+const DETECT_R_DEFAULT = 300;
+const AMBUSH_GRAZE_STAM = 40;   // an ambush out of a grazing animal: it starts spent
+const AMBUSH_WARY_STAM  = 70;   // …out of a wary one: it starts readier
+const AMBUSH_STUMBLE_T  = 2;    // seconds of reduced flee speed after a grazing ambush
+const AMBUSH_STUMBLE    = 0.88;
+const PREY_SPENT = 25;   // stamina at or below which a spent animal can be caught
+
 const OVERLOOK = { x: 2050, y: 1500 };  // beat 2 and beat 8 share this camera
 const WILLOW_TONE_ID = 'willow';
 
@@ -310,7 +346,7 @@ function distToEdgePath(e) {
 // read it without a temporal-dead-zone hazard.
 var touchMode = false;
 
-const input = { up: false, down: false, left: false, right: false, sense: false, scent: false, drink: false };
+const input = { up: false, down: false, left: false, right: false, sense: false, scent: false, drink: false, crouch: false };
 
 let S = null;
 
@@ -360,6 +396,9 @@ function newGame() {
       tearPrompt: false, goalSet: false, taughtHelp: false, denPrompt: false,
       routeTaught: false,
       lastStarveDay: 0,
+      // the stalk's lessons, each told once
+      ambushed: false, windLesson: false, stalkSpoiled: false,
+      ambushSeen: 0,        // times the ambush window has opened; the cue quiets after a few
     },
     prompt: null, promptQueue: [], promptGap: 0,
     guide: null,               // a soft chevron toward somewhere she must find
@@ -391,6 +430,8 @@ function newGame() {
     lastSeason: 0, bondT: 0, bondC: null,
     suggestion: null,   // the current non-binding nudge (replaces tasks)
     carcass: null,      // a findable carcass a suggestion has pointed her to
+    crouched: false,    // the stalk, resolved once a frame in moveAspen
+    ambushT: 0,         // the pounce's afterglow, for the cue and the camera
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
@@ -491,6 +532,8 @@ function spawnPrey(herdIdx) {
     wary: seasonIndex() === 3 && !H.cattle && H.anchor.x <= OBSTACLES.highway.x1,
     grazeT: Math.random() * 6,
     tx: 0, ty: 0,
+    // the stalk: it starts unaware, and stays that way until a wolf earns otherwise
+    alert: 0, alertState: 'grazing', jumpyT: 0, stumbleT: 0, headUp: false,
   };
   pickGrazeTarget(elk);
   S.elk.push(elk);
@@ -552,7 +595,7 @@ function capOf(action) {
   // On a touch device there are no keys — the teaching text names the on-screen
   // buttons instead, so "Hold E to smell" becomes "Hold Smell to smell".
   if (touchMode) {
-    const label = { map: 'Map', scent: 'Smell', drink: 'Drink' }[action];
+    const label = { map: 'Map', scent: 'Smell', drink: 'Drink', crouch: 'Low', pounce: 'Leap' }[action];
     if (label) return label;
   }
   const k = (typeof OPTIONS !== 'undefined' && OPTIONS && OPTIONS.bindings) ? OPTIONS.bindings[action] : null;
@@ -736,6 +779,10 @@ function onKnownRoute() {
 }
 
 function moveAspen(dt) {
+  // low and slow, or upright: the stalk's one lever. Resolved before movement so
+  // the alertness pass and the renderer read the same frame.
+  S.crouched = crouchActive();
+  S.wolf.crouched = S.crouched;
   // held fast: a sprung snare pins her while she wrenches free
   if ((S.snaredT || 0) > 0) { S.wolf.moving = false; return; }
   let vx = 0, vy = 0;
@@ -755,6 +802,9 @@ function moveAspen(dt) {
     if (S.water <= 0) penalty *= 0.85;        // thirst dulls everything
     if (waterAt(S.wolf.x, S.wolf.y)) penalty *= 0.7;   // wading drags at her legs
     sp *= Math.max(0.5, penalty);
+    // the crouch sits OUTSIDE the no-death-spiral floor: it is a choice she is
+    // making, not a condition happening to her, and it must feel slow
+    if (S.crouched) sp *= CROUCH_SPEED;
     const px = S.wolf.x, py = S.wolf.y;
     tryMove(S.wolf, vx / m * sp * dt, vy / m * sp * dt, wolfBlockedAt);
     S.wolf.heading = Math.atan2(vy, vx);
@@ -1521,6 +1571,17 @@ function packUpdate(dt) {
     // edge honest: a chase starts well inside the radius and is only
     // abandoned well outside it — no flickering at the line. A held wolf
     // does not leave its ground to hunt.
+    // When she goes low, the pack that is WITH her goes low too and stops
+    // drifting — it will not hunt on its own and it will not wander into an
+    // envelope. A wolf still loping back into the zone stays upright, and that
+    // is the blunder the player learns to stage away with F.
+    w.crouched = !!S.crouched && dZone <= wzr;
+    if (w.crouched) {
+      w.hunting = false;
+      w.moving = false;
+      continue;
+    }
+
     if (!w.pup && !held && S.mode === 'play') {
       let prey = null, pd = 1e9;
       for (const e of S.elk) {
@@ -1783,6 +1844,149 @@ function windDetectMult(hx, hy, ex, ey) {
   return m;
 }
 
+// ── the stalk ────────────────────────────────────────────────────────────────
+
+// Per-species envelopes. Part 2 fills these in on HERDS; until then every
+// animal reads at the old elk numbers, so nothing changes underfoot.
+function preyDetectR(e) {
+  const H = HERDS[e.herd];
+  const base = (H && H.detectR) || DETECT_R_DEFAULT;
+  return base * (e.wary ? 1.3 : 1);
+}
+function preyAmbushR(e) {
+  const H = HERDS[e.herd];
+  return (H && H.ambushR) || AMBUSH_R_DEFAULT;
+}
+
+function alertStateOf(e) {
+  const a = e.alert || 0;
+  if (a >= 1) return 'fleeing';
+  if (a >= ALERT_ALARMED) return 'alarmed';
+  if (a >= ALERT_WARY) return 'wary';
+  return 'grazing';
+}
+
+// She is crouched only when the ground allows it: not on the asphalt, and not
+// once something is already running — a stalk is over the moment a chase starts.
+function crouchActive() {
+  if (!S || !input.crouch) return false;
+  if (S.mode !== 'play' && S.mode !== 'prologue') return false;
+  if (S.senseBlend > 0.25 || S.inputLockT > 0) return false;
+  if (onRoad(S.wolf.x, S.wolf.y)) return false;
+  if (chaseIsOn()) return false;
+  return true;
+}
+function chaseIsOn() {
+  return S.elk.some(e => alertStateOf(e) === 'fleeing' && dist(e.x, e.y, S.wolf.x, S.wolf.y) < 520);
+}
+
+// Cover: a trunk or the body of a grove breaks her outline.
+function inCoverAt(x, y) {
+  if (inTreeAt(x, y, 0)) return true;
+  for (const f of TERRAIN.forests) if (dist(x, y, f.x, f.y) < f.r * 0.85) return true;
+  return false;
+}
+
+// How loudly a given wolf announces itself to a given animal.
+function alertWindMult(wx, wy, ex, ey) {
+  if (!S.wind || S.era === 'past') return ALERT_CROSSWIND;
+  const d = dist(wx, wy, ex, ey) || 1;
+  // dot of the wind with (wolf → animal): positive = the air carries her scent
+  // onto it. Same sign convention as windDetectMult.
+  const dot = ((ex - wx) * Math.cos(S.wind.a) + (ey - wy) * Math.sin(S.wind.a)) / d;
+  if (dot > ALERT_WIND_DOT) return ALERT_UPWIND;
+  if (dot < -ALERT_WIND_DOT) return ALERT_DOWNWIND;
+  return ALERT_CROSSWIND;
+}
+function alertMotionMult(actor) {
+  if (actor.crouched) return ALERT_MOTION_CROUCH;
+  return actor.moving ? ALERT_MOTION_WALK : ALERT_MOTION_STILL;
+}
+function alertLightMult() {
+  // daylight() lives in render.js; guard it the way the other callers do
+  const l = (typeof daylight === 'function') ? clamp(daylight(), 0, 1) : 1;
+  return ALERT_LIGHT_NIGHT + (ALERT_LIGHT_DAY - ALERT_LIGHT_NIGHT) * l;
+}
+
+// The rise one wolf contributes to one animal, per second. 0 outside the
+// envelope — that is what makes distance, wind, cover and stillness playable.
+function alertRiseFrom(actor, e) {
+  const R = preyDetectR(e);
+  const d = dist(actor.x, actor.y, e.x, e.y);
+  if (d >= R) return 0;
+  return ALERT_BASE_RISE * clamp(1 - d / R, 0, 1)
+    * alertWindMult(actor.x, actor.y, e.x, e.y)
+    * alertMotionMult(actor)
+    * (inCoverAt(actor.x, actor.y) ? ALERT_COVER : 1)
+    * alertLightMult();
+}
+
+// ── the ambush ───────────────────────────────────────────────────────────────
+
+// The nearest animal she could take right now: close enough, and still unaware
+// enough to be taken. Returns null when there is no window.
+function ambushTarget() {
+  if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return null;
+  if (S.mode === 'prologue' && S.beat < 4) return null;
+  let best = null, bd = 1e9;
+  for (const e of S.elk) {
+    const st = alertStateOf(e);
+    if (st !== 'grazing' && st !== 'wary') continue;
+    const d = dist(e.x, e.y, S.wolf.x, S.wolf.y);
+    if (d <= preyAmbushR(e) && d < bd) { bd = d; best = e; }
+  }
+  return best;
+}
+
+// Commit. Out of a grazing animal she gets it half-spent and stumbling; out of a
+// wary one it is already most of the way to running.
+function commitAmbush() {
+  const e = ambushTarget();
+  if (!e) return false;
+  const fromGrazing = alertStateOf(e) === 'grazing';
+  e.stamina = Math.min(e.stamina, fromGrazing ? AMBUSH_GRAZE_STAM : AMBUSH_WARY_STAM);
+  if (fromGrazing) e.stumbleT = AMBUSH_STUMBLE_T;
+  e.alert = 1;                 // it is running now
+  e.jumpyT = JUMPY_TIME;
+  e.ambushed = true;
+  e.ambushFromGrazing = fromGrazing;
+  S.ambushT = 0.45;            // the cue's afterglow; Part 6 hangs the slow-motion here
+  playWhoosh();                // the coil and the spring; Part 6 gives it its own voice
+  if (!S.tut.ambushed) {
+    S.tut.ambushed = true;
+    say('Close enough to choose the moment.');
+  }
+  return true;
+}
+
+// A packmate walking upright into an animal's envelope while she is low is the
+// main way an early stalk dies. Name it once, and name the verb that fixes it.
+// The first time an animal winds up while she is upwind of it, name the reason —
+// the wind is now load-bearing information and it must be teachable.
+function noteWindLesson(e) {
+  if (!S || S.mode !== 'play' || S.tut.windLesson) return;
+  if (alertWindMult(S.wolf.x, S.wolf.y, e.x, e.y) !== ALERT_UPWIND) return;
+  if (dist(e.x, e.y, S.wolf.x, S.wolf.y) > preyDetectR(e)) return;
+  S.tut.windLesson = true;
+  say('The wind carried her ahead of herself. It knew before it saw.');
+}
+
+function noteStalkSpoiled(e) {
+  noteWindLesson(e);
+  if (!S || S.mode !== 'play' || !S.crouched) return;
+  if (dist(e.x, e.y, S.wolf.x, S.wolf.y) <= preyAmbushR(e)) return;   // she was close enough anyway
+  const R = preyDetectR(e);
+  const blunderer = alivePack().find(w => !w.crouched && w.state !== 'stay'
+    && dist(w.x, w.y, e.x, e.y) < R);
+  if (!blunderer) return;
+  if (S.tut.stalkSpoiled) return;
+  S.tut.stalkSpoiled = true;
+  const holdCap = touchMode ? 'Wait' : 'F';
+  say(`${blunderer.name} went ahead of her. The elk had its head up before she was close.`);
+  stickyPrompt(`${holdCap} holds them where they stand — stage the pack, then go in alone.`,
+               touchMode ? [] : [holdCap]);
+}
+
 // Late autumn, the migration made visible: the eastern herds press against
 // the road — milling at the barrier they cannot cross — and once the bridge
 // is trusted, they trickle over it, day by day, draining the east. The
@@ -1827,17 +2031,56 @@ function preyUpdate(dt) {
       elk.y += (H.anchor.y - elk.y) / d * 260 * dt;
       continue;
     }
-    let fx = 0, fy = 0, threat = 0;
-    const flightR = 300 * elk.skittish * (elk.wary ? 1.3 : 1);
+    // ── alertness: the stalk ────────────────────────────────────────────────
+    // The old model was binary — a wolf inside the flight radius meant flight.
+    // Now every wolf inside the DETECTION envelope only raises `alert`, and the
+    // flight is what happens when it fills. The repulsion vector is still built
+    // from the same wolves, so a fleeing animal runs from them exactly as before.
+    let fx = 0, fy = 0, near = 0;
+    let rise = 0, pursued = false;
+    const detR = preyDetectR(elk);
+    const pursuitR = detR * 1.6;
     for (const h of hunters) {
       const d = dist(elk.x, elk.y, h.x, h.y);
-      const fr = flightR * windDetectMult(h.x, h.y, elk.x, elk.y);
-      if (d < fr && d > 1) {
-        fx += (elk.x - h.x) / d * (fr - d);
-        fy += (elk.y - h.y) / d * (fr - d);
-        threat++;
+      if (d < pursuitR && d > 1) pursued = true;
+      if (d < detR && d > 1) {
+        fx += (elk.x - h.x) / d * (detR - d);
+        fy += (elk.y - h.y) / d * (detR - d);
+        near++;
+        rise += alertRiseFrom(h, elk);
       }
     }
+    if (elk.alert === undefined) elk.alert = 0;
+    elk.jumpyT = Math.max(0, (elk.jumpyT || 0) - dt);
+    elk.stumbleT = Math.max(0, (elk.stumbleT || 0) - dt);
+    const wasState = alertStateOf(elk);
+    // Flight has hysteresis, the way the old flight radius did: an animal that is
+    // RUNNING keeps running while a wolf is still on it, out to a wider pursuit
+    // radius. Without this, flight flickers off the instant she drops a step
+    // behind — and a flickering animal regenerates stamina and can never be run
+    // down, which is exactly the bug the harness caught.
+    if (elk.alert >= 1 && pursued) elk.alert = 1;
+    else if (rise > 0) elk.alert = Math.min(1, elk.alert + rise * dt);
+    else elk.alert = Math.max(elk.jumpyT > 0 ? JUMPY_FLOOR : 0, elk.alert - ALERT_FALL * dt);
+    // herd transmission: an alarmed animal winds up everything near it. Herds
+    // panic together — that is what makes a blown stalk expensive.
+    const nowState = alertStateOf(elk);
+    if (nowState === 'alarmed' || nowState === 'fleeing') {
+      for (const other of S.elk) {
+        if (other === elk || other.herd !== elk.herd) continue;
+        if (dist(elk.x, elk.y, other.x, other.y) > ALERT_HERD_R) continue;
+        other.alert = Math.min(1, (other.alert || 0) + ALERT_HERD_RISE * dt);
+      }
+    }
+    // a full flee leaves them wound up: no immediate re-stalk of the same animal
+    if (nowState === 'fleeing') elk.jumpyT = JUMPY_TIME;
+    if (wasState !== 'alarmed' && wasState !== 'fleeing'
+        && (nowState === 'alarmed' || nowState === 'fleeing')) {
+      noteStalkSpoiled(elk);
+    }
+    elk.alertState = nowState;
+    // the fire below still adds to this — panic overrides awareness
+    let threat = nowState === 'fleeing' ? Math.max(1, near) : 0;
     let sx = 0, sy = 0;
     for (const other of S.elk) {
       if (other === elk || other.herd !== elk.herd) continue;
@@ -1853,6 +2096,12 @@ function preyUpdate(dt) {
     elk.vx = elk.vx || 0; elk.vy = elk.vy || 0;
     let wantX = 0, wantY = 0, wantSp = 0;
 
+    // A winter-thin animal has no reserves to get back: it does not recover
+    // between alarms. This is what keeps the prologue's scripted hunt a
+    // guaranteed win — it spawns nearly spent, and the new stalk phase must not
+    // hand its stamina back while she is still closing.
+    const regen = elk.frail ? 0 : 1;
+
     // the fire drives everything west, together; panic, not pursuit
     const burning = S.fire && S.fire.state === 'burning';
     if (burning) {
@@ -1863,7 +2112,10 @@ function preyUpdate(dt) {
 
     elk.fleeing = threat > 0;
     if (elk.fleeing) {
-      if (!burning) elk.stamina = Math.max(0, elk.stamina - (elk.wary ? 8 : 12) * dt);
+      // more wolves on it wears it down faster — the pack's whole purpose
+      const pursuers = Math.max(1, near);
+      const wear = Math.min(2, 1 + 0.25 * (pursuers - 1));
+      if (!burning) elk.stamina = Math.max(0, elk.stamina - (elk.wary ? 8 : 12) * wear * dt);
       fx += sx * 0.6; fy += sy * 0.6;
       const wob = Math.sin(S.time * 1.4 + elk.skittish * 17) * 0.9;
       const wa = Math.atan2(fy, fx) + wob;
@@ -1874,12 +2126,31 @@ function preyUpdate(dt) {
         ay += (H.anchor.y - elk.y) / dAnchor * 0.4;
       }
       const m = Math.hypot(ax, ay) || 1;
-      wantSp = (elk.stamina > 25 ? H.speed : H.speed * 0.56)
+      wantSp = (elk.stamina > PREY_SPENT ? H.speed : H.speed * 0.56)
         * (0.92 + 0.16 * elk.skittish) * (elk.frail || 1)
+        * (elk.stumbleT > 0 ? AMBUSH_STUMBLE : 1)   // caught mid-graze: it breaks badly
         * (seasonIndex() === 3 && S.era !== 'past' ? 0.8 : 1);   // snow drags at everyone
       wantX = ax / m * wantSp; wantY = ay / m * wantSp;
+    } else if (nowState === 'alarmed') {
+      // it has not seen enough to run, but it is going. A trot away from the
+      // threat, and the herd draws together as it goes.
+      elk.stamina = Math.min(100, elk.stamina + 4 * regen * dt);
+      const fm = Math.hypot(fx, fy) || 1;
+      let ax = fx / fm, ay = fy / fm;
+      const dAnchor = dist(elk.x, elk.y, H.anchor.x, H.anchor.y) || 1;
+      ax += (H.anchor.x - elk.x) / dAnchor * 0.5;   // bunching
+      ay += (H.anchor.y - elk.y) / dAnchor * 0.5;
+      const m = Math.hypot(ax, ay) || 1;
+      wantSp = H.speed * 0.42;
+      wantX = ax / m * wantSp; wantY = ay / m * wantSp;
+    } else if (nowState === 'wary') {
+      // head up, off the grass, watching her — and drifting away while it does
+      elk.stamina = Math.min(100, elk.stamina + 6 * regen * dt);
+      const fm = Math.hypot(fx, fy) || 1;
+      wantSp = 34;
+      wantX = fx / fm * wantSp; wantY = fy / fm * wantSp;
     } else {
-      elk.stamina = Math.min(100, elk.stamina + 8 * dt);
+      elk.stamina = Math.min(100, elk.stamina + 8 * regen * dt);
       elk.grazeT -= dt;
       if (elk.grazeT <= 0) pickGrazeTarget(elk);
       const dT = dist(elk.x, elk.y, elk.tx, elk.ty);
@@ -1894,6 +2165,8 @@ function preyUpdate(dt) {
         wantX = sx / mm * 20; wantY = sy / mm * 20;
       }
     }
+    // at wary and above the head comes up off the grass — the tell the player reads
+    elk.headUp = nowState !== 'grazing';
 
     const damp = Math.min(1, dt * (elk.fleeing ? 3.5 : 1.8));
     elk.vx += (wantX - elk.vx) * damp;
@@ -1936,6 +2209,7 @@ function preyUpdate(dt) {
         heading: Math.random() * Math.PI * 2, stamina: 100, fleeing: false,
         gait: 0, bull: false, skittish: 0.75 + Math.random() * 0.5,
         grazeT: 2, tx: 0, ty: 0, vx: 0, vy: 0,
+        alert: 0, alertState: 'grazing', jumpyT: 0, stumbleT: 0, headUp: false,
       };
       pickGrazeTarget(nd);
       S.elk.push(nd);
@@ -1954,7 +2228,9 @@ function preyUpdate(dt) {
   if (S.mode === 'prologue' && S.beat < 4) return;
   for (let i = S.elk.length - 1; i >= 0; i--) {
     const elk = S.elk[i];
-    if (elk.stamina > 25) continue;
+    // the catch still asks for a SPENT animal, adjacent — a good ambush gets it
+    // there in a couple of seconds, a blown stalk usually never does
+    if (elk.stamina > PREY_SPENT) continue;
     const caught = hunters.some(h => dist(elk.x, elk.y, h.x, h.y) < 22);
     if (caught) {
       const H = HERDS[elk.herd];
@@ -3216,7 +3492,9 @@ function tutorialUpdate(dt) {
     if (T.step === 4) stickyPrompt(`She left you her map of this land. Press ${capOf('map')} to remember it.`, [capOf('map')]);
     if (T.step === 5) stickyPrompt(`${capOf('map')} again returns her to the land.`, [capOf('map')]);
     if (T.step === 8) stickyPrompt(`Prey leaves its scent on the land. Hold ${capOf('scent')} to smell the wind.`, [capOf('scent')]);
-    if (T.step === 10) stickyPrompt(`Run the prey until it tires. ${touchMode ? 'Wait' : 'F'} asks the pack to wait in ambush.`, [touchMode ? 'Wait' : 'F']);
+    // the hunt lesson is the STALK now, not the chase: low, slow, into the wind
+    if (T.step === 10) stickyPrompt(`Low. Slow. The wind in her face. Hold ${capOf('crouch')} to stalk, ${capOf('pounce')} to take it when you are close.`,
+                                    [capOf('crouch'), capOf('pounce')]);
   }
 
   switch (T.step) {
@@ -4347,14 +4625,19 @@ function storageOk() { return typeof localStorage !== 'undefined'; }
 // (e.g. "s is right, a is down"); bumping the key retires those stale bindings so
 // a returning player gets the correct WASD defaults back.
 const OPTIONS_KEY = 'the-corridor-options-v2';
-const DEFAULT_BINDINGS = { up: 'w', down: 's', left: 'a', right: 'd', map: ' ', scent: 'e', drink: 'q' };
+// `crouch` is the stalk (held); `pounce` commits the ambush. Pounce needs a key
+// of its own: the map key must stay free mid-stalk (the map is the whole game),
+// F is the pack-staging verb the stalk depends on, and a "tap the crouch key
+// while crouched" commit cannot be distinguished from the hold — nor would it
+// exist at all for players using the hold-to-toggle accessibility option.
+const DEFAULT_BINDINGS = { up: 'w', down: 's', left: 'a', right: 'd', map: ' ', scent: 'e', drink: 'q', crouch: 'shift', pounce: 'x' };
 let OPTIONS = { bindings: { ...DEFAULT_BINDINGS }, holdToggle: false, textScale: 1 };
 // A persisted set is only usable if every action has a key and no key drives two
 // actions; anything else is corruption and we fall back to the defaults rather
 // than ship scrambled controls. (A clean custom remap is still a valid set.)
 function bindingsValid(b) {
   const seen = new Set();
-  for (const a of ['up', 'down', 'left', 'right', 'map', 'scent', 'drink']) {
+  for (const a of ['up', 'down', 'left', 'right', 'map', 'scent', 'drink', 'crouch', 'pounce']) {
     const k = b[a];
     if (typeof k !== 'string' || k.length === 0 || seen.has(k)) return false;
     seen.add(k);
@@ -4574,6 +4857,12 @@ function update(dt) {
   // a wound heals in real time, task freeze or no — the calendar has no say
   S.injuredT = Math.max(0, S.injuredT - dt);
   S.passageFade = Math.max(0, (S.passageFade || 0) - dt);
+  S.ambushT = Math.max(0, (S.ambushT || 0) - dt);
+  // count how many times the ambush window has OPENED (not frames it was open),
+  // so the cue can be loud while it is still being learned and quiet after
+  const ambNow = !!ambushTarget();
+  if (ambNow && !S.ambushWindowWas) S.tut.ambushSeen = (S.tut.ambushSeen || 0) + 1;
+  S.ambushWindowWas = ambNow;
   S.shake = Math.max(0, S.shake - 30 * dt);
   S.inputLockT = Math.max(0, S.inputLockT - dt);
   S.confirmNewYearT = Math.max(0, S.confirmNewYearT - dt);

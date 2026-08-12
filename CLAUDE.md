@@ -2,6 +2,16 @@
 
 A narrative-systems game: one year in the life of Aspen, a wolf who inherits
 her dead mother Willow's mental map of a territory that no longer matches it.
+
+**In progress: the fun pass (TODO Part 32).** The game was finished and worked,
+and was not fun — two verbs, neither deepening over a year. Parts 1–7 add a hunt
+with a skill ceiling, prey species, a pack that grows, a bloodline across years,
+goals, juice, and a rebalance. Some austerity is being spent **on purpose and
+with authorization**: numbers appear on screen, a level-up is a small
+celebration. Where the choice is "satisfying" vs "restrained", choose
+satisfying — the thesis survives because the new systems carry it (the
+bloodline), not because the game stays quiet. Locked rules below are amended as
+each part lands; anything marked *superseded* was deliberately replaced.
 Plain HTML/JS/canvas, no build step, no dependencies — open `index.html`.
 The full design bible lives outside the repo; this file is the condensed,
 load-bearing version. The thesis (fragmentation devalues inherited knowledge)
@@ -62,9 +72,29 @@ the ending card.
   throws Aspen clear (hurt, terrified, never gory); a hit packmate is lost,
   permanently. The culvert (`Water-Under-Stone`) is the safe unknown detour.
   Elk never cross the highway at all.
-- **The hunt**: elk flee all wolves, tire (stamina), and are caught when spent
-  and adjacent. Stationed packmates (F = hold/follow) shape the chase. Food is
-  shared; ~4.5/day drains it; at 0 for two days Sedge disperses, permanently.
+- **The hunt is a STALK** (superseded the old spot-and-chase in the fun pass,
+  Part 32/1 — the approach is the skill, the chase is the consequence). Prey
+  carry `alert` 0..1 → `grazing` / `wary` / `alarmed` / `fleeing`. It rises while
+  a wolf is inside the animal's `detectR`, scaled by distance, **wind** (upwind
+  ×2.6, cross ×1.0, downwind ×0.45 — the game's `wind.a` is the direction the air
+  MOVES, so a positive dot with wolf→animal means her scent is landing on it),
+  **motion** (crouched ×0.35, still ×0.8, walking ×1.0), **cover** (×0.55 in a
+  tree or grove), and **light**; an alarmed animal infects herd-mates within
+  260u, so a blown stalk costs the whole herd. Flight has hysteresis — a running
+  animal keeps running while a wolf is inside `detectR × 1.6` — without which
+  flight flickers at the threshold and prey can never be worn down.
+  **Crouch** (hold, default Shift) is the one lever: ×0.42 speed, and it refuses
+  the asphalt and any live chase. **Pounce** (default X) commits inside
+  `ambushR`: out of `grazing` the animal starts at 40% stamina and stumbling, out
+  of `wary` at 70%; blown, it runs at full and stays jumpy for 25 s. Pounce needs
+  its own key — the map key must stay free mid-stalk, F is the pack-staging verb
+  the stalk depends on, and a tap-while-held commit cannot be distinguished from
+  the hold nor exist under hold-to-toggle. The catch is unchanged: **spent
+  (stamina ≤ `PREY_SPENT`) AND adjacent**. Packmates go low with her and hold;
+  one left upright inside `detectR` is the main early failure, which is what
+  teaches F. A **frail** animal never regains stamina — that is what keeps the
+  prologue's scripted hunt a guaranteed win. Food is shared; ~4.5/day drains it;
+  at 0 for two days Sedge disperses, permanently.
 - **Generational encoding**: edges traversed while a yearling (Alder/Fen)
   follows within 420 u are silently added to `S.yearlingKnows`. Never
   surfaced in play; pays off only in the ending.

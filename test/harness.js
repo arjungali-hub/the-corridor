@@ -178,11 +178,18 @@ check("the pack holds its mother's zone, not hers",
   G('S.willow && zoneCenter().x === S.willow.x && zoneCenter().y === S.willow.y'));
 check('her ink followed her', G("S.edges.find(e => e.id === 'aspenStand-oldFord').state") === 'inherited');
 
-// beat 4: run down the winter-thin elk
+// beat 4: run down the winter-thin elk.
+// NOTE the explicit step() below. stepTo() returns instantly WITHOUT stepping
+// when she is already inside its 18u arrival radius — so once she is on top of
+// the elk, every iteration becomes a no-op and no game time passes at all. The
+// elk then parks one point above the catch threshold forever and the chase
+// deadlocks in the driver while being perfectly fine in a browser. Always let
+// the world run.
 for (let i = 0; i < 80 && G('S.elk.length') > 0; i++) {
   const e = G('S.elk.length ? ({x: S.elk[0].x, y: S.elk[0].y}) : null');
   if (!e) break;
   stepTo(e.x, e.y, 1.2);
+  step(1 / 20, 6);
 }
 check('beat 4 → 5: the kill', G('S.beat') === 5);
 
@@ -224,7 +231,7 @@ check('beat 6 touch: a contextual mark stands over Willow',
 check('beat 6 touch: the mark sits above her, clear of her body', b6.aboveHer === true);
 check('beat 6 touch: the mark is clamped on-screen, so it is always reachable', b6.onScreen === true);
 check('beat 6 touch: the Map button is no longer the lean-in', b6.mapEnabled === false);
-check('beat 6 touch: the fixed column still holds its four buttons', b6.btnCount === 4);
+check('beat 6 touch: the fixed column keeps its own slots', b6.btnCount === 6);
 check('beat 6 touch: a tap on the mark resolves to the bond button', b6.hits === 'bond');
 G('drawTouchControls();');   // the new mark must draw without throwing
 G("pressTouchButton('bond');");
@@ -327,6 +334,255 @@ check('tutorial resumes past the taught verbs', G('S.tut.step') >= 6);
 check('the land refilled with prey', G('S.elk.length') >= 15);
 check('herds are distinct', G('new Set(S.elk.map(e => e.herd)).size') >= 3);
 smokeDraw('Act I world');
+
+// ════ THE STALK (fun pass, Part 1) ════
+// The approach is the skill now. These are unit checks on the alertness model,
+// driven through the real functions with a scratch animal placed by hand.
+(function stalkChecks() {
+  // a lone test animal on clean open ground, and the pack parked far away so it
+  // contributes nothing to what we are measuring
+  G(`S.pack.forEach(function(w){ w.state='stay'; w.x = WORLD.x0 + 60; w.y = 60; w.holdX = w.x; w.holdY = w.y; });`);
+  G(`S.elk.length = 0; S.willow = null; input.crouch = false; S.crouched = false;`);
+  G(`S.weather = { kind:'sun', t:0, dur:99 };`);
+  const mk = (dx, dy) => G(`(function(){
+    S.elk.length = 0;
+    S.elk.push({ herd:1, x:S.wolf.x + ${dx}, y:S.wolf.y + ${dy}, heading:0, stamina:100,
+      fleeing:false, gait:0, bull:false, skittish:1, grazeT:99, tx:0, ty:0, vx:0, vy:0,
+      alert:0, alertState:'grazing', jumpyT:0, stumbleT:0, headUp:false });
+    S.elk[0].tx = S.elk[0].x; S.elk[0].ty = S.elk[0].y;
+    return S.elk[0].alert;
+  })()`);
+
+  // states derive from the number, at the stated thresholds
+  mk(120, 0);
+  const states = G(`(function(){ var e=S.elk[0], out={};
+    e.alert=0.30; out.graze=alertStateOf(e);
+    e.alert=0.35; out.wary=alertStateOf(e);
+    e.alert=0.70; out.alarm=alertStateOf(e);
+    e.alert=1;    out.flee=alertStateOf(e);
+    e.alert=0; return out; })()`);
+  check('stalk: alert thresholds name the four states',
+    states.graze === 'grazing' && states.wary === 'wary'
+    && states.alarm === 'alarmed' && states.flee === 'fleeing');
+
+  // wind: upwind is ×2.6 and downwind ×0.45 of the crosswind rate. The animal is
+  // placed due east, so the wind is aimed at it (upwind) or back at her (downwind).
+  const wind = G(`(function(){
+    var e = S.elk[0]; e.x = S.wolf.x + 120; e.y = S.wolf.y;
+    S.wind = { a: 0 };            // blowing due east: from her, onto it
+    var up = alertRiseFrom(S.wolf, e);
+    S.wind = { a: Math.PI };      // blowing due west: her scent goes away
+    var down = alertRiseFrom(S.wolf, e);
+    S.wind = { a: Math.PI / 2 };  // across
+    var cross = alertRiseFrom(S.wolf, e);
+    return { up: up, down: down, cross: cross };
+  })()`);
+  check('stalk: upwind is 2.6x the crosswind rate — she is smelled first',
+    Math.abs(wind.up / wind.cross - 2.6) < 1e-6);
+  check('stalk: downwind is 0.45x — the approach that works',
+    Math.abs(wind.down / wind.cross - 0.45) < 1e-6);
+
+  // distance tapers the base rate to nothing at the envelope's edge
+  const taper = G(`(function(){
+    var e = S.elk[0]; S.wind = { a: Math.PI / 2 };
+    var R = preyDetectR(e);
+    e.x = S.wolf.x + R * 0.5; e.y = S.wolf.y; var half = alertRiseFrom(S.wolf, e);
+    e.x = S.wolf.x + R + 10;  var outside = alertRiseFrom(S.wolf, e);
+    e.x = S.wolf.x + 120;
+    return { half: half, outside: outside };
+  })()`);
+  check('stalk: nothing is noticed from outside the envelope', taper.outside === 0);
+  check('stalk: the rate climbs as she closes', taper.half > 0);
+
+  // the crouch: it cuts what she gives away, and what she can cover
+  const cr = G(`(function(){
+    var e = S.elk[0]; S.wind = { a: Math.PI / 2 };
+    S.wolf.moving = true; S.wolf.crouched = false; var upright = alertRiseFrom(S.wolf, e);
+    S.wolf.crouched = true;                         var low = alertRiseFrom(S.wolf, e);
+    S.wolf.crouched = false;
+    return { upright: upright, low: low };
+  })()`);
+  check('stalk: crouching cuts the rise to 0.35x', Math.abs(cr.low / cr.upright - 0.35) < 1e-6);
+  check('stalk: the crouch is a real speed cost', G('CROUCH_SPEED') < 0.5);
+
+  // a packmate blundering upright inside the envelope gives her away at the
+  // UPRIGHT rate — the failure the F lesson exists to fix
+  const mate = G(`(function(){
+    var e = S.elk[0]; S.wind = { a: Math.PI / 2 };
+    var w = S.pack[0];
+    w.x = e.x - 60; w.y = e.y; w.moving = true; w.crouched = false;
+    var upright = alertRiseFrom(w, e);
+    w.crouched = true; var low = alertRiseFrom(w, e);
+    w.x = WORLD.x0 + 60; w.y = 60; w.crouched = false;
+    return { upright: upright, low: low };
+  })()`);
+  check('stalk: a packmate upright inside the envelope raises alert at the upright rate',
+    mate.upright > 0 && Math.abs(mate.low / mate.upright - 0.35) < 1e-6);
+
+  // herd transmission: one alarmed animal winds up its neighbours within 260u,
+  // and leaves a further one alone
+  const herd = G(`(function(){
+    S.elk.length = 0;
+    // open, unblocked, IN-BOUNDS ground (probed), with Aspen far enough off that
+    // she contributes no rise of her own — out-of-bounds placement makes prey
+    // accumulate outT and muddies the measurement
+    S.wolf.x = 2000; S.wolf.y = 200;
+    function add(dx){ S.elk.push({ herd:1, x:2000+dx, y:2000, heading:0, stamina:100,
+      fleeing:false, gait:0, bull:false, skittish:1, grazeT:99, tx:2000+dx, ty:2000,
+      vx:0, vy:0, alert:0, alertState:'grazing', jumpyT:0, stumbleT:0, headUp:false }); }
+    add(0); add(200); add(900);
+    var before1 = S.elk[1].alert, before2 = S.elk[2].alert;
+    // Two seconds, not half of one: transmission (+0.5/s) and the neighbour's own
+    // decay (-0.32/s) run in the SAME frame, so the net spread is only ~0.18/s.
+    // Pin the alarmed animal's alert AND its position: an alarmed animal trots
+    // away (correctly), and once it passes 260u it stops infecting anything — so
+    // left free it would walk out of its own measurement.
+    for (var i=0;i<40;i++){
+      S.elk[0].alert = 0.95; S.elk[0].x = 2000; S.elk[0].y = 2000;
+      update(1/20);
+    }
+    return { near: S.elk[1].alert > before1 + 0.15, far: S.elk[2].alert <= before2 + 1e-9,
+             d1: Math.round(Math.hypot(S.elk[1].x-S.elk[0].x, S.elk[1].y-S.elk[0].y)),
+             d2: Math.round(Math.hypot(S.elk[2].x-S.elk[0].x, S.elk[2].y-S.elk[0].y)) };
+  })()`);
+  check('stalk: an alarmed animal alarms its herd within 260u', herd.near === true && herd.d1 <= 260);
+  check('stalk: …and not one standing further off', herd.far === true && herd.d2 > 260);
+
+  // the ambush window, and what committing out of each state is worth
+  const amb = G(`(function(){
+    S.elk.length = 0; S.wind = { a: Math.PI/2 };
+    S.elk.push({ herd:1, x:S.wolf.x + 40, y:S.wolf.y, heading:0, stamina:100, fleeing:false,
+      gait:0, bull:false, skittish:1, grazeT:99, tx:S.wolf.x+40, ty:S.wolf.y, vx:0, vy:0,
+      alert:0, alertState:'grazing', jumpyT:0, stumbleT:0, headUp:false });
+    var e = S.elk[0];
+    var windowOpen = ambushTarget() === e;
+    e.alert = 0.9;                       // alarmed: the window is shut
+    var shutWhenAlarmed = ambushTarget() === null;
+    e.alert = 0;                         // grazing again
+    var ok = commitAmbush();
+    var grazeStam = e.stamina, stumble = e.stumbleT > 0, fleeing = alertStateOf(e) === 'fleeing';
+    var jumpy = e.jumpyT;
+    // and again out of a wary animal
+    e.stamina = 100; e.alert = 0.5; e.stumbleT = 0;
+    commitAmbush();
+    return { windowOpen: windowOpen, shutWhenAlarmed: shutWhenAlarmed, ok: ok,
+             grazeStam: grazeStam, waryStam: e.stamina, stumble: stumble,
+             fleeing: fleeing, jumpy: jumpy };
+  })()`);
+  check('stalk: the ambush window opens inside ambushR on an unaware animal', amb.windowOpen === true);
+  check('stalk: …and is shut once it is alarmed', amb.shutWhenAlarmed === true);
+  check('stalk: an ambush out of grazing leaves it at 40% stamina', amb.ok === true && amb.grazeStam === 40);
+  check('stalk: …and stumbling', amb.stumble === true);
+  check('stalk: an ambush out of wary leaves it at 70%', amb.waryStam === 70);
+  check('stalk: committing puts it to flight and leaves it jumpy',
+    amb.fleeing === true && Math.abs(amb.jumpy - G('JUMPY_TIME')) < 1e-9);
+
+  // a blown stalk holds a floor under their nerves for 25 s: no instant re-stalk
+  const jump = G(`(function(){
+    var e = S.elk[0]; e.alert = 1; e.jumpyT = JUMPY_TIME;
+    S.wolf.x = e.x + 4000;               // she is long gone
+    for (var i=0;i<60;i++) update(1/20); // three seconds of settling
+    var held = e.alert;
+    e.jumpyT = 0;
+    for (var i=0;i<60;i++) update(1/20);
+    return { held: held, released: e.alert };
+  })()`);
+  check('stalk: a blown stalk holds a floor under their nerves',
+    Math.abs(jump.held - G('JUMPY_FLOOR')) < 1e-6);
+  check('stalk: …which lets go once they settle', jump.released < G('JUMPY_FLOOR'));
+
+  // more wolves on a running animal wear it down faster (capped at 2x)
+  const wear = G(`(function(){
+    function drain(nWolves){
+      S.pack.forEach(function(w){ w.state='stay'; w.x = WORLD.x0 + 60; w.y = 60; w.holdX=w.x; w.holdY=w.y; });
+      S.elk.length = 0;
+      S.wolf.x = 2000; S.wolf.y = 2000; S.wind = { a: Math.PI/2 };
+      S.elk.push({ herd:1, x:2060, y:2000, heading:0, stamina:100, fleeing:true, gait:0,
+        bull:false, skittish:1, grazeT:99, tx:2060, ty:2000, vx:0, vy:0,
+        alert:1, alertState:'fleeing', jumpyT:JUMPY_TIME, stumbleT:0, headUp:true });
+      var e = S.elk[0];
+      // park the extra wolves right on it so they count as pursuers
+      for (var i=0;i<nWolves-1;i++){ var w=S.pack[i]; if(!w) break;
+        w.state='stay'; w.x=e.x+10*i; w.y=e.y; w.holdX=w.x; w.holdY=w.y; }
+      var before = e.stamina;
+      for (var i=0;i<4;i++) update(1/20);
+      return before - e.stamina;
+    }
+    var one = drain(1), three = drain(3);
+    S.pack.forEach(function(w){ w.state='stay'; w.x = WORLD.x0 + 60; w.y = 60; w.holdX=w.x; w.holdY=w.y; });
+    return { one: one, three: three };
+  })()`);
+  check('stalk: more pursuers wear a running animal down faster',
+    wear.three > wear.one * 1.2);
+
+  // and the catch itself is unchanged: spent AND adjacent, never one or the other
+  const cat = G(`(function(){
+    S.elk.length = 0; S.wolf.x = 2000; S.wolf.y = 2000;
+    S.elk.push({ herd:1, x:2010, y:2000, heading:0, stamina:PREY_SPENT + 8, fleeing:true,
+      gait:0, bull:false, skittish:1, grazeT:99, tx:2010, ty:2000, vx:0, vy:0,
+      alert:1, alertState:'fleeing', jumpyT:JUMPY_TIME, stumbleT:0, headUp:true });
+    update(1/20);
+    var survivedAdjacentButFresh = S.elk.length === 1;
+    // spent, but far away
+    S.elk[0].stamina = 1; S.elk[0].x = 2000 + 900;
+    update(1/20);
+    var survivedSpentButFar = S.elk.length === 1;
+    // spent AND adjacent
+    S.elk[0].x = 2008; S.elk[0].y = 2000;
+    update(1/20);
+    return { fresh: survivedAdjacentButFresh, far: survivedSpentButFar, taken: S.elk.length === 0 };
+  })()`);
+  check('stalk: an adjacent but unspent animal is not caught', cat.fresh === true);
+  check('stalk: a spent but distant animal is not caught', cat.far === true);
+  check('stalk: spent AND adjacent is the catch, as before', cat.taken === true);
+
+  // the crouch refuses the asphalt — a stalk is not a thing you do on the road
+  const road = G(`(function(){
+    var h = OBSTACLES.highway;
+    S.wolf.x = (h.x0 + h.x1) / 2; S.wolf.y = 1500;
+    input.crouch = true;
+    var onAsphalt = crouchActive();
+    S.wolf.x = 2000; S.wolf.y = 2000;
+    var offAsphalt = crouchActive();
+    input.crouch = false;
+    return { onAsphalt: onAsphalt, offAsphalt: offAsphalt };
+  })()`);
+  check('stalk: she cannot crouch on the asphalt', road.onAsphalt === false && road.offAsphalt === true);
+
+  // the two new verbs are real, rebindable, non-colliding bindings
+  check('stalk: crouch and pounce are bound by default',
+    G("!!OPTIONS.bindings.crouch && !!OPTIONS.bindings.pounce") === true);
+  check('stalk: …and both are rebindable',
+    G("REBIND_ACTIONS.indexOf('crouch') >= 0 && REBIND_ACTIONS.indexOf('pounce') >= 0") === true);
+  check('stalk: the default bindings still have no duplicates',
+    G('bindingsValid(DEFAULT_BINDINGS)') === true);
+  check('stalk: crouch is a held verb, so hold-to-toggle covers it',
+    G("!!HELD_SLOTS[SLOT_FOR.crouch]") === true);
+  // pounce must NOT be a held slot: a stuck-on pounce would fire every frame
+  check('stalk: pounce is a one-shot, never a held slot',
+    G("SLOT_FOR.pounce === undefined") === true);
+
+  // the cue quiets once it has been seen a few times
+  check('stalk: the ambush window is counted so the cue can quiet down',
+    G('typeof S.tut.ambushSeen') === 'number');
+
+  // and the whole thing draws: crouched, with a window open, with a wary animal
+  G(`S.elk.length = 0; S.wolf.x = 2000; S.wolf.y = 2000; input.crouch = true; S.crouched = true;
+     S.elk.push({ herd:1, x:2040, y:2000, heading:0, stamina:100, fleeing:false, gait:0,
+       bull:false, skittish:1, grazeT:99, tx:2040, ty:2000, vx:0, vy:0,
+       alert:0.5, alertState:'wary', jumpyT:0, stumbleT:0, headUp:true });
+     S.elk.push({ herd:0, x:2200, y:2000, heading:0, stamina:100, fleeing:false, gait:0,
+       bull:true, skittish:1, grazeT:99, tx:2200, ty:2000, vx:0, vy:0,
+       alert:0.8, alertState:'alarmed', jumpyT:0, stumbleT:0, headUp:true });`);
+})();
+smokeDraw('the stalk: crouched, a window open, wary and alarmed animals');
+G('input.crouch = false; S.crouched = false;');
+// leave the land as the rest of the run expects it
+G(`S.elk.length = 0; input.crouch = false; S.crouched = false;
+   S.pack.forEach(function(w){ w.state='follow'; w.holdX=undefined; w.holdY=undefined; });
+   S.zoneAnchor = null;
+   for (var i=0;i<HERDS.length;i++) for (var k=0;k<HERDS[i].count;k++) spawnPrey(i);`);
+check('the land is restocked after the stalk checks', G('S.elk.length') >= 15);
 
 // F is TAUGHT in spring, not told: the pack is hers now and she is walked
 // through holding it and calling it on with her own body before the year opens
@@ -440,7 +696,19 @@ check('blackriver bridged by her own ink', G("S.bridged.has('blackriver')"));
 G("S.routeTo = 'winterRange'; S.routeT = 99; S.routePath = computeRoute('winterRange');");
 check('the detour restored the plan west', G('S.routePath !== null'));
 G('S.routeTo = null; S.routePath = null;');
+// The encoding rule is "a yearling within 420u when an edge completes learns it".
+// Drive it deliberately: clear the prey and pin the yearlings at her flank for
+// one clean traversal. Left to chance this is FLAKY, because a yearling away on
+// an independent hunt is allowed out to ~416u from the zone and can be past 420
+// at the moment a leg completes — it drifts out of its own inheritance. That is a
+// real fragility, not just a test artifact; Part 3 makes yearling participation
+// mechanical and should address it there.
+G(`_elkSave = S.elk.slice(); S.elk.length = 0;
+   S.pack.forEach(function(w){ if (w.yearling) { w.state='follow'; w.hunting=false;
+     w.x = S.wolf.x + 30; w.y = S.wolf.y + 20; } });`);
+goNode('stonyBench', 40);
 check('yearlings learned the new way, silently', G('S.yearlingKnows.size') > 0);
+G('S.elk = _elkSave;');
 check('the rip is permanent', G("S.edges.find(e => e.id === 'sageFlat-farBench').torn"));
 
 // road: entry side, the strike, the injury
@@ -1234,8 +1502,10 @@ let touchOk = true, touchErr = '';
 try {
   G('touchMode = true;');
   // layout gives a pad and four action buttons
-  check('touch: layout has a movement pad and four action buttons',
-    G('(function(){var L=touchLayout(); return L.btns.length===4 && L.pad.r>0;})()') === true);
+  check('touch: layout has a movement pad and the action column',
+    G('(function(){var L=touchLayout(); return L.btns.length===6 && L.pad.r>0;})()') === true);
+  check('touch: the stalk verbs have their own buttons',
+    G("(function(){var L=touchLayout(); return ['crouch','pounce'].every(function(n){return L.btns.some(function(b){return b.name===n;});});})()") === true);
   // the beat-6 lean-in mark is a prologue moment and must never leak into the year
   check('touch: no contextual mark during ordinary play',
     G('(function(){var L=touchLayout(); return L.over === null || L.over === undefined;})()') === true);

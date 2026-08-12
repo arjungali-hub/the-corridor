@@ -951,6 +951,72 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## fun pass, Part 1 — the hunt gets a skill ceiling (2026-08-11)
+
+The approach is the skill now; the chase is the consequence. Prey carry
+`alert` 0..1 → grazing / wary / alarmed / fleeing, rising while a wolf is inside
+`detectR` and scaled by distance, wind, motion, cover and light, with alarmed
+animals infecting herd-mates within 260u. `crouch` (hold, Shift) is the lever;
+`pounce` (X) commits inside `ambushR` — 40% stamina and a stumble out of a
+grazing animal, 70% out of a wary one, nothing but a hard run if you blew it.
+Packmates go low with her and hold; one left upright inside an envelope is the
+early failure that teaches F. Wind indicator always on, head-up posture and
+alert strokes over prey, a tightening ring on the ambush window that quiets
+after a few. Harness **381 green ×8**.
+
+Five things worth recording, because four of them were bugs the work order could
+not have predicted:
+
+**1. The wind sign in the spec is inverted.** It says dot(wind, animal→wolf) >
+0.4 = upwind, but this game's `wind.a` is the direction the air MOVES (see the
+existing `windDetectMult`), so taken literally the mechanic would reverse —
+downwind approaches would give her away. Implemented the intent (upwind = her
+scent lands on the animal = ×2.6) with the same sign convention as
+`windDetectMult`. Flagged to Arjun.
+
+**2. `pounce` needed its own key**, against the spec's "add no new key". Nothing
+could serve: the map key must stay free mid-stalk (the map is the whole game), F
+is the pack-staging verb the stalk *depends* on, and "tap the crouch key while
+crouched" is indistinguishable from the hold — and would not exist at all for
+players using the hold-to-toggle accessibility option. Default X, rebindable.
+
+**3. Flight flickered at the threshold.** Alert ≥ 1 means fleeing, but the moment
+she dropped a step behind, alert decayed below 1, the animal stopped fleeing —
+and *regenerated stamina*. Nothing could ever be run down. Flight now has
+hysteresis, like the old flight radius: a running animal keeps running while a
+wolf is inside `detectR × 1.6`. The harness caught this as a total prologue
+failure.
+
+**4. The stalk phase was healing the prologue's scripted elk.** It spawns at
+stamina 32 — nearly spent, because "the first hunt is meant to be won" — but the
+new wary/alarmed states regenerate, so it climbed back to ~55 before it ever ran,
+making the beat-4 kill flaky. A `frail` animal now never regains stamina: winter
+-thin means no reserves. Correct fiction, and it restores the guarantee.
+
+**5. A harness driver bug, not a game bug** — and a nasty one. `stepTo()` returns
+*immediately without stepping* when Aspen is already inside its 18u arrival
+radius. So once she was standing on the elk, all 80 iterations of the beat-4
+chase became no-ops, **no game time passed at all**, and the elk parked one point
+above the catch threshold forever. Perfectly fine in a browser. The loop now
+always steps. Worth remembering: any harness loop shaped `while (target alive) {
+stepTo(target) }` can silently stop advancing time.
+
+**One design fragility surfaced, deliberately left for Part 3.** Yearlings hunt
+independently out to ~416u from the zone, and generational encoding needs them
+within 420u when an edge completes — so a hunting yearling can drift out of its
+own inheritance. Prey now lingering nearer the pack (they no longer bolt at 300u)
+made packmates hunt more and turned this into a 1-in-6 flake. The check now drives
+the rule deliberately (prey cleared, yearlings pinned at her flank) instead of
+hoping. Part 3 makes yearling participation mechanical and should fix the
+underlying behaviour there, not just the test.
+
+Deviations to note: the spec's "catch requires stamina ≤ 0.12" conflicts with its
+own "as now" — kept the existing threshold as the named `PREY_SPENT` constant so
+Part 7 can tune it in one place. There is no sprint verb in this game, so the
+motion multiplier is crouched 0.35 / still 0.8 / walking 1.0 and the spec's
+sprint ×1.5 has no source; no tall-grass exists either, so cover is trees and
+groves. **Not yet played in the browser — the feel verdict is owed.**
+
 ## the beat-6 lean-in gets its own mark on touch (2026-08-11)
 
 Arjun, playing on a phone: after crossing the road with Willow, the lean-in
