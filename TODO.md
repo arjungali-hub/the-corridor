@@ -906,6 +906,61 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
 
+## Part 34 — Playtest batch: slow wolves + fixes (Arjun, 2026-08-11)
+
+- [x] **All wolves significantly slower** ("the current hunt mechanic isn't really
+      necessary"): one `WOLF_PACE` dial (0.62) drives Aspen, the pack and Willow —
+      `SPEED_ROUGH` 165, `SPEED_ROUTE` 185, `SPEED_SNOW` 134, `PACK_LOPE`,
+      `PACK_AMBLE`, `PACK_ROAD`, `WILLOW_PACE`. Now under prey speed (deer 296,
+      elk 272), so nothing can be run down at full stamina and the STALK is the
+      hunt; a spent animal drops to ~0.56 speed, which is slower than she is, and
+      that is the only window a chase still has. Rival wolves ease to a posture
+      distance rather than running at a speed, so they are untouched; dogs keep
+      their own pace.
+- [x] The prologue elk was killed instantly by the pack. Two causes: any packmate
+      (or Willow) counted as a catcher and the elk spawns nearly spent — in the
+      prologue **only Aspen** may make that kill now; and it spawned 160u away,
+      now ~330 clamped inside the close-in camera so it is still visible when named.
+- [x] The prologue elk could also **leave the world**: a frail animal is exempt
+      from the herd leash, so it ran in a straight line, escaped, and the escape
+      rule REPLACED it with an ordinary full-stamina deer — uncatchable at the new
+      pace, so beat 4 never ended. It is `scripted` now and leashed to where the
+      beat put it; escapes/replacements never run during the prologue at all. A
+      frail animal also no longer regains stamina, no longer retreats before it
+      breaks, and is capped below `SPEED_ROUGH` so the first hunt stays winnable
+      through any future re-tune.
+- [x] Wolves vibrated beside the road when they could not cross: a target they may
+      not reach is clamped back to their own side of the barrier (and the slot stops
+      being re-rolled onto the asphalt every frame). **Not a confirmed
+      reproduction** — see NOTES; needs Arjun's situation.
+- [x] Willow's head was invisible while she died: it was drawn at 1.5·size in the
+      same fill as a body reaching 1.9·size, i.e. inside its own silhouette. Now
+      clear of the flank with a neck, a dark rim, muzzle, nose, laid-back ear, and
+      an eye — open while she lives, closed once she does not.
+- [x] The roster lied. Every death read "lost to the road" (a train or the western
+      pack got the same line) — `deadCause` is recorded per wolf, saved, and named.
+      And it said "freezes" for a wolf visibly running to safe ground: it now says
+      "scatters" while moving, "freezes" only when actually rooted, and "waits to
+      cross" at a barrier.
+- [x] Sickness lifts **gradually** (`SICK_SPEED` 0.6 easing back over `SICK_EASE`)
+      instead of snapping to full speed when the timer expires.
+- [x] People carry violet: each of the townsfolk spilling out of the houses has its
+      own cloud in `violetAt` and in the scent view, so pressing smell while they
+      come out fills the nose with purple exactly where they are.
+- [x] Mobile never names a key: the H and R lessons are skipped on touch (there are
+      no such buttons), the F lesson reads "tap Wait", the help overlay drops every
+      keyboard-only row (M/O/ESC/R R/H) and says "the pad" and "tap to open", and
+      the crash card reads "Tap to return."
+- [x] Mobile dead end fixed: the ending screen had **no touch handler at all** — a
+      tap did nothing on the game's own last frame. It now restarts, and reads
+      "tap to begin again".
+- [x] All text fits any screen: `fitLines`/`drawFitted` step a line's size down
+      toward a floor and then wrap, applied to prompts (growing upward so extra
+      lines do not fall off the bottom), captions and their subtitles, the
+      objective, the suggestion and the pack roster; the help panel width is
+      `min(460, canvas.width - 24)` with proportional columns and row height.
+- [x] `O` opens the settings mid-year (Part 33) — and the world holds while open.
+
 ## Part 33 — Playtest batch (Arjun, 2026-08-11, after Part 32/1)
 
 - [x] The wind indicator was hidden behind the pack roster's names. Moved to the

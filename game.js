@@ -16,10 +16,26 @@ const COV_BUCKETS   = 10;    // ten stretches per edge; 8 of 10 (80%) is a pass
 const COV_NEEDED    = 8;
 const COV_FULL      = (1 << COV_BUCKETS) - 1;
 const NODE_VISIT_R  = 70;
-const SPEED_ROUGH   = 266;   // off-route — a shade quicker than the pack
-const SPEED_ROUTE   = 298;   // along a known, untorn route
-const SPEED_SNOW    = 216;   // off-route in winter
+// Wolves are SLOW. One dial for every wolf in the game — Aspen, the pack, Willow
+// — so their relative pacing can never drift apart. Deliberately well under prey
+// speed (deer 296, elk 272): a wolf cannot run anything down at full stamina, so
+// the chase is no longer the hunt. The stalk is. A SPENT animal drops to about
+// 0.56 of its speed, which is slower than she is — that is the only window the
+// chase still has, and an ambush is what opens it quickly.
+// (Rival wolves are not here: they ease to a posture distance rather than run at
+// a speed, and dogs are dogs, kept at their own pace.)
+const WOLF_PACE     = 0.62;
+const SPEED_ROUGH   = Math.round(266 * WOLF_PACE);   // off-route
+const SPEED_ROUTE   = Math.round(298 * WOLF_PACE);   // along a known, untorn route
+const SPEED_SNOW    = Math.round(216 * WOLF_PACE);   // off-route in winter
+const PACK_LOPE     = 250 * WOLF_PACE;   // a packmate running: fleeing, or on a chase
+const PACK_AMBLE    = 120 * WOLF_PACE;   // …drifting inside the zone
+const PACK_ROAD     = 240 * WOLF_PACE;   // …never ambling on asphalt
+const WILLOW_PACE   = 235 * WOLF_PACE;   // a mother teaching, not a guide rushing
 const INJURY_SPEED  = 0.7;   // while hurt
+const SICK_TIME     = 75;    // real seconds of wrong water
+const SICK_SPEED    = 0.6;   // worst of it — worse than a wound
+const SICK_EASE     = 45;    // …and it eases back to full over the last stretch
 const INJURY_TIME   = 75;    // real seconds to heal — ticks even while a task holds the calendar
 const MIN_PER_SEC   = 160;   // game minutes per real second (1 day ≈ 9 s; a year ≈ 54 min)
 const SOLID_AT      = 3;     // full traversals to lift dotted → solid
@@ -800,7 +816,9 @@ function moveAspen(dt) {
     // always be able to reach clean water before starving (no death spiral)
     let penalty = 1;
     if (isInjured()) penalty *= INJURY_SPEED;
-    if ((S.sickT || 0) > 0) penalty *= 0.6;   // wrong water — badly slow
+    // Wrong water — badly slow, and it LIFTS gradually. It used to hold 0.6 flat
+    // and then snap back to full speed the instant the timer expired.
+    if ((S.sickT || 0) > 0) penalty *= 1 - (1 - SICK_SPEED) * Math.min(1, S.sickT / SICK_EASE);
     if (S.water <= 0) penalty *= 0.85;        // thirst dulls everything
     if (waterAt(S.wolf.x, S.wolf.y)) penalty *= 0.7;   // wading drags at her legs
     sp *= Math.max(0.5, penalty);
@@ -1271,6 +1289,16 @@ function violetAt(x, y) {
     const r = s.r * scale;
     v += Math.exp(-(d * d) / (r * r));
   }
+  // People themselves reek. When the doors open and they spill out toward the
+  // pack, each one carries its own cloud — so the scent view goes violet where
+  // they are standing, and her nose is worst exactly where they are.
+  if (S.townsfolk) {
+    for (const p of S.townsfolk) {
+      const d = dist(x, y, p.x, p.y);
+      const r = (p.pet ? 200 : 280) * scale;
+      v += 1.35 * Math.exp(-(d * d) / (r * r));
+    }
+  }
   return v;
 }
 
@@ -1422,7 +1450,7 @@ function fleeStep(w, dt) {
   if (!w.fleeTo) { w.moving = false; return; }
   const d = dist(w.x, w.y, w.fleeTo.x, w.fleeTo.y);
   if (d < 22) { w.fleeTo = null; w.moving = false; return; }
-  const sp = 250 * w.mult;
+  const sp = PACK_LOPE * w.mult;
   tryMove(w, (w.fleeTo.x - w.x) / d * sp * dt, (w.fleeTo.y - w.y) / d * sp * dt,
     (x, y) => packBlockedAt(x, y) || onRoad(x, y));
   w.heading = Math.atan2(w.fleeTo.y - w.y, w.fleeTo.x - w.x);
@@ -1598,7 +1626,7 @@ function packUpdate(dt) {
       if (prey && mayHunt) {
         w.hunting = true;
         const d = pd || 1;
-        const sp = 250 * w.mult * lag;
+        const sp = PACK_LOPE * w.mult * lag;
         moveAround(w, (prey.x - w.x) / d * sp * dt, (prey.y - w.y) / d * sp * dt,
           (x, y) => packBlockedAt(x, y) || onRoad(x, y));
         w.heading = Math.atan2(prey.y - w.y, prey.x - w.x);
@@ -1643,10 +1671,15 @@ function packUpdate(dt) {
     }
     // speed eases between amble and lope; heading turns, never snaps
     const urgency = clamp((dZone - zr * 0.7) / (zr * 0.6), 0, 1);
-    let sp = lerp(120, 240, urgency) * w.mult * lag;
-    if (dZone > 700) sp *= 1.8;
+    let sp = lerp(PACK_AMBLE, PACK_ROAD, urgency) * w.mult * lag;
+    // Closes up well before it falls out of sight — and, more importantly, well
+    // inside the 420u that generational encoding needs a yearling to be within
+    // when a leg completes. Wolves are slower than Aspen by design, so a follower
+    // left to drift walks out of its own inheritance; this threshold is
+    // deliberately under that radius, with margin for a wolf rounding an obstacle.
+    if (dZone > 300) sp *= 1.8;
     // a wolf never ambles on asphalt: mid-road, or headed onto it, full lope
-    if (onRoad(w.x, w.y) || onRoad(w.tx, w.ty)) sp = Math.max(sp, 240 * w.mult * lag);
+    if (onRoad(w.x, w.y) || onRoad(w.tx, w.ty)) sp = Math.max(sp, PACK_ROAD * w.mult * lag);
     const step = Math.min(d, sp * dt);
     // it NEVER takes asphalt, the rail, or an untrusted deck Aspen is not on —
     // UNLESS she has crossed that same barrier ahead of it (or is on it),
@@ -1657,6 +1690,29 @@ function packUpdate(dt) {
     const sheLeads = packRefuses(S.wolf.x, S.wolf.y);   // she is on a barrier, calling
     const roadOk = sheLeads || onRoad(w.x, w.y) || ((S.wolf.x < hMid) !== (w.x < hMid));
     const railOk = sheLeads || onRail(w.x, w.y) || ((S.wolf.x < railMid) !== (w.x < railMid));
+
+    // A target it is not allowed to reach is pulled back to its OWN side of the
+    // barrier. When Aspen stands near the asphalt her zone straddles it, so wolves
+    // kept picking slots on or across the road, getting refused by the block
+    // function, and moveAround kept hunting a tangent — finding one that runs
+    // ALONG the shoulder. The pack visibly vibrated at the roadside. Clamping the
+    // target means they walk to the shoulder and settle instead, and the moment
+    // she steps onto the road (sheLeads) or crosses ahead of them, the gate opens
+    // and they follow properly.
+    const hw = OBSTACLES.highway, rl = OBSTACLES.rail;
+    const roadTargetBad = !roadOk && (onRoad(w.tx, w.ty) || ((w.x < hMid) !== (w.tx < hMid))
+      || (onDeck(w.tx, w.ty) && overpassOpen() && !overpassTrusted()));
+    const railTargetBad = !railOk && (onRail(w.tx, w.ty) || ((w.x < railMid) !== (w.tx < railMid)));
+    if (roadTargetBad || railTargetBad) {
+      if (roadTargetBad) w.tx = w.x < hMid ? Math.min(w.tx, hw.x0 - 46) : Math.max(w.tx, hw.x1 + 46);
+      if (railTargetBad) w.tx = w.x < railMid ? Math.min(w.tx, rl.x0 - 46) : Math.max(w.tx, rl.x1 + 46);
+      // and stop re-rolling a fresh slot onto the asphalt every frame
+      w.wanderT = Math.max(w.wanderT || 0, 1.5 + Math.random() * 2);
+      w.heldByBarrier = true;
+    } else {
+      w.heldByBarrier = false;
+    }
+
     moveAround(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, (x, y) => {
       if (packBlockedAt(x, y)) return true;
       if (!roadOk && (onRoad(x, y) || (onDeck(x, y) && overpassOpen() && !overpassTrusted()))) return true;
@@ -1808,6 +1864,7 @@ function carCollisions() {
           const w = S.pack.find(p => p.id === id);
           if (S.mode !== 'play') continue;  // the prologue does not kill family
           w.state = 'dead';
+          w.deadCause = 'lost to the road';
           S.fear = 1; S.flickerT = 0.6; S.shake = 14;
           S.fearSource = { x: (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2, y: w.y };
           playHurt();
@@ -2154,30 +2211,52 @@ function preyUpdate(dt) {
         ax += (H.anchor.x - elk.x) / dAnchor * 0.4;
         ay += (H.anchor.y - elk.y) / dAnchor * 0.4;
       }
+      // a scripted animal is leashed to where the beat put it: it circles, rather
+      // than breaking for the horizon and out of the scene entirely
+      if (elk.scripted) {
+        const dHome = dist(elk.x, elk.y, elk.homeX, elk.homeY) || 1;
+        if (dHome > 420) {
+          ax += (elk.homeX - elk.x) / dHome * 1.6;
+          ay += (elk.homeY - elk.y) / dHome * 1.6;
+        }
+      }
       const m = Math.hypot(ax, ay) || 1;
       wantSp = (elk.stamina > PREY_SPENT ? H.speed : H.speed * 0.56)
         * (0.92 + 0.16 * elk.skittish) * (elk.frail || 1)
         * (elk.stumbleT > 0 ? AMBUSH_STUMBLE : 1)   // caught mid-graze: it breaks badly
         * (seasonIndex() === 3 && S.era !== 'past' ? 0.8 : 1);   // snow drags at everyone
+      // A frail animal can never outrun her. The prologue's scripted hunt is
+      // supposed to be won, and once wolves were slowed to under prey speed,
+      // "winter-thin" stopped being enough on its own — the margin was a handful of
+      // units and the beat became a coin flip. This ties the guarantee to her
+      // actual speed, so it survives any future re-tune of WOLF_PACE.
+      if (elk.frail) wantSp = Math.min(wantSp, SPEED_ROUGH * 0.78);
       wantX = ax / m * wantSp; wantY = ay / m * wantSp;
     } else if (nowState === 'alarmed') {
       // it has not seen enough to run, but it is going. A trot away from the
-      // threat, and the herd draws together as it goes.
+      // threat, and the herd draws together as it goes. A frail animal has
+      // nothing to trot with: it stands, head up, and waits to be made to run —
+      // which is what keeps the prologue's scripted hunt a hunt she can win now
+      // that wolves are slower than prey.
       elk.stamina = Math.min(100, elk.stamina + 4 * regen * dt);
-      const fm = Math.hypot(fx, fy) || 1;
-      let ax = fx / fm, ay = fy / fm;
-      const dAnchor = dist(elk.x, elk.y, H.anchor.x, H.anchor.y) || 1;
-      ax += (H.anchor.x - elk.x) / dAnchor * 0.5;   // bunching
-      ay += (H.anchor.y - elk.y) / dAnchor * 0.5;
-      const m = Math.hypot(ax, ay) || 1;
-      wantSp = H.speed * 0.42;
-      wantX = ax / m * wantSp; wantY = ay / m * wantSp;
+      if (!elk.frail) {
+        const fm = Math.hypot(fx, fy) || 1;
+        let ax = fx / fm, ay = fy / fm;
+        const dAnchor = dist(elk.x, elk.y, H.anchor.x, H.anchor.y) || 1;
+        ax += (H.anchor.x - elk.x) / dAnchor * 0.5;   // bunching
+        ay += (H.anchor.y - elk.y) / dAnchor * 0.5;
+        const m = Math.hypot(ax, ay) || 1;
+        wantSp = H.speed * 0.42;
+        wantX = ax / m * wantSp; wantY = ay / m * wantSp;
+      }
     } else if (nowState === 'wary') {
       // head up, off the grass, watching her — and drifting away while it does
       elk.stamina = Math.min(100, elk.stamina + 6 * regen * dt);
-      const fm = Math.hypot(fx, fy) || 1;
-      wantSp = 34;
-      wantX = fx / fm * wantSp; wantY = fy / fm * wantSp;
+      if (!elk.frail) {
+        const fm = Math.hypot(fx, fy) || 1;
+        wantSp = 34;
+        wantX = fx / fm * wantSp; wantY = fy / fm * wantSp;
+      }
     } else {
       elk.stamina = Math.min(100, elk.stamina + 8 * regen * dt);
       elk.grazeT -= dt;
@@ -2223,8 +2302,10 @@ function preyUpdate(dt) {
   }
 
   // escapes: gone past the edge and staying there — a new deer wanders into
-  // the heart of the land to replace what the land lost
-  for (let i = S.elk.length - 1; i >= 0; i--) {
+  // the heart of the land to replace what the land lost.
+  // Never during the prologue: that beat has one scripted animal, and swapping it
+  // for a present-era deer breaks the scene it belongs to.
+  for (let i = S.elk.length - 1; S.mode !== 'prologue' && i >= 0; i--) {
     const elk = S.elk[i];
     const gone = elk.x < (WORLD.x0 || 0) - APRON + 40 || elk.y < -APRON + 40
       || elk.x > WORLD.w + APRON - 40 || elk.y > WORLD.h + APRON - 40
@@ -2260,7 +2341,12 @@ function preyUpdate(dt) {
     // the catch still asks for a SPENT animal, adjacent — a good ambush gets it
     // there in a couple of seconds, a blown stalk usually never does
     if (elk.stamina > PREY_SPENT) continue;
-    const caught = hunters.some(h => dist(elk.x, elk.y, h.x, h.y) < 22);
+    // In the prologue the kill is HERS. The beat says "Run it down." — but the
+    // winter-thin elk spawns nearly spent, and any packmate drifting in its zone
+    // (or Willow) counted as a hunter, so the pack routinely killed it the instant
+    // it appeared and the player never got to hunt at all.
+    const catchers = S.mode === 'prologue' ? [S.wolf] : hunters;
+    const caught = catchers.some(h => dist(elk.x, elk.y, h.x, h.y) < 22);
     if (caught) {
       const H = HERDS[elk.herd];
       S.elk.splice(i, 1);
@@ -2401,8 +2487,12 @@ function chooseDen(site) {
   if (S.suggestion && /where they should be born/i.test(S.suggestion.text)) S.suggestion = null;
   // home chosen: the last two verbs are given, one at a time — each fades on
   // its own after a few seconds; no need to press the key to dismiss it
-  showPrompt('R twice restarts the game (if you ever want to).', ['R'], 3.5);
-  showPrompt('What she knows how to do: H.', ['H'], 3.5);
+  // Neither of these verbs exists on a touch device — there is no R and no H
+  // button — so naming them there would teach keys the player does not have.
+  if (!touchMode) {
+    showPrompt('R twice restarts the game (if you ever want to).', ['R'], 3.5);
+    showPrompt('What she knows how to do: H.', ['H'], 3.5);
+  }
   S.tut.taughtHelp = true;
   saveGame();
 }
@@ -2841,6 +2931,7 @@ function westResolveClash() {
     if (victims.length) {
       const w = victims[Math.floor(Math.random() * victims.length)];
       w.state = 'dead';
+      w.deadCause = 'lost on their ground';   // the western pack, not the road
       S.history.push({ type: 'loss', day: day(), who: w.id });
       say(`Teeth in the dark. ${w.name} does not get up. She breaks the pack away.`);
     } else {
@@ -3074,7 +3165,7 @@ function waterUpdate(dt) {
       if (S.prompt && S.prompt.text === drinkHint()) clearPrompt();
     }
     if (!ws.clean && S.sickT <= 0 && S.foulCd <= 0) {
-      S.sickT = 75;
+      S.sickT = SICK_TIME;
       S.foulCd = 40;
       playHurt();
       say(`Wrong water at ${ws.name}. It sits in her like a stone.`);
@@ -3174,6 +3265,7 @@ function trainUpdate(dt) {
           if (S.mode === 'play') { playHurt(); startEnding('dead'); return; }
         } else {
           q.ref.state = 'dead';
+          q.ref.deadCause = 'lost to the rail';   // the train, not the road
           S.fear = 1;
           S.fearSource = { x: cx, y: q.ref.y };
           playHurt();
@@ -3621,7 +3713,8 @@ function tutorialUpdate(dt) {
     case 11:
       if (!T.taughtHelp && T.t > 6 && momentFree()) {
         T.taughtHelp = true;
-        showPrompt('What she knows how to do: H.', ['H'], 5);
+        // there is no H on a phone — the overlay it opens is keyboard-only
+        if (!touchMode) showPrompt('What she knows how to do: H.', ['H'], 5);
         tutStep(12); claimMoment();
       }
       break;
@@ -3772,7 +3865,7 @@ function willowUpdate(dt) {
     if (t.node) S.visited.add(t.node);
     return;
   }
-  const sp = 235;
+  const sp = WILLOW_PACE;
   const step = Math.min(d, sp * dt);
   w.x += (t.x - w.x) / d * step;
   w.y += (t.y - w.y) / d * step;
@@ -3941,14 +4034,25 @@ function prologueUpdate(dt) {
         S.elk.length = 0;
         // spawn it just ahead of Aspen, toward the open ford — always on the
         // close-in camera when it is named, and pointed out
+        // Further off than it used to be (160 was close enough that it was on top
+        // of her, and of the pack, the moment it appeared) — but still clamped
+        // inside the close-in prologue camera, because the beat only works if she
+        // can SEE what she is being told to run down.
         const ford = NbyId.get('oldFord');
         const ea = Math.atan2(ford.y - S.wolf.y, ford.x - S.wolf.x);
-        const ex = S.wolf.x + Math.cos(ea) * 160, ey = S.wolf.y + Math.sin(ea) * 160;
+        const ex = S.wolf.x + clamp(Math.cos(ea) * 330, -250, 250);
+        const ey = S.wolf.y + clamp(Math.sin(ea) * 330, -150, 150);
         S.elk.push({
           herd: 0, x: ex, y: ey,
           heading: Math.PI / 2, stamina: 32, fleeing: false, gait: 0,
           bull: false, skittish: 0.8, grazeT: 99, tx: ex, ty: ey,
           frail: 0.55,   // winter-thin: the first hunt is meant to be won
+          // Scripted, and leashed to where it was put. Without this it ran in a
+          // straight line away from her (a frail animal is exempt from the herd
+          // leash), left the world, and the escape rule REPLACED it with an
+          // ordinary full-stamina deer — which at the new slower wolf pace she can
+          // never catch, so beat 4 simply never ended.
+          scripted: true, homeX: ex, homeY: ey,
         });
         setCaption('An elk, winter-thin.', 3.5);
         showPrompt('Run it down.', [], 6);
@@ -4751,6 +4855,7 @@ function saveGame() {
         id: w.id, name: w.name, mult: w.mult, yearling: w.yearling,
         pup: !!w.pup, x: w.x, y: w.y, state: w.state,
         injuredT: w.injuredT || 0, lost: !!w.lost,
+        deadCause: w.deadCause || null,   // how she was lost, so the roster can say
       })),
       fear: S.fear, food: S.food,
       water: S.water, sickT: S.sickT || 0,
@@ -4828,6 +4933,7 @@ function loadGame() {
       w.x = sw.x; w.y = sw.y; w.state = sw.state === 'balk' ? 'follow' : sw.state;
       w.injuredT = sw.injuredT || 0;
       w.lost = !!sw.lost;
+      w.deadCause = sw.deadCause || null;
     } else {
       // pups, Lichen — anyone who joined along the way
       S.pack.push({ ...sw, state: sw.state === 'balk' ? 'follow' : sw.state, gait: 0, moving: false });
@@ -5029,14 +5135,19 @@ function update(dt) {
         T.fLesson = 1;
         T.fTaught = true;   // the verb works now — the lesson IS doing it
         setCaption('The pack is yours now.', 4, "Willow led them nine years; today you lead");
-        stickyPrompt('Ask them to hold this ground — press F.', ['F']);
+        // on touch this verb is the Wait button, not a key
+        const fc = touchMode ? 'Wait' : 'F';
+        stickyPrompt(touchMode ? 'Ask them to hold this ground — tap Wait.' : 'Ask them to hold this ground — press F.', [fc]);
       } else if (T.fLesson === 1 && alivePack().some(w => w.state === 'stay')) {
         T.fLesson = 2;
-        stickyPrompt('They hold. Now call them back to your heels — press F again.', ['F']);
+        const fc = touchMode ? 'Wait' : 'F';
+        stickyPrompt(touchMode ? 'They hold. Now call them back to your heels — tap Wait again.'
+                               : 'They hold. Now call them back to your heels — press F again.', [fc]);
       } else if (T.fLesson === 2 && !alivePack().some(w => w.state === 'stay')) {
         T.fLessonDone = true;
         clearPrompt();
-        say('They are yours to lead now. F holds them, or calls them on.');
+        say(touchMode ? 'They are yours to lead now. Wait holds them, or calls them on.'
+                      : 'They are yours to lead now. F holds them, or calls them on.');
       }
     }
 

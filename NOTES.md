@@ -951,6 +951,69 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## playtest batch — slow wolves, and a lot of small lies (2026-08-11)
+
+Harness **401 green ×10**, layout clean. Arjun: make all the wolves significantly
+slower, "the current hunt mechanic isn't really necessary". One `WOLF_PACE` dial
+(0.62) now drives Aspen, the pack and Willow. They are under prey speed, so
+nothing can be run down at full stamina and the stalk *is* the hunt — but a spent
+animal falls below her speed, which is the window a chase still has, and an ambush
+is what opens it in a second rather than a minute. That turned out to be a
+load-bearing change, and it broke three things that were quietly held together by
+wolves being fast:
+
+**The prologue elk stopped being catchable, then stopped being the elk.** It
+spawns nearly spent because that hunt is meant to be won. But (a) the pack killed
+it the instant it appeared — any packmate or Willow counted as a catcher; (b) at
+the new pace her margin over a fleeing frail elk was a handful of units; and (c) —
+the real one — a frail animal is exempt from the herd leash, so it ran in a
+straight line, left the world, and the escape rule **replaced it with an ordinary
+full-stamina deer**. The harness dutifully chased that deer forever. Beat 4 simply
+never ended, about one run in five. Now: in the prologue only Aspen may make that
+kill; the elk is `scripted` and leashed to where the beat put it; escapes and
+replacements never run during the prologue at all; a frail animal never regains
+stamina, does not retreat before it breaks, and is capped under `SPEED_ROUGH` so
+the guarantee survives the next re-tune. 10/10 green after.
+
+**Followers drift out of their own inheritance.** Generational encoding needs a
+yearling within 420u when a leg completes, and slower wolves oscillate further
+behind. Tightened the catch-up threshold (700 → 300) which helps the feel, but did
+NOT fix the flake — so the check now drives the rule it is actually about (a
+yearling pinned at her flank for a whole edge) instead of hoping the follow
+dynamics land right. **The underlying fragility is still real and still Part 3's**:
+a yearling away hunting, or merely trailing, can miss the leg.
+
+**Three things on screen were lying.** Every death read "lost to the road" — a
+train or the western pack got the same line; `deadCause` is now recorded per wolf
+and saved. The roster said "freezes" while a wolf was visibly running for safe
+ground; it says "scatters" while moving, "freezes" only when rooted, "waits to
+cross" at a barrier. And Willow's head was invisible as she died: drawn at
+1.5·size in the same fill as a body reaching 1.9·size — inside its own silhouette.
+It has a neck, a dark rim, muzzle, nose, laid-back ear, and an eye that closes.
+
+Also: sickness eases off instead of snapping back; the townsfolk each carry their
+own violet cloud so smelling them fills the nose with purple; and a mobile pass —
+no prompt names a key that has no button (H and R lessons skipped, F reads "tap
+Wait", the help panel drops every keyboard-only row), all text fits any screen via
+`fitLines`/`drawFitted`, and the **ending screen had no touch handler at all**, so
+the touch build dead-ended on its own last frame.
+
+**Owed / not confirmed:** the roadside vibration. A target a wolf may not reach is
+now clamped back to its own side, which is correct and harmless — but I could not
+reproduce the jitter from the description. When Aspen is *across* the road the gate
+deliberately opens (Part 24: a following pack must be able to come after her), and
+when she stands *beside* it the zone pinches so tight that followers are pulled to
+her flank and no target ever crosses. So the clamp is a fix for a case I reasoned
+about, not the case Arjun saw. **Needs the situation** — which barrier, where she
+was standing, and whether the pack was following or holding.
+
+Two self-inflicted harness lessons worth keeping: a test that calls `loadGame()`
+mid-run rewinds the whole world and breaks every check after it (read the save
+payload instead); and a dead-straight `stepTo` leg puts only one axis over the
+6px threshold, so Aspen — who moves with plain `tryMove` — wedges on a tree trunk
+with no axis to slide along, and the timeout then blames whatever the walk was
+for.
+
 ## playtest batch — pacing, overlaps, the wind mark, X and O (2026-08-11)
 
 Five things from Arjun's first play of the stalk. Harness **393 green ×8**,

@@ -29,7 +29,8 @@ function drawCrashCard() {
   ctx.fillText('The land slipped away.', canvas.width / 2, canvas.height / 2 - 14);
   ctx.fillStyle = '#8a8472';
   ctx.font = 'italic 15px Georgia, "Times New Roman", serif';
-  ctx.fillText('Press R to return.', canvas.width / 2, canvas.height / 2 + 24);
+  ctx.fillText(touchMode ? 'Tap to return.' : 'Press R to return.',
+    canvas.width / 2, canvas.height / 2 + 24);
 }
 function handleCrash(err) {
   if (crashed) return;
@@ -210,6 +211,9 @@ canvas.addEventListener('touchstart', (ev) => {
     clearSave(); beginFromIntro(); return;
   }
   if (typeof gamePaused !== 'undefined' && gamePaused) { gamePaused = false; return; }
+  // the ending screen: a keyboard player presses R, and a tap had no handler at
+  // all — the touch build dead-ended on its own last frame
+  if (S && S.mode === 'ending') { requestNewYear(); return; }
   if (S && S.vistaWait) { releaseVista(); return; }
   const L = touchLayout();
   for (const t of ev.changedTouches) {

@@ -72,6 +72,27 @@ the ending card.
   throws Aspen clear (hurt, terrified, never gory); a hit packmate is lost,
   permanently. The culvert (`Water-Under-Stone`) is the safe unknown detour.
   Elk never cross the highway at all.
+- **Wolves are SLOW** (Part 34, superseding "Aspen's speed equals Sedge's"). One
+  dial, `WOLF_PACE`, drives every wolf — Aspen, the pack, Willow. They are
+  deliberately slower than prey, so nothing can be run down at full stamina; a
+  SPENT animal (≤ `PREY_SPENT`) drops below her speed, and that is the only window
+  a chase has. Rival wolves ease to a posture distance rather than running at a
+  speed; dogs keep their own pace. A `scripted` animal (the prologue elk) is
+  leashed to where its beat put it, never regains stamina, does not retreat before
+  it breaks, and is capped under `SPEED_ROUGH` — that is what keeps the first hunt
+  winnable, and it must survive any re-tune of `WOLF_PACE`.
+- **One teaching moment at a time** (Part 33). Every lesson, callout and tutorial
+  transition claims a shared gate (`momentFree()` / `claimMoment()`,
+  `MOMENT_GAP`); each trigger is latched on state that only grows, so a moment
+  that cannot be had is deferred, never dropped. A tear still fires on arrival,
+  but its forced view and rip callout queue behind the gate. Never gate on "no
+  prompt showing" — sticky lessons are cleared only by the transition that follows
+  them, so that deadlocks the tutorial.
+- **Nothing on screen may lie.** The roster names how a wolf was actually lost
+  (`deadCause`), says "scatters" only while a frightened wolf is moving and
+  "freezes" only when it is rooted. Text is fitted with `fitLines`/`drawFitted` so
+  it fits any screen, and on touch nothing ever names a key — `capOf()` returns
+  button names, and keyboard-only verbs are omitted entirely rather than described.
 - **The hunt is a STALK** (superseded the old spot-and-chase in the fun pass,
   Part 32/1 — the approach is the skill, the chase is the consequence). Prey
   carry `alert` 0..1 → `grazing` / `wary` / `alarmed` / `fleeing`. It rises while

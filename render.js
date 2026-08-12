@@ -856,11 +856,48 @@ function drawWillowLying(w) {
   ctx.globalAlpha = 0.45;
   ctx.beginPath(); ctx.ellipse(-size * 0.2, -size * 0.2, size * 1.5, size * 0.5, 0, 0, Math.PI * 2); ctx.fill();
   ctx.globalAlpha = 1;
-  // head tucked toward her flank
+  // Her head. It used to sit at 1.5·size in the same fill as a body that reaches
+  // 1.9·size — inside its own silhouette, invisible. This is the moment the whole
+  // game is built toward, so the head is now clear of the flank, rimmed so it
+  // separates, and given a muzzle, an ear and an eye.
+  const hx = size * 2.05, hy = size * 0.5;
+  // neck, carrying the head out of the body mass
+  ctx.strokeStyle = tone.base;
+  ctx.lineWidth = size * 0.62;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(size * 1.25, size * 0.28);
+  ctx.quadraticCurveTo(size * 1.7, size * 0.42, hx, hy);
+  ctx.stroke();
+  // the skull, with a dark rim so it never merges into the flank behind it
   ctx.fillStyle = tone.base;
-  ctx.beginPath(); ctx.ellipse(size * 1.5, size * 0.4, size * 0.55, size * 0.42, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(hx, hy, size * 0.66, size * 0.5, 0.42, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = tone.dark;
+  ctx.lineWidth = Math.max(1, size * 0.075);
+  ctx.stroke();
+  // ear, laid back the way a resting wolf carries it
+  ctx.fillStyle = tone.dark;
+  ctx.beginPath();
+  ctx.moveTo(hx - size * 0.34, hy - size * 0.34);
+  ctx.quadraticCurveTo(hx - size * 0.62, hy - size * 0.72, hx - size * 0.1, hy - size * 0.5);
+  ctx.closePath(); ctx.fill();
+  // muzzle, tapering to the nose
   ctx.fillStyle = tone.light;
-  ctx.beginPath(); ctx.ellipse(size * 1.85, size * 0.65, size * 0.3, size * 0.18, 0.5, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(hx + size * 0.5, hy + size * 0.3, size * 0.38, size * 0.2, 0.55, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = tone.dark;
+  ctx.beginPath(); ctx.arc(hx + size * 0.78, hy + size * 0.46, size * 0.1, 0, Math.PI * 2); ctx.fill();
+  // the eye: open and watching while she is alive, closed once she is not
+  if (w.alive) {
+    ctx.fillStyle = 'rgba(226,182,96,0.95)';
+    ctx.beginPath(); ctx.ellipse(hx + size * 0.16, hy - size * 0.02, size * 0.12, size * 0.085, 0.4, 0, Math.PI * 2); ctx.fill();
+  } else {
+    ctx.strokeStyle = tone.dark;
+    ctx.lineWidth = Math.max(1, size * 0.08);
+    ctx.beginPath();
+    ctx.moveTo(hx + size * 0.02, hy - size * 0.04);
+    ctx.lineTo(hx + size * 0.3, hy + size * 0.06);
+    ctx.stroke();
+  }
   // tail curled
   ctx.strokeStyle = tone.dark;
   ctx.lineWidth = size * 0.4;
@@ -1799,6 +1836,20 @@ function drawScent() {
       ctx.fillStyle = g;
       ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.fill();
     }
+    // and the people themselves, when the doors open: each one its own cloud,
+    // brighter and tighter than the standing sources, so the moment they spill
+    // out of the houses the nose fills with violet exactly where they are
+    if (S.townsfolk) {
+      for (const p of S.townsfolk) {
+        const r = (p.pet ? 200 : 280) * scale * pulse;
+        const g = ctx.createRadialGradient(p.x, p.y, r * 0.06, p.x, p.y, r);
+        g.addColorStop(0, 'rgba(146,86,214,0.5)');
+        g.addColorStop(0.55, 'rgba(128,74,196,0.24)');
+        g.addColorStop(1, 'rgba(120,70,190,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill();
+      }
+    }
   }
 
   // gold: prey trails with freshness falloff — blotted where violet sits.
@@ -2587,6 +2638,43 @@ function drawKeycaps(keys, cx, cy, alpha) {
   }
 }
 
+// ── text that always fits ────────────────────────────────────────────────────
+// The HUD was written against a desktop canvas: single centred lines at a fixed
+// size. On a narrow phone those run off both edges. fitLines() steps the size down
+// toward a floor and then wraps whatever still will not fit, so every string in
+// the game lands inside the screen on any device.
+function fitLines(text, maxW, px, minPx, weight) {
+  const t = String(text == null ? '' : text);
+  const font = s => `${weight || 'italic'} ${Math.round(s)}px ${FONT}`;
+  let size = px;
+  ctx.font = font(size);
+  while (size > minPx && ctx.measureText(t).width > maxW) {
+    size -= 1;
+    ctx.font = font(size);
+  }
+  if (ctx.measureText(t).width <= maxW) return { size, lines: [t] };
+  const words = t.split(' ');
+  const lines = [];
+  let cur = '';
+  for (const w of words) {
+    const trial = cur ? cur + ' ' + w : w;
+    if (ctx.measureText(trial).width > maxW && cur) { lines.push(cur); cur = w; }
+    else cur = trial;
+  }
+  if (cur) lines.push(cur);
+  return { size, lines };
+}
+// growUp: multi-line blocks anchored near the bottom of the screen must grow
+// upward, or the extra lines fall off the edge they were trying to avoid.
+function drawFitted(text, x, y, maxW, px, minPx, weight, growUp) {
+  const { size, lines } = fitLines(text, maxW, px, minPx, weight);
+  ctx.font = `${weight || 'italic'} ${Math.round(size)}px ${FONT}`;
+  const gap = size * 1.3;
+  const y0 = growUp ? y - (lines.length - 1) * gap : y;
+  for (let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, y0 + i * gap);
+  return { size, count: lines.length, gap, height: lines.length * gap };
+}
+
 function drawPrompt() {
   const p = S.prompt;
   if (!p) return;
@@ -2598,13 +2686,12 @@ function drawPrompt() {
   if (alpha <= 0) return;
 
   const dark = lightBg();   // black text on a light background, pale on a dark one
-  ctx.font = `italic ${Math.round(17 * ts())}px ${FONT}`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const y = canvas.height - (p.keys.length ? 92 : 64);
   ctx.globalAlpha = alpha;
   ctx.shadowColor = dark ? 'rgba(255,255,255,0.55)' : 'rgba(0,0,0,0.6)'; ctx.shadowBlur = dark ? 4 : 6;
   ctx.fillStyle = dark ? 'rgba(24,20,14,0.96)' : 'rgba(240,234,216,0.95)';
-  ctx.fillText(p.text, canvas.width / 2, y);
+  drawFitted(p.text, canvas.width / 2, y, canvas.width - 32, 17 * ts(), 11, 'italic', true);
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
   if (p.keys.length) drawKeycaps(p.keys, canvas.width / 2, y + 32, alpha);
@@ -2619,14 +2706,13 @@ function drawCaption() {
   ctx.globalAlpha = alpha;
   const dark = lightBg();
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.font = `${Math.round(28 * ts())}px ${FONT}`;
   ctx.shadowColor = dark ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.7)'; ctx.shadowBlur = 10;
   ctx.fillStyle = dark ? '#221d16' : '#f2ead4';
-  ctx.fillText(c.text, canvas.width / 2, canvas.height * 0.24);
+  const capY = canvas.height * 0.24;
+  const head = drawFitted(c.text, canvas.width / 2, capY, canvas.width - 32, 28 * ts(), 15, '', false);
   if (c.sub) {
-    ctx.font = `italic ${Math.round(15 * ts())}px ${FONT}`;
     ctx.fillStyle = dark ? 'rgba(48,40,30,0.9)' : 'rgba(230,218,190,0.85)';
-    ctx.fillText(c.sub, canvas.width / 2, canvas.height * 0.24 + 32 * ts());
+    drawFitted(c.sub, canvas.width / 2, capY + head.height + 8, canvas.width - 32, 15 * ts(), 10, 'italic', false);
   }
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
@@ -2704,13 +2790,15 @@ function drawHUD() {
     ctx.fillStyle = inkText;
     ctx.textAlign = 'left'; ctx.textBaseline = 'top';
     ctx.fillText(`Day ${day()} · ${seasonName()}`, 20, 16);
-    ctx.font = `italic ${Math.round(12 * s)}px ${FONT}`;
+    // the objective and the suggestion are full sentences: on a phone they must
+    // shrink and wrap rather than run off the right edge
+    const hudW = canvas.width - 40;
     ctx.fillStyle = onMap ? 'rgba(91,70,50,0.85)' : 'rgba(235,228,208,0.85)';
-    ctx.fillText(objectiveText(), 20, 38);
+    const obj = drawFitted(objectiveText(), 20, 38, hudW, 12 * s, 9, 'italic', false);
     // a suggestion: help, never an order — a direction to try, not a task
     if (S.suggestion) {
       ctx.fillStyle = onMap ? 'rgba(120,82,40,0.9)' : 'rgba(226,206,150,0.92)';
-      ctx.fillText('› ' + S.suggestion.text, 20, 38 + Math.round(18 * s));
+      drawFitted('› ' + S.suggestion.text, 20, 38 + obj.height + 4, hudW, 12 * s, 9, 'italic', false);
     }
   }
   ctx.shadowBlur = 0;
@@ -2738,14 +2826,25 @@ function drawHUD() {
     if (!onMap) { ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 5; }
     let ry = 18;
     for (const w of S.pack) {
-      let glyph = { follow: '', stay: ' · holds', balk: ' · freezes', dead: ' · lost to the road', gone: ' · gone' }[w.state];
+      // The roster must never say something the wolf is not doing. It used to
+      // report every death as "lost to the road" (a train or the western pack got
+      // the same line), and it called a wolf "freezes" while it was visibly
+      // running for safe ground, or waiting at a roadside it may not cross.
       const alive = w.state !== 'dead' && w.state !== 'gone';
-      if (alive && (S.packFrozen || (w.frozenT || 0) > 0)) glyph = ' · freezes';
-      if (alive && w.lost) glyph = ' · missing';
+      let glyph = '';
+      if (w.state === 'dead') glyph = ' · ' + (w.deadCause || 'lost');
+      else if (w.state === 'gone') glyph = ' · gone';
+      else if (w.lost) glyph = ' · missing';
+      else if (S.packFrozen || (w.frozenT || 0) > 0) glyph = w.moving ? ' · scatters' : ' · freezes';
+      else if (w.heldByBarrier) glyph = ' · waits to cross';
+      else if (w.state === 'stay') glyph = ' · holds';
       if (alive && (w.injuredT || 0) > 0) glyph += ' · hurt';
       ctx.fillStyle = alive ? inkText : (onMap ? 'rgba(120,60,45,0.8)' : 'rgba(230,150,130,0.8)');
-      ctx.fillText(w.name + glyph, canvas.width - 20, ry);
-      ry += 18;
+      // shrink to fit: "Bram · lost on their ground · hurt" is a long line on a phone
+      const row = fitLines(w.name + glyph, canvas.width * 0.62, 13, 9, '');
+      ctx.font = `${Math.round(row.size)}px ${FONT}`;
+      ctx.fillText(row.lines[0], canvas.width - 20, ry);
+      ry += Math.max(15, row.size + 5);
     }
     if (S.pups && !S.pups.traveling && S.pups.count > 0) {
       ctx.fillStyle = inkText;
@@ -2782,41 +2881,49 @@ function drawHelp() {
   resetTransform();
   ctx.fillStyle = 'rgba(15,14,10,0.55)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const w = 460, rows = [];
+  // The panel fits the screen, not a desktop assumption: 460 was wider than a
+  // phone. Rows are laid out proportionally so the narrow version still reads.
+  const w = Math.min(460, canvas.width - 24);
+  const rows = [];
   // keys read the live bindings (9/10); arrows always move and say so
-  rows.push([moveCaps().join(' '), 'walk — the arrow keys move her, too']);
-  if (S.tut.sawMap) rows.push([capOf('map'), 'the map — press to open, press to close']);
+  rows.push([touchMode ? 'Pad' : moveCaps().join(' '),
+    touchMode ? 'walk — the pad, lower-right' : 'walk — the arrow keys move her, too']);
+  if (S.tut.sawMap) rows.push([capOf('map'), touchMode ? 'the map — tap to open, tap to close' : 'the map — press to open, press to close']);
   if (S.tut.scentHold > 0.6) rows.push([capOf('scent') + ' (hold)', 'smell the wind']);
-  if (S.tut.fTaught) rows.push(['F', 'the pack holds, or follows']);
+  if (S.tut.fTaught) rows.push([touchMode ? 'Wait' : 'F', 'the pack holds, or follows']);
   if (S.tut.drinkTaught || S.mode === 'play') rows.push([capOf('drink') + ' (hold)', 'drink, standing in water']);
   // the stalk's two verbs, once the hunt has been taught
   if (S.tut.step >= 10 || S.mode === 'play') {
     rows.push([capOf('crouch') + ' (hold)', 'stalk — low and slow, and downwind']);
     rows.push([capOf('pounce'), 'take it — only when you are close enough']);
   }
-  rows.push(['M', 'quiet']);
-  rows.push(['O', 'settings — keys, hold-to-toggle, text size']);
-  rows.push(['ESC', 'pause']);
-  rows.push(['R  R', 'restart the game (skips prologue)']);
-  rows.push(['H', 'open or close this']);
-  const h = 90 + rows.length * 40;
-  const x = canvas.width / 2 - w / 2, y = canvas.height / 2 - h / 2;
+  // Keyboard-only verbs: there is no button for any of these on touch, so listing
+  // them would name keys a phone does not have.
+  if (!touchMode) {
+    rows.push(['M', 'quiet']);
+    rows.push(['O', 'settings — keys, hold-to-toggle, text size']);
+    rows.push(['ESC', 'pause']);
+    rows.push(['R  R', 'restart the game (skips prologue)']);
+    rows.push(['H', 'open or close this']);
+  }
+  const rowH = Math.min(40, Math.max(26, (canvas.height - 120) / Math.max(1, rows.length)));
+  const h = 90 + rows.length * rowH;
+  const x = canvas.width / 2 - w / 2, y = Math.max(8, canvas.height / 2 - h / 2);
   ctx.fillStyle = C_PARCHMENT;
   ctx.strokeStyle = C_STITCH;
   ctx.lineWidth = 2;
   rr(ctx, x, y, w, h, 8); ctx.fill(); ctx.stroke();
-  ctx.font = `italic 18px ${FONT}`;
   ctx.fillStyle = '#4a3a26';
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  ctx.fillText('what she knows how to do', canvas.width / 2, y + 22);
+  drawFitted('what she knows how to do', canvas.width / 2, y + 22, w - 28, 18, 12, 'italic', false);
+  const capX = x + w * 0.24, textX = x + w * 0.41, textW = w * 0.55;
   let ry = y + 66;
   for (const [k, txt] of rows) {
-    drawKeycaps(k.split('  ').length > 1 ? k.split('  ') : [k], x + 110, ry + 2, 1);
-    ctx.font = `15px ${FONT}`;
+    drawKeycaps(k.split('  ').length > 1 ? k.split('  ') : [k], capX, ry + 2, 1);
     ctx.fillStyle = '#4a3a26';
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(txt, x + 190, ry + 2);
-    ry += 40;
+    drawFitted(txt, textX, ry + 2, textW, 15, 10, '', false);
+    ry += rowH;
   }
 }
 
@@ -3189,7 +3296,8 @@ function drawEnding() {
     ctx.fillStyle = C_PARCHMENT;
     ctx.globalAlpha = 0.6 + 0.4 * Math.sin(Date.now() / 400);
     ctx.textAlign = 'center';
-    ctx.fillText('press R to begin again', canvas.width / 2, canvas.height - 40);
+    ctx.fillText(touchMode ? 'tap to begin again' : 'press R to begin again',
+      canvas.width / 2, canvas.height - 40);
     ctx.globalAlpha = 1;
   }
 }
