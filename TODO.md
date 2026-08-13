@@ -906,6 +906,23 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
 
+## Part 35 — The roadside vibration, found properly (Arjun, 2026-08-11)
+
+- [x] Measured instead of guessed: path length vs NET displacement over 2 s. Beside
+      the road the pack walked **~150u per 2 s with no net movement (ratio 9–37)**
+      at amble speed. The cause was the wander, not the barrier: a wolf re-picked a
+      fresh random point **the instant it arrived**, and the zone pinches to ~55u at
+      a pinch like the road — so it crossed its whole zone in under a second and
+      changed direction several times a second. A wolf that arrives now **stands**
+      1.2–3.6 s before choosing again, and the new point is ≥ a third of the zone
+      away. After: **ratio 1.0–1.1**. Regression check measures exactly this.
+- [x] Real but NOT the cause (recorded so the distinction survives): `moveAround`
+      alternated tangent sides with no memory, so it could flip left/right frame to
+      frame against a long wall — it commits to a side now and remembers until it
+      makes real progress. Old and new measured as vibrating equally.
+- [x] Also real: a wolf that truly cannot get anywhere settles after 0.5 s of no
+      progress (`stuckT`) instead of grinding.
+
 ## Part 34 — Playtest batch: slow wolves + fixes (Arjun, 2026-08-11)
 
 - [x] **All wolves significantly slower** ("the current hunt mechanic isn't really

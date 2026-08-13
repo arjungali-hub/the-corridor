@@ -951,6 +951,42 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## the roadside vibration, actually found (2026-08-11)
+
+Arjun, after the last batch: "they still vibrate a lot". My previous guess (a
+target across the barrier) was wrong, and so was my second guess. Measured it
+instead, and the metric is the whole story: over a 2 s window, a wolf's **path
+length against its net displacement**. One shuffling on the spot walks a long path
+and ends where it started, so the ratio explodes.
+
+Beside the road: **~150u of path per 2 s with almost no net movement, ratio 9–37**,
+at exactly amble speed. The cause was not the barrier at all — it was the wander
+itself. A wolf re-picked a fresh random point **the instant it arrived**
+(`dist < 14`), and the zone pinches to ~55u at a pinch like the road, so it crossed
+its entire zone in well under a second, re-rolled, and changed direction several
+times a second. Forever. The road only made it obvious because that is where the
+zone is tightest and where the player stands watching.
+
+Fix: a wolf that has arrived **stands a while** (1.2–3.6 s) before choosing
+somewhere new, and the new point is at least a third of the zone away so the move
+reads as a walk rather than a twitch. Same scenario after: **ratio 1.0–1.1, path
+0–108**. There is a regression check that measures exactly this, so it cannot come
+back quietly.
+
+Two things I fixed on the way that were real but were NOT the cause, and I want the
+distinction recorded rather than claimed as the fix:
+- `moveAround` alternated `[0.6, -0.6, 1.0, -1.0, …]` with no memory of the side it
+  had chosen, so against a long wall it could take the left tangent one frame and
+  the right the next. It commits to a side now and remembers until it makes real
+  progress. Measuring showed the old and new versions vibrating **equally**, so this
+  was a latent bug, not this bug.
+- A wolf that genuinely cannot get anywhere now settles after half a second of no
+  progress instead of grinding (`stuckT`).
+
+Lesson worth keeping: "they vibrate" needed a *number* before it could be fixed.
+Two plausible-sounding causes were both wrong, and only the path/net ratio
+separated normal wandering (ratio ~1) from pacing on the spot (ratio 9+).
+
 ## playtest batch — slow wolves, and a lot of small lies (2026-08-11)
 
 Harness **401 green ×10**, layout clean. Arjun: make all the wolves significantly

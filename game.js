@@ -764,19 +764,37 @@ function tryMove(who, dx, dy, blockFn) {
 // straight through it — sweep the heading outward and take the first clear
 // tangent, so a packmate rounds the trunk instead of pressing into its face.
 // The cheap slide still handles long walls (they never fully stick).
-function moveAround(who, dx, dy, blockFn) {
+// Returns true if it actually got somewhere. Sets who.stuckT when it cannot, so a
+// caller can let the animal settle instead of grinding.
+function moveAround(who, dx, dy, blockFn, dt) {
   const bx = who.x, by = who.y;
   tryMove(who, dx, dy, blockFn);
-  if ((who.x - bx) ** 2 + (who.y - by) ** 2 > 0.25) return;   // made real progress
-  const mag = Math.hypot(dx, dy);
-  if (mag < 0.001) return;
-  const base = Math.atan2(dy, dx);
-  // shallow deflections first, alternating sides — the nearest way around wins
-  for (const off of [0.6, -0.6, 1.0, -1.0, 1.4, -1.4, 1.8, -1.8, 2.2, -2.2]) {
-    const a = base + off;
-    const cx = bx + Math.cos(a) * mag, cy = by + Math.sin(a) * mag;
-    if (!blockFn(cx, cy)) { who.x = cx; who.y = cy; return; }
+  if ((who.x - bx) ** 2 + (who.y - by) ** 2 > 0.25) {   // made real progress
+    who.roundSide = 0; who.stuckT = 0;
+    return true;
   }
+  const mag = Math.hypot(dx, dy);
+  if (mag < 0.001) return false;
+  const base = Math.atan2(dy, dx);
+  // COMMIT TO A SIDE. This used to try [0.6, -0.6, 1.0, -1.0, …] — alternating —
+  // with no memory of the way it had chosen. Against a long wall like the highway
+  // both tangents look equally good, so a wolf took the left one this frame and the
+  // right one the next as it shifted, and the pack visibly VIBRATED beside the
+  // road. Now it picks a side and exhausts every deflection on that side before
+  // considering the other, and remembers it until it makes real progress again.
+  const side = who.roundSide || (Math.sin((who.slotA || 1) * 7.13) >= 0 ? 1 : -1);
+  for (const s of [side, -side]) {
+    for (const off of [0.6, 1.0, 1.4, 1.8, 2.2]) {
+      const a = base + off * s;
+      const cx = bx + Math.cos(a) * mag, cy = by + Math.sin(a) * mag;
+      if (!blockFn(cx, cy)) {
+        who.x = cx; who.y = cy; who.roundSide = s; who.stuckT = 0;
+        return true;
+      }
+    }
+  }
+  who.stuckT = (who.stuckT || 0) + (dt || 0);
+  return false;
 }
 
 function onRoad(x, y) {
@@ -1628,7 +1646,7 @@ function packUpdate(dt) {
         const d = pd || 1;
         const sp = PACK_LOPE * w.mult * lag;
         moveAround(w, (prey.x - w.x) / d * sp * dt, (prey.y - w.y) / d * sp * dt,
-          (x, y) => packBlockedAt(x, y) || onRoad(x, y));
+          (x, y) => packBlockedAt(x, y) || onRoad(x, y), dt);
         w.heading = Math.atan2(prey.y - w.y, prey.x - w.x);
         w.gait += sp * dt;
         w.moving = true;
@@ -1645,12 +1663,29 @@ function packUpdate(dt) {
       w.ty = wc.y + Math.sin(w.slotA) * wzr * 0.5;
       w.wanderT = 0.5;
     } else {
+      // A wolf that has arrived STANDS a while before choosing somewhere new.
+      // This is the roadside vibration: it used to re-pick a fresh random point
+      // the instant it arrived, and the zone pinches to ~55u at a pinch like the
+      // road — so a wolf crossed its whole zone in well under a second, re-rolled,
+      // and changed direction several times a second. Measured: ~150u of path in
+      // two seconds with almost no net movement. Now it settles between moves, and
+      // the new point is far enough away to be a walk rather than a twitch.
       w.wanderT = (w.wanderT || 0) - dt;
-      if (w.wanderT <= 0 || w.tx === undefined || dist(w.x, w.y, w.tx, w.ty) < 14) {
-        const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * wzr;
+      w.dwellT = Math.max(0, (w.dwellT || 0) - dt);
+      const reached = w.tx !== undefined && dist(w.x, w.y, w.tx, w.ty) < 14;
+      if (reached && w.dwellT <= 0 && !w.dwelled) {
+        w.dwelled = true;
+        w.dwellT = 1.2 + Math.random() * 2.4;
+      }
+      if (w.dwellT > 0) { w.moving = false; continue; }
+      if (w.wanderT <= 0 || w.tx === undefined || reached) {
+        const a = Math.random() * Math.PI * 2;
+        // never a twitch away: at least a third of the zone, so the walk reads
+        const r = wzr * (0.34 + 0.66 * Math.sqrt(Math.random()));
         w.tx = wc.x + Math.cos(a) * r;
         w.ty = wc.y + Math.sin(a) * r;
-        w.wanderT = 1.5 + Math.random() * 3;
+        w.wanderT = 2.5 + Math.random() * 3.5;
+        w.dwelled = false;
       }
     }
 
@@ -1713,12 +1748,19 @@ function packUpdate(dt) {
       w.heldByBarrier = false;
     }
 
-    moveAround(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, (x, y) => {
+    const got = moveAround(w, (w.tx - w.x) / d * step, (w.ty - w.y) / d * step, (x, y) => {
       if (packBlockedAt(x, y)) return true;
       if (!roadOk && (onRoad(x, y) || (onDeck(x, y) && overpassOpen() && !overpassTrusted()))) return true;
       if (!railOk && onRail(x, y)) return true;
       return false;
-    });
+    }, dt);
+    // It cannot get where it wants and has proved it. Stand still rather than
+    // shuffling on the spot — half a second of no progress is enough to know.
+    if (!got && (w.stuckT || 0) > 0.5) {
+      w.moving = false;
+      w.wanderT = Math.max(w.wanderT || 0, 0.8);   // and stop re-rolling into the wall
+      continue;
+    }
     const want = Math.atan2(w.ty - w.y, w.tx - w.x);
     let dh = want - (w.heading || 0);
     while (dh > Math.PI) dh -= Math.PI * 2;

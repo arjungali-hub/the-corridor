@@ -877,6 +877,59 @@ const clampSide = G(`(function(){
 check('a target across a barrier is clamped back to the wolf\'s own side',
   clampSide.ownSide === true && clampSide.offAsphalt === true);
 
+// THE ROADSIDE VIBRATION. Measured, not eyeballed: over a 2s window, a wolf's path
+// length against its NET displacement. One shuffling on the spot walks a long path
+// and goes nowhere, so the ratio explodes. Beside the road the zone pinches to
+// ~55u, and a wolf used to re-pick a fresh random point the INSTANT it arrived —
+// crossing its whole zone in under a second and changing direction several times a
+// second (~150u of path per 2s, ratio 9-37). It dwells between moves now.
+const vibe = G(`(function(){
+  var h = OBSTACLES.highway, mid = (h.x0 + h.x1) / 2;
+  _vibeElk = S.elk.slice(); _vibeWx = S.wolf.x; _vibeWy = S.wolf.y;   // put it all back after
+  S.elk.length = 0; S.cars.length = 0; S.fear = 0; S.packFrozen = false; S.zoneAnchor = null;
+  S.crouched = false; input.crouch = false;
+  S.wolf.x = mid - 90; S.wolf.y = 1800;         // right beside the asphalt
+  S.pack.forEach(function(w, i){
+    w.state = 'follow'; w.balked = false; w.frozenT = 0; w.fleeTo = null; w.lost = false;
+    w.hunting = false; w.holdX = undefined; w.holdY = undefined;
+    w.x = mid - 110 - i * 14; w.y = 1800 + (i % 2 ? 18 : -18);
+    w.tx = undefined; w.wanderT = 0; w.dwellT = 0; w.dwelled = false; w.roundSide = 0; w.stuckT = 0;
+  });
+  for (var s = 0; s < 40; s++) { S.cars.length = 0; update(1/20); }   // settle
+  var live = alivePack();
+  var worst = 0, worstPath = 0;
+  for (var win = 0; win < 5; win++) {
+    var start = live.map(function(w){ return { x: w.x, y: w.y }; });
+    var prev = live.map(function(w){ return { x: w.x, y: w.y }; });
+    var pathLen = live.map(function(){ return 0; });
+    for (var t = 0; t < 40; t++) {
+      S.cars.length = 0;                        // nothing dies mid-measurement
+      update(1/20);
+      for (var k = 0; k < live.length; k++) {
+        pathLen[k] += Math.hypot(live[k].x - prev[k].x, live[k].y - prev[k].y);
+        prev[k] = { x: live[k].x, y: live[k].y };
+      }
+    }
+    for (var k = 0; k < live.length; k++) {
+      // Only judge windows where it covered REAL ground. A wolf making a small
+      // adjustment can show a high ratio without pacing, and that is not the bug;
+      // the bug is walking 150u in two seconds and ending where it started.
+      if (pathLen[k] < 60) continue;
+      var net = Math.hypot(live[k].x - start[k].x, live[k].y - start[k].y);
+      var ratio = pathLen[k] / Math.max(1, net);
+      if (ratio > worst) { worst = ratio; worstPath = pathLen[k]; }
+    }
+  }
+  return { worst: worst, worstPath: worstPath, n: live.length };
+})()`);
+if (vibe.worst >= 4) console.log('DEBUG-VIBE', JSON.stringify(vibe));
+check('the pack does not vibrate beside the road (path/net stays sane)', vibe.worst < 4);
+// hand the world back exactly as the rest of the run expects it
+G(`S.elk = _vibeElk; S.wolf.x = _vibeWx; S.wolf.y = _vibeWy;
+   S.pack.forEach(function(w){ w.state = 'follow'; w.holdX = undefined; w.holdY = undefined;
+     w.dwellT = 0; w.dwelled = false; });
+   S.zoneAnchor = null;`);
+
 // The roster tells the truth about how a wolf was lost
 // Read the SAVE PAYLOAD rather than calling loadGame(): a live load mid-run
 // rewinds the whole world (position, clock, edges, prey) and silently broke every
@@ -1442,7 +1495,9 @@ check('the construction has grown with the seasons',
 // review fix 3: a wolf never ambles on asphalt
 G('_h = OBSTACLES.highway; _elkStash = S.elk; S.elk = [];');
 G('S.wolf.x = _h.x0 - 40; S.wolf.y = 1800; S.fear = 0; S.packFrozen = false;');
-G("_w3 = alivePack()[0]; _w3.state = 'follow'; _w3.balked = false; _w3.hunting = false; _w3.frozenT = 0; _w3.fleeTo = null; _w3.injuredT = 0;");
+// dwellT/dwelled cleared too: a wolf standing between wander moves legitimately
+// does not move, and this check measures a single frame's displacement
+G("_w3 = alivePack()[0]; _w3.state = 'follow'; _w3.balked = false; _w3.hunting = false; _w3.frozenT = 0; _w3.fleeTo = null; _w3.injuredT = 0; _w3.dwellT = 0; _w3.dwelled = false; _w3.stuckT = 0; _w3.roundSide = 0;");
 G('_w3.x = _h.x0 + 12; _w3.y = 1800; _w3.tx = _h.x1 + 60; _w3.ty = 1800; _w3.wanderT = 99; _x3 = _w3.x;');
 step();
 const roadStep = G('Math.hypot(_w3.x - _x3, _w3.y - 1800)');
