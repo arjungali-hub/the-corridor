@@ -53,6 +53,7 @@ const HERD_TONES = [
   { body: '#7d6349', dark: '#4f3d28', rump: '#d9c9a8' },
   { body: '#96714f', dark: '#5d452f', rump: '#e2d2b0' },
   { body: '#443c35', dark: '#292420', rump: '#d8d3c8' },   // black-baldy cattle
+  { body: '#9d8b6e', dark: '#5f513c', rump: '#e6dcc4' },   // hare
 ];
 const DOG_TONES   = { base: '#7a5c3a', dark: '#53402a', light: '#b39872' };
 const RIVAL_TONES = { base: '#8d7f7a', dark: '#5c4c47', light: '#bcaea8' };
@@ -909,8 +910,46 @@ function drawWillowLying(w) {
   ctx.restore();
 }
 
+// A hare is not a small deer: a crouched ball of an animal, long ears laid back,
+// that jinks rather than runs. Drawn apart so it reads instantly as "small meat"
+// at a glance across the land.
+function drawHare(e) {
+  const tone = HERD_TONES[e.herd] || HERD_TONES[0];
+  const s = HERDS[e.herd].size;
+  ctx.fillStyle = 'rgba(20,25,15,0.22)';
+  ctx.beginPath(); ctx.ellipse(e.x + 2, e.y + 3, s * 1.5, s * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.save();
+  ctx.translate(e.x, e.y);
+  ctx.rotate(e.heading);
+  const hop = e.fleeing ? Math.abs(Math.sin(e.gait * 0.16)) : 0;
+  ctx.translate(0, -hop * s * 0.5);            // it bounds rather than trots
+  // haunches, then the lighter shoulder
+  ctx.fillStyle = tone.body;
+  ctx.beginPath(); ctx.ellipse(-s * 0.35, 0, s * 1.0, s * 0.72, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(s * 0.55, 0, s * 0.62, s * 0.5, 0, 0, Math.PI * 2); ctx.fill();
+  // ears, laid back along the body when running, up when it is sitting
+  ctx.strokeStyle = tone.dark;
+  ctx.lineWidth = Math.max(1, s * 0.26);
+  ctx.lineCap = 'round';
+  for (const sgn of [1, -1]) {
+    const lay = e.fleeing ? 1 : 0.25;
+    ctx.beginPath();
+    ctx.moveTo(s * 0.7, sgn * s * 0.2);
+    ctx.lineTo(s * (0.7 - lay * 1.5), sgn * s * (0.2 + (1 - lay) * 0.9) - s * (1 - lay) * 1.1);
+    ctx.stroke();
+  }
+  // eye, and the scut of a tail
+  ctx.fillStyle = tone.dark;
+  ctx.beginPath(); ctx.arc(s * 0.85, -s * 0.16, s * 0.12, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = tone.rump;
+  ctx.beginPath(); ctx.arc(-s * 1.15, 0, s * 0.3, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+  drawAlertMark(e);
+}
+
 function drawPrey(e) {
   const H = HERDS[e.herd];
+  if (H.species === 'hare') { drawHare(e); return; }
   const tone = HERD_TONES[e.herd];
   const s = H.size;
   ctx.fillStyle = 'rgba(20,25,15,0.25)';

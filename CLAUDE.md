@@ -72,6 +72,24 @@ the ending card.
   throws Aspen clear (hurt, terrified, never gory); a hit packmate is lost,
   permanently. The culvert (`Water-Under-Stone`) is the safe unknown detour.
   Elk never cross the highway at all.
+- **Four prey species** (Part 32/2), each asking for something different, so there
+  is never one answer. `HERDS` carries `species` plus `detectR`, `ambushR` and
+  `stam` (how fast a running animal spends itself). **Elk** — rich and
+  long-winded, and **one wolf cannot bring one down**: the catch is refused and
+  the animal turns, with a 35% chance of a wound, doubled if she came at it
+  head-on. That is what teaches the pack. **Deer** — takeable alone, but only off
+  a clean stalk: `detectR` 420 makes wind and cover compulsory. **Hare** —
+  scattered singletons over the whole land, all year, near cover; an ambush takes
+  one outright with no chase, for almost no meat. It is the floor under a bad
+  winter and the reason a ruined pack still has something to do. **Cattle** —
+  slow, rich, and watched; the ledger is unchanged. Availability is per species
+  (`respawnMult` scales the respawn DELAY, and 0 means gone for the season), which
+  is what gives the year its curve: summer fat, autumn asking for pack elk hunts,
+  winter down to hares and nerve.
+- **`hunters` holds the real wolves, never copies.** It once held `{x, y}` for
+  Aspen, and every rule that reads a wolf's state silently read nothing — the
+  crouch did nothing in play while its unit check passed. If you need a list of
+  wolves, pass the wolves.
 - **Wolves are SLOW** (Part 34, superseding "Aspen's speed equals Sedge's"). One
   dial, `WOLF_PACE`, drives every wolf — Aspen, the pack, Willow. They are
   deliberately slower than prey, so nothing can be run down at full stamina; a

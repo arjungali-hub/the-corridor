@@ -214,14 +214,34 @@ const PACK_DEF = [
 
 // Four herds across the widened land, so hunting is never finished and never
 // exhausted: elk north and west of the river, deer south and east.
+// Four species, each asking for something different, so there is never one
+// answer. `stam` scales how fast a running animal spends itself (low = it lasts);
+// `detectR` is the envelope inside which a wolf raises its alert; `ambushR` is how
+// close she must be to take it.
 const HERDS = [
-  { anchor: { x: 2500, y: 760 },  count: 6, leash: 500, respawnDays: 7, food: 45, size: 16, speed: 272, antlers: true },
-  { anchor: { x: 1560, y: 3120 }, count: 5, leash: 420, respawnDays: 5, food: 26, size: 11, speed: 296, antlers: false },
-  { anchor: { x: 700,  y: 2950 }, count: 4, leash: 420, respawnDays: 7, food: 45, size: 16, speed: 272, antlers: true },
-  { anchor: { x: 4050, y: 2400 }, count: 4, leash: 350, respawnDays: 5, food: 26, size: 11, speed: 296, antlers: false },
+  // ELK — dangerous. One wolf does not bring an elk down: it turns on her. Teaches
+  // the pack. Long-winded, so a chase without an ambush is a long chase.
+  { species: 'elk', anchor: { x: 2500, y: 760 },  count: 6, leash: 500, respawnDays: 7,
+    food: 45, size: 16, speed: 272, antlers: true,  detectR: 300, ambushR: 120, stam: 0.7 },
+  // DEER — takeable alone, but only off a clean stalk: they see a very long way,
+  // so wind and cover stop being optional. Teaches the stalk.
+  { species: 'deer', anchor: { x: 1560, y: 3120 }, count: 5, leash: 420, respawnDays: 5,
+    food: 26, size: 11, speed: 296, antlers: false, detectR: 420, ambushR: 95, stam: 1.35 },
+  { species: 'elk', anchor: { x: 700,  y: 2950 }, count: 4, leash: 420, respawnDays: 7,
+    food: 45, size: 16, speed: 272, antlers: true,  detectR: 300, ambushR: 120, stam: 0.7 },
+  { species: 'deer', anchor: { x: 4050, y: 2400 }, count: 4, leash: 350, respawnDays: 5,
+    food: 26, size: 11, speed: 296, antlers: false, detectR: 420, ambushR: 95, stam: 1.35 },
   // The rancher's cattle, grazing outside the wire. Slow, rich, and watched:
   // taking one is arithmetic he will do.
-  { anchor: { x: 4120, y: 830 },  count: 4, leash: 260, respawnDays: 20, food: 60, size: 18, speed: 190, antlers: false, cattle: true },
+  { species: 'cattle', anchor: { x: 4120, y: 830 },  count: 4, leash: 260, respawnDays: 20,
+    food: 60, size: 18, speed: 190, antlers: false, cattle: true, detectR: 200, ambushR: 130, stam: 2.2 },
+  // HARE — not a herd at all: scattered singletons over the whole land, all year,
+  // tucked near cover. Almost nothing to eat, and almost impossible to starve
+  // beside. This is the floor under a bad winter, and the reason a ruined pack
+  // still has something to do.
+  { species: 'hare', anchor: { x: 1800, y: 1800 }, count: 16, leash: 220, respawnDays: 4,
+    food: 7, size: 5, speed: 330, antlers: false, detectR: 180, ambushR: 70, stam: 2.8,
+    scattered: true, erratic: 2.2 },
 ];
 
 // The rancher's homestead, behind the fence. He is weather, not a character.

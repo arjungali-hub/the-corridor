@@ -102,6 +102,9 @@ const AMBUSH_WARY_STAM  = 70;   // …out of a wary one: it starts readier
 const AMBUSH_STUMBLE_T  = 2;    // seconds of reduced flee speed after a grazing ambush
 const AMBUSH_STUMBLE    = 0.88;
 const PREY_SPENT = 25;   // stamina at or below which a spent animal can be caught
+// An elk needs two wolves on it. Alone, the catch fails and the animal turns.
+const ELK_PURSUE_R = 150;   // close enough to count as being on it
+const ELK_INJURE   = 0.35;  // …and this is what trying it alone costs, doubled head-on
 
 const OVERLOOK = { x: 2050, y: 1500 };  // beat 2 and beat 8 share this camera
 const WILLOW_TONE_ID = 'willow';
@@ -532,11 +535,25 @@ function spawnPrey(herdIdx) {
   const H = HERDS[herdIdx];
   // never spawn inside blocked ground (the pit, the impoundment, buildings)
   let px = H.anchor.x, py = H.anchor.y;
+  if (H.scattered) {
+    // a scattered species keeps no herd and no anchor: it turns up anywhere on the
+    // land, by preference near cover — which is where a hare would actually be
+    for (let tries = 0; tries < 30; tries++) {
+      const cx = (WORLD.x0 || 0) + Math.random() * (WORLD.w - (WORLD.x0 || 0));
+      const cy = Math.random() * WORLD.h;
+      if (blockedAt(cx, cy, 10, false, 0)) continue;
+      if (onRoad(cx, cy) || onRail(cx, cy)) continue;
+      if (inPowerlineCut(cx, cy)) continue;
+      if (tries < 22 && !inCoverAt(cx, cy)) continue;   // prefer cover, never fail for it
+      px = cx; py = cy; break;
+    }
+  } else {
   for (let tries = 0; tries < 14; tries++) {
     const a = Math.random() * Math.PI * 2;
     const r = 80 + Math.random() * Math.max(60, H.leash - 120);
     const cx = H.anchor.x + Math.cos(a) * r, cy = H.anchor.y + Math.sin(a) * r;
     if (!blockedAt(cx, cy, 14, false, APRON)) { px = cx; py = cy; break; }
+  }
   }
   const elk = {
     herd: herdIdx,
@@ -550,6 +567,8 @@ function spawnPrey(herdIdx) {
     wary: seasonIndex() === 3 && !H.cattle && H.anchor.x <= OBSTACLES.highway.x1,
     grazeT: Math.random() * 6,
     tx: 0, ty: 0,
+    // a scattered animal keeps to where IT is, not to a herd's anchor
+    homeX: px, homeY: py,
     // the stalk: it starts unaware, and stays that way until a wolf earns otherwise
     alert: 0, alertState: 'grazing', jumpyT: 0, stumbleT: 0, headUp: false,
   };
@@ -565,10 +584,13 @@ function inPowerlineCut(x, y) {
 
 function pickGrazeTarget(elk) {
   const H = HERDS[elk.herd];
+  // a scattered animal grazes around its own patch; a herd animal around the herd's
+  const cx0 = H.scattered && elk.homeX !== undefined ? elk.homeX : H.anchor.x;
+  const cy0 = H.scattered && elk.homeY !== undefined ? elk.homeY : H.anchor.y;
   for (let tries = 0; tries < 10; tries++) {
     const a = Math.random() * Math.PI * 2;
     const r = 60 + Math.random() * Math.max(60, H.leash - 80);
-    const tx = H.anchor.x + Math.cos(a) * r, ty = H.anchor.y + Math.sin(a) * r;
+    const tx = cx0 + Math.cos(a) * r, ty = cy0 + Math.sin(a) * r;
     if (blockedAt(tx, ty, 14, false, APRON)) continue;  // never aim into a wall
     if (inPowerlineCut(tx, ty)) continue;               // nor under the wires
     elk.tx = tx; elk.ty = ty;
@@ -1929,9 +1951,17 @@ function carCollisions() {
 // The seasonal squeeze: east of the highway the land empties as the year
 // turns — respawns slow in autumn and stop in winter. The west holds steady;
 // the cattle are fed by the rancher, which is the point of them.
+// The multiplier scales the respawn DELAY, so a bigger number means scarcer and 0
+// means gone for the season. Per species now, which is what gives the year its
+// difficulty curve: summer fat and forgiving, autumn asking for pack elk hunts,
+// winter down to hares and nerve.
 function respawnMult(H) {
-  if (H.cattle || H.anchor.x <= OBSTACLES.highway.x1) return 1;
   const si = seasonIndex();
+  if (H.species === 'hare') return 1;      // always, everywhere, all year
+  if (H.cattle) return 1;                  // the rancher restocks; that is his business
+  if (H.species === 'deer') return si === 2 ? 2 : si === 3 ? 3 : 1;
+  // elk: the eastern squeeze, unchanged — the west holds its own all year
+  if (H.anchor.x <= OBSTACLES.highway.x1) return 1;
   return si === 2 ? 2.5 : si === 3 ? 0 : 1;
 }
 
@@ -2084,6 +2114,13 @@ function commitAmbush() {
     S.tut.ambushed = true;
     say('Close enough to choose the moment.');
   }
+  // Small prey does not get a chase: a hare taken out of a good approach is
+  // simply taken. It is the reliable, meagre meal that keeps a bad winter alive.
+  if (HERDS[e.herd].species === 'hare') {
+    const idx = S.elk.indexOf(e);
+    if (idx >= 0) takePrey(idx);
+    return true;
+  }
   return true;
 }
 
@@ -2124,7 +2161,7 @@ function herdDriftUpdate() {
   const h = OBSTACLES.highway, o = OBSTACLES.overpass;
   const oy = (o.y0 + o.y1) / 2;
   for (const H of HERDS) {
-    if (H.cattle || H.anchor0.x <= h.x1) continue;   // eastern-born herds only
+    if (H.cattle || H.scattered || H.anchor0.x <= h.x1) continue;   // eastern-born herds only
     if (!overpassTrusted()) {
       // pressed against the wire of traffic
       H.anchor.x = Math.max(h.x1 + 300, H.anchor.x - 60);
@@ -2146,7 +2183,12 @@ function preyUpdate(dt) {
     }
   }
 
-  const hunters = [{ x: S.wolf.x, y: S.wolf.y }, ...alivePack()];
+  // Aspen HERSELF, not a positional copy of her. The copy carried only x and y, so
+  // every rule that reads a wolf's state read nothing: her crouch and her stillness
+  // never reduced what she gave away (alertMotionMult saw undefined and assumed
+  // "standing"), and identity checks against S.wolf could never match, so the elk
+  // that turned on her blamed a nameless packmate instead.
+  const hunters = [S.wolf, ...alivePack()];
   if (S.willow && S.willow.alive && !S.willow.lying) hunters.push(S.willow);
 
   for (const elk of S.elk) {
@@ -2181,6 +2223,7 @@ function preyUpdate(dt) {
     if (elk.alert === undefined) elk.alert = 0;
     elk.jumpyT = Math.max(0, (elk.jumpyT || 0) - dt);
     elk.stumbleT = Math.max(0, (elk.stumbleT || 0) - dt);
+    elk.turnCd = Math.max(0, (elk.turnCd || 0) - dt);   // an elk that just threw a wolf
     const wasState = alertStateOf(elk);
     // Flight has hysteresis, the way the old flight radius did: an animal that is
     // RUNNING keeps running while a wolf is still on it, out to a wider pursuit
@@ -2243,9 +2286,12 @@ function preyUpdate(dt) {
       // more wolves on it wears it down faster — the pack's whole purpose
       const pursuers = Math.max(1, near);
       const wear = Math.min(2, 1 + 0.25 * (pursuers - 1));
-      if (!burning) elk.stamina = Math.max(0, elk.stamina - (elk.wary ? 8 : 12) * wear * dt);
+      // per species: an elk is long-winded, a hare spends itself almost at once
+      if (!burning) elk.stamina = Math.max(0, elk.stamina - (elk.wary ? 8 : 12) * (H.stam || 1) * wear * dt);
       fx += sx * 0.6; fy += sy * 0.6;
-      const wob = Math.sin(S.time * 1.4 + elk.skittish * 17) * 0.9;
+      // a hare does not run in a line — it jinks, and that is most of its defence
+      const erratic = H.erratic || 1;
+      const wob = Math.sin(S.time * 1.4 * erratic + elk.skittish * 17) * 0.9 * erratic;
       const wa = Math.atan2(fy, fx) + wob;
       const dAnchor = dist(elk.x, elk.y, H.anchor.x, H.anchor.y);
       let ax = Math.cos(wa), ay = Math.sin(wa);
@@ -2390,41 +2436,103 @@ function preyUpdate(dt) {
     const catchers = S.mode === 'prologue' ? [S.wolf] : hunters;
     const caught = catchers.some(h => dist(elk.x, elk.y, h.x, h.y) < 22);
     if (caught) {
-      const H = HERDS[elk.herd];
-      S.elk.splice(i, 1);
-      let thinned = false;
-      if (H.count > 0) {
-        const m = respawnMult(H);
-        if (m > 0) {
-          S.elkRespawn.push({ day: day() + Math.round(H.respawnDays * m), herd: elk.herd });
-          if (m > 1 && !S.tut.eastThins) { S.tut.eastThins = true; thinned = true; }
-        }
+      // An elk is not brought down by one wolf. Spent or not, alone she cannot
+      // finish it — it turns, and it can hurt her. This is what teaches the pack.
+      if (HERDS[elk.herd].species === 'elk' && !elk.scripted && S.mode === 'play') {
+        const pursuers = catchers.filter(h => dist(elk.x, elk.y, h.x, h.y) < ELK_PURSUE_R).length;
+        if (pursuers < 2) { elkTurns(elk, catchers); continue; }
       }
-      const sedge = S.pack.find(w => w.id === 'sedge');
-      const sedgeIn = sedge && sedge.state !== 'dead' && sedge.state !== 'gone'
-        && dist(sedge.x, sedge.y, elk.x, elk.y) < 500;
-      S.food = Math.min(100, S.food + H.food * (elk.wary ? 0.65 : 1) + (sedgeIn ? 10 : 0));
-      S.tut.usedHold = true;
-      S.history.push({ type: 'hunt', day: day() });
-      if (H.cattle) {
-        S.conflict = Math.min(1, S.conflict + 0.3);
-        // her pack's hunger writes his ledger even when she is elsewhere
-        if (!S.tut.packCalf && dist(S.wolf.x, S.wolf.y, elk.x, elk.y) > 500) {
-          S.tut.packCalf = true;
-          say('The pack took one of the cattle on its own. The house will not know the difference.');
-        } else {
-          say('Cattle — big, slow, easy meat. The house will know.');
-        }
-      } else if (thinned) {
-        // the seasonal beat outranks the routine kill line
-        say('The hunting thins. The east is emptying.');
-      } else if (S.mode !== 'prologue') {
-        // the prologue's scripted hunt speaks through its own caption
-        say(sedgeIn ? 'A kill. Sedge ran it down with her.' : 'A kill. The pack eats.');
-      }
-      saveGame();
+      takePrey(i);
     }
   }
+}
+
+// The elk turns on a wolf that came alone. No gore: a wound, a shove, and the
+// lesson — said once, because the point is to learn it, not to be told it twice.
+function elkTurns(elk, catchers) {
+  elk.turnCd = Math.max(0, (elk.turnCd || 0));
+  if (elk.turnCd > 0) return;
+  elk.turnCd = 3.5;
+  elk.stamina = Math.max(elk.stamina, PREY_SPENT + 22);   // it finds a second wind
+  elk.alert = 1;
+  let who = null, bd = 1e9;
+  for (const h of catchers) {
+    const d = dist(elk.x, elk.y, h.x, h.y);
+    if (d < bd) { bd = d; who = h; }
+  }
+  if (!who) return;
+  // front-on is the bad way to meet an animal that big
+  const toWolf = Math.atan2(who.y - elk.y, who.x - elk.x);
+  const facing = Math.cos(toWolf - (elk.heading || 0));
+  const frontOn = facing > 0.5;
+  const isAspen = who === S.wolf;
+  if (Math.random() < ELK_INJURE * (frontOn ? 2 : 1)) {
+    playHurt();
+    S.fear = Math.min(1, S.fear + 0.3);
+    S.fearSource = { x: elk.x, y: elk.y };
+    if (isAspen) {
+      S.injuredT = INJURY_TIME;
+      say(frontOn ? 'It came at her head-on. Antlers, and the ground.'
+                  : 'The elk turns and knocks her down. Alone, that is all a wolf gets.');
+    } else {
+      who.injuredT = Math.max(who.injuredT || 0, INJURY_TIME * 2);
+      say(`${who.name || 'A wolf'} is thrown clear. One wolf is not enough for an elk.`);
+    }
+  } else if (isAspen) {
+    say('It turns on her, and holds its ground. She cannot take this one alone.');
+  }
+  if (!S.tut.elkNeedsPack) {
+    S.tut.elkNeedsPack = true;
+    stickyPrompt(`An elk needs the pack at your shoulder — bring them, or hunt something smaller.`, []);
+  }
+}
+
+// Everything that happens when an animal is taken. Extracted so the hare's
+// instant ambush kill and the ordinary spent-and-adjacent catch share one path.
+function takePrey(i) {
+  const elk = S.elk[i];
+  if (!elk) return;
+  const H = HERDS[elk.herd];
+  S.elk.splice(i, 1);
+  let thinned = false;
+  if (H.count > 0) {
+    const m = respawnMult(H);
+    if (m > 0) {
+      S.elkRespawn.push({ day: day() + Math.round(H.respawnDays * m), herd: elk.herd });
+      if (m > 1 && !S.tut.eastThins) { S.tut.eastThins = true; thinned = true; }
+    }
+  }
+  const sedge = S.pack.find(w => w.id === 'sedge');
+  const sedgeIn = sedge && sedge.state !== 'dead' && sedge.state !== 'gone'
+    && dist(sedge.x, sedge.y, elk.x, elk.y) < 500;
+  S.food = Math.min(100, S.food + H.food * (elk.wary ? 0.65 : 1) + (sedgeIn ? 10 : 0));
+  S.tut.usedHold = true;
+  S.history.push({ type: 'hunt', day: day() });
+  if (H.cattle) {
+    S.conflict = Math.min(1, S.conflict + 0.3);
+    // her pack's hunger writes his ledger even when she is elsewhere
+    if (!S.tut.packCalf && dist(S.wolf.x, S.wolf.y, elk.x, elk.y) > 500) {
+      S.tut.packCalf = true;
+      say('The pack took one of the cattle on its own. The house will not know the difference.');
+    } else {
+      say('Cattle — big, slow, easy meat. The house will know.');
+    }
+  } else if (H.species === 'hare') {
+    // barely a mouthful, and it never pretends otherwise
+    if (!S.tut.hareTaken) {
+      S.tut.hareTaken = true;
+      say('A hare. Hardly a mouthful — but it is meat, and there are always more.');
+    } else {
+      say('A hare. It keeps the edge off.');
+    }
+  } else if (thinned) {
+    // the seasonal beat outranks the routine kill line
+    say('The hunting thins. The east is emptying.');
+  } else if (S.mode !== 'prologue') {
+    // the prologue's scripted hunt speaks through its own caption
+    say(sedgeIn ? 'A kill. Sedge ran it down with her.' : 'A kill. The pack eats.');
+  }
+  saveGame();
 }
 
 // ── hunger and Sedge's restlessness ──────────────────────────────────────────

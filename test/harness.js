@@ -422,6 +422,29 @@ smokeDraw('Act I world');
   check('stalk: crouching cuts the rise to 0.35x', Math.abs(cr.low / cr.upright - 0.35) < 1e-6);
   check('stalk: the crouch is a real speed cost', G('CROUCH_SPEED') < 0.5);
 
+  // ...and it reaches the WORLD, not just the formula. `hunters` used to hold a
+  // positional copy of Aspen carrying only x and y, so alertMotionMult read
+  // undefined and assumed "standing upright": her crouch did nothing at all in
+  // actual play, while a direct call to alertRiseFrom(S.wolf, ...) passed happily.
+  const crouchLive = G(`(function(){
+    function fill(crouched){
+      S.elk.length = 0; S.wind = { a: Math.PI/2 }; S.crouched = false;
+      S.pack.forEach(function(w){ w.state='stay'; w.x = WORLD.x0+60; w.y=60; w.holdX=w.x; w.holdY=w.y; });
+      S.elk.push({ herd:1, x:2150, y:2000, heading:0, stamina:100, fleeing:false, gait:0,
+        bull:false, skittish:1, grazeT:99, tx:2150, ty:2000, vx:0, vy:0, homeX:2150, homeY:2000,
+        alert:0, alertState:'grazing', jumpyT:0, stumbleT:0, headUp:false });
+      var e = S.elk[0];
+      input.crouch = crouched;
+      for (var i=0;i<8;i++){ S.wolf.x = 2000; S.wolf.y = 2000; update(1/20); }
+      input.crouch = false;
+      return e.alert;
+    }
+    var upright = fill(false), low = fill(true);
+    return { upright: upright, low: low };
+  })()`);
+  check('stalk: the crouch reaches the world, not only the formula',
+    crouchLive.upright > 0 && crouchLive.low < crouchLive.upright * 0.6);
+
   // a packmate blundering upright inside the envelope gives her away at the
   // UPRIGHT rate — the failure the F lesson exists to fix
   const mate = G(`(function(){
@@ -600,6 +623,150 @@ G(`S.elk.length = 0; input.crouch = false; S.crouched = false;
    S.zoneAnchor = null;
    for (var i=0;i<HERDS.length;i++) for (var k=0;k<HERDS[i].count;k++) spawnPrey(i);`);
 check('the land is restocked after the stalk checks', G('S.elk.length') >= 15);
+
+// ==== SPECIES (fun pass, Part 2) ====
+// Four animals asking for four different things, so there is never one answer.
+(function speciesChecks() {
+  const stats = G(`(function(){
+    var by = {};
+    HERDS.forEach(function(H){ by[H.species] = by[H.species] || H; });
+    return { elk: by.elk, deer: by.deer, hare: by.hare, cattle: by.cattle,
+             species: HERDS.map(function(H){ return H.species; }) };
+  })()`);
+  check('every herd declares a species', stats.species.every(s => !!s));
+  check('elk: rich, long-winded, and hard to get near',
+    stats.elk.food === 45 && stats.elk.speed === 272 && stats.elk.detectR === 300
+    && stats.elk.ambushR === 120 && stats.elk.stam < 1);
+  check('deer: leaner, faster, and they see a very long way',
+    stats.deer.food === 26 && stats.deer.speed === 296 && stats.deer.detectR === 420
+    && stats.deer.ambushR === 95 && stats.deer.stam > 1);
+  check('hare: tiny, quick, erratic, and blind by comparison',
+    stats.hare.food === 7 && stats.hare.speed === 330 && stats.hare.detectR === 180
+    && stats.hare.ambushR === 70 && stats.hare.erratic > 1 && stats.hare.scattered === true);
+  check('cattle: slow, rich, and watched',
+    stats.cattle.food === 60 && stats.cattle.speed === 190 && stats.cattle.detectR === 200
+    && stats.cattle.ambushR === 130 && stats.cattle.cattle === true);
+
+  // seasonal availability, per species: this is what gives the year its curve
+  const seasons = G(`(function(){
+    var hwy = OBSTACLES.highway.x1;
+    var elkE = HERDS.find(function(H){ return H.species==='elk' && H.anchor.x > hwy; });
+    var elkW = HERDS.find(function(H){ return H.species==='elk' && H.anchor.x <= hwy; });
+    var deer = HERDS.find(function(H){ return H.species==='deer'; });
+    var hare = HERDS.find(function(H){ return H.species==='hare'; });
+    var cow  = HERDS.find(function(H){ return H.cattle; });
+    var out = {}, clock0 = S.clock.min, lastDay0 = S.lastDay;
+    [0,1,2,3].forEach(function(si){
+      S.clock.min = (si * 90 + 10) * 1440 + 600; S.lastDay = day();
+      out[si] = { elkE: respawnMult(elkE), elkW: respawnMult(elkW),
+                  deer: respawnMult(deer), hare: respawnMult(hare), cow: respawnMult(cow) };
+    });
+    // Put the calendar straight back. Left in winter, the very next update() in
+    // this file auto-chose the den (day >= DEN_DEADLINE_DAY) and quietly broke the
+    // den checks hundreds of lines later.
+    S.clock.min = clock0; S.lastDay = lastDay0;
+    return out;
+  })()`);
+  check('hare: always, everywhere, every season',
+    [0,1,2,3].every(si => seasons[si].hare === 1));
+  check('deer: plentiful in the green seasons, scarcer in autumn, scarcest in winter',
+    seasons[0].deer === 1 && seasons[1].deer === 1 && seasons[2].deer === 2 && seasons[3].deer === 3);
+  check('elk east: steady, then thin in autumn, then gone for the winter',
+    seasons[0].elkE === 1 && seasons[2].elkE === 2.5 && seasons[3].elkE === 0);
+  check('elk west: the far side holds all year', [0,1,2,3].every(si => seasons[si].elkW === 1));
+  check('cattle: the rancher restocks regardless', [0,1,2,3].every(si => seasons[si].cow === 1));
+
+  // hares are singletons scattered over the whole land, not a herd at an anchor
+  const hares = G(`(function(){
+    var hi = HERDS.findIndex(function(H){ return H.species === 'hare'; });
+    S.elk = S.elk.filter(function(e){ return e.herd !== hi; });
+    for (var i = 0; i < 14; i++) spawnPrey(hi);
+    var hs = S.elk.filter(function(e){ return e.herd === hi; });
+    var xs = hs.map(function(h){ return h.x; }), ys = hs.map(function(h){ return h.y; });
+    var spreadX = Math.max.apply(null, xs) - Math.min.apply(null, xs);
+    var spreadY = Math.max.apply(null, ys) - Math.min.apply(null, ys);
+    var anchor = HERDS[hi].anchor;
+    var far = hs.filter(function(h){ return Math.hypot(h.x-anchor.x, h.y-anchor.y) > HERDS[hi].leash * 2; }).length;
+    var blocked = hs.filter(function(h){ return blockedAt(h.x, h.y, 10, false, 0) || onRoad(h.x,h.y) || onRail(h.x,h.y); }).length;
+    var ownHome = hs.every(function(h){ return h.homeX !== undefined; });
+    return { n: hs.length, spreadX: spreadX, spreadY: spreadY, far: far, blocked: blocked, ownHome: ownHome };
+  })()`);
+  check('hares scatter across the whole land, not around one anchor',
+    hares.n === 14 && hares.spreadX > 1500 && hares.spreadY > 900 && hares.far > 6);
+  check('...never on the road, the rail, or inside anything solid', hares.blocked === 0);
+  check('...and each keeps to its own patch, not a herd\'s', hares.ownHome === true);
+
+  // an ambush on a hare is simply the kill: no chase
+  const hareKill = G(`(function(){
+    var hi = HERDS.findIndex(function(H){ return H.species === 'hare'; });
+    S.elk.length = 0; S.wolf.x = 2000; S.wolf.y = 2000; S.wind = { a: Math.PI/2 };
+    S.elk.push({ herd: hi, x: 2040, y: 2000, heading: 0, stamina: 100, fleeing: false, gait: 0,
+      bull: false, skittish: 1, grazeT: 99, tx: 2040, ty: 2000, vx: 0, vy: 0, homeX: 2040, homeY: 2000,
+      alert: 0, alertState: 'grazing', jumpyT: 0, stumbleT: 0, headUp: false });
+    var food0 = S.food = 40;
+    var ok = commitAmbush();
+    return { ok: ok, gone: S.elk.length === 0, gained: S.food - food0 };
+  })()`);
+  check('a hare taken out of an ambush is taken outright, with no chase',
+    hareKill.ok === true && hareKill.gone === true);
+  check('...for very little meat', hareKill.gained > 0 && hareKill.gained <= 8);
+
+  // an elk is not brought down by one wolf: the catch is refused and it turns
+  const soloElk = G(`(function(){
+    var ei = HERDS.findIndex(function(H){ return H.species === 'elk'; });
+    S.pack.forEach(function(w){ w.state='stay'; w.x = WORLD.x0 + 60; w.y = 60; w.holdX=w.x; w.holdY=w.y; });
+    S.wolf.x = 2000; S.wolf.y = 2000; S.injuredT = 0; S.tut.elkNeedsPack = false;
+    var hurt = 0, refused = 0;
+    for (var trial = 0; trial < 40; trial++) {
+      S.elk.length = 0;
+      S.elkRespawn.length = 0;     // a due respawn mid-update would add animals
+      // close enough that one tick of flight cannot carry it out of the catch radius
+      var target = { herd: ei, x: 2001, y: 2000, heading: 0, stamina: 1, fleeing: true, gait: 0,
+        bull: false, skittish: 1, grazeT: 99, tx: 2001, ty: 2000, vx: 0, vy: 0, homeX: 2001, homeY: 2000,
+        alert: 1, alertState: 'fleeing', jumpyT: JUMPY_TIME, stumbleT: 0, headUp: true, turnCd: 0 };
+      S.elk.push(target);
+      S.injuredT = 0;
+      update(1/20);
+      // ask whether THAT animal survived, not how long the array is
+      if (S.elk.indexOf(target) >= 0) refused++;
+      if (S.injuredT > 0) hurt++;
+    }
+    return { refused: refused, hurt: hurt, told: S.tut.elkNeedsPack };
+  })()`);
+  if (!(soloElk.hurt > 3 && soloElk.hurt < 37)) console.log('DEBUG-SOLOELK', JSON.stringify(soloElk));
+  check('one wolf cannot bring down an elk: every time, the catch is refused',
+    soloElk.refused === 40);
+  check('...and trying it alone gets her hurt, often enough to learn from',
+    soloElk.hurt > 3 && soloElk.hurt < 37);
+  check('...and the reason is named once', soloElk.told === true);
+
+  // two wolves on it, and the elk goes down
+  const pairElk = G(`(function(){
+    var ei = HERDS.findIndex(function(H){ return H.species === 'elk'; });
+    S.elk.length = 0; S.elkRespawn.length = 0;
+    S.wolf.x = 2000; S.wolf.y = 2000; S.injuredT = 0;
+    var mate = alivePack()[0];
+    mate.state = 'stay'; mate.x = 2012; mate.y = 2000; mate.holdX = mate.x; mate.holdY = mate.y;
+    mate.frozenT = 0; mate.balked = false;
+    var target = { herd: ei, x: 2001, y: 2000, heading: 0, stamina: 1, fleeing: true, gait: 0,
+      bull: false, skittish: 1, grazeT: 99, tx: 2001, ty: 2000, vx: 0, vy: 0, homeX: 2001, homeY: 2000,
+      alert: 1, alertState: 'fleeing', jumpyT: JUMPY_TIME, stumbleT: 0, headUp: true, turnCd: 0 };
+    S.elk.push(target);
+    var food0 = S.food = 30;
+    update(1/20);
+    return { taken: S.elk.indexOf(target) < 0, gained: S.food - food0 };
+  })()`);
+  check('two wolves on it, and the elk goes down', pairElk.taken === true);
+  check('...and an elk is the richest meal in the land', pairElk.gained >= 40);
+})();
+// hand the land back stocked, and the pack back to her heels
+G(`S.elk.length = 0; S.injuredT = 0; S.food = 85;
+   S.pack.forEach(function(w){ w.state='follow'; w.holdX=undefined; w.holdY=undefined; });
+   S.zoneAnchor = null;
+   for (var i=0;i<HERDS.length;i++) for (var k=0;k<HERDS[i].count;k++) spawnPrey(i);`);
+check('the land is restocked after the species checks', G('S.elk.length') >= 25);
+check('...and it holds every species',
+  G("new Set(S.elk.map(function(e){ return HERDS[e.herd].species; })).size") === 4);
 
 // F is TAUGHT in spring, not told: the pack is hers now and she is walked
 // through holding it and calling it on with her own body before the year opens
@@ -1391,8 +1558,13 @@ check('the cut runs pole to pole', G('inPowerlineCut(4200, 2350)') === true
 G('S.clock.min = 200 * 1440 + 600; S.lastDay = day();');   // autumn
 step();  // flush any respawns already due
 G('S.tut.eastThins = false;');
-G("_e4 = S.elk.find(e => !HERDS[e.herd].cattle && HERDS[e.herd].anchor.x > OBSTACLES.highway.x1);");
+// specifically an ELK east of the road: the squeeze is the elk rule, and hares
+// (scattered, anchored mid-map) would otherwise be caught by a plain "eastern"
+// filter and answer with their own all-year multiplier
+G("_e4 = S.elk.find(e => HERDS[e.herd].species === 'elk' && HERDS[e.herd].anchor.x > OBSTACLES.highway.x1);");
 G('_rq = S.elkRespawn.length; _hd = _e4.herd; _e4.stamina = 0; S.wolf.x = _e4.x; S.wolf.y = _e4.y;');
+// an elk needs TWO wolves on it now, or the catch is refused and it turns instead
+G("_w4 = alivePack()[0]; _w4.state='follow'; _w4.frozenT=0; _w4.balked=false; _w4.x = _e4.x + 12; _w4.y = _e4.y;");
 step(1 / 20, 6);
 check('autumn: an eastern kill is rescheduled at 2.5x',
   G('S.elkRespawn.length') === G('_rq') + 1
@@ -1420,20 +1592,22 @@ check('and names it once', /What her mother knew/.test(G('S.caption && S.caption
 smokeDraw('season ritual ghost map');
 G('S.forcedSenseT = 0; S.seasonGhostT = 0;');   // lower it for the tests below
 step(1 / 20, 20);
-G("_e5 = S.elk.find(e => !HERDS[e.herd].cattle && HERDS[e.herd].anchor.x > OBSTACLES.highway.x1);");
+G("_e5 = S.elk.find(e => HERDS[e.herd].species === 'elk' && HERDS[e.herd].anchor.x > OBSTACLES.highway.x1);");
 G('_rq2 = S.elkRespawn.length; _e5.stamina = 0; S.wolf.x = _e5.x; S.wolf.y = _e5.y;');
+G("_w5 = alivePack()[0]; _w5.state='follow'; _w5.frozenT=0; _w5.balked=false; _w5.x = _e5.x + 12; _w5.y = _e5.y;");
 step(1 / 20, 6);
 check('winter: an eastern kill is not replaced',
   G('S.elk.includes(_e5)') === false && G('S.elkRespawn.length') === G('_rq2'));
-G("_e6 = S.elk.find(e => !HERDS[e.herd].cattle && HERDS[e.herd].anchor.x <= OBSTACLES.highway.x1);");
+G("_e6 = S.elk.find(e => HERDS[e.herd].species === 'elk' && HERDS[e.herd].anchor.x <= OBSTACLES.highway.x1);");
 G('_rq3 = S.elkRespawn.length; _hd6 = _e6.herd; _e6.stamina = 0; S.wolf.x = _e6.x; S.wolf.y = _e6.y;');
+G("_w6 = alivePack()[0]; _w6.state='follow'; _w6.frozenT=0; _w6.balked=false; _w6.x = _e6.x + 12; _w6.y = _e6.y;");
 step(1 / 20, 6);
 check('winter: the west still refills',
   G('S.elkRespawn.length') === G('_rq3') + 1
   && G('S.elkRespawn[S.elkRespawn.length - 1].herd') === G('_hd6'));
 
 // drift fix 2: the migration is watched — mill at the road, then trickle west
-G('_ha = HERDS.find(H => !H.cattle && H.anchor0.x > OBSTACLES.highway.x1);');
+G("_ha = HERDS.find(H => !H.cattle && !H.scattered && H.anchor0.x > OBSTACLES.highway.x1);");
 G('_hx0 = _ha.anchor.x; _oc = S.overpassCross; S.overpassCross = 0;');
 G('S.clock.min = 250 * 1440 + 600; S.lastDay = day() - 1;');
 step();

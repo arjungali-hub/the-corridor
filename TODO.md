@@ -1088,7 +1088,7 @@ prologue except the 1.7 lessons; multiplayer, crafting, inventory; a skill TREE
 
 ### Part 2 — Prey species with distinct tactics
 
-- [ ] 2 Add a `species` field and per-species stats to `HERDS`:
+- [x] 2 Add a `species` field and per-species stats to `HERDS`:
       **Elk** food 45, speed 272, stamina high, detectR 300, ambushR 120 —
       DANGEROUS: needs ≥2 pursuers or the catch fails and the elk turns, 35%
       chance to injure that wolf (existing injury system, no gore); front-on
@@ -1100,17 +1100,25 @@ prologue except the 1.7 lessons; multiplayer, crafting, inventory; a skill TREE
       anti-death-spiral valve and lean-winter filler.
       **Cattle** 60, 190, very low, detectR 200, ambushR 130 — slow, rich,
       watched; conflict ledger unchanged. The greedy option.
-- [ ] 2 Seasonal availability layered on the existing squeeze: hare ×1 all year
+- [x] 2 Seasonal availability layered on the existing squeeze: hare ×1 all year
       everywhere; deer plentiful spring/summer, ×2 autumn, ×3 winter; elk ×1
       until autumn, ×2.5 autumn, none in winter east (existing rule); cattle
       unchanged. Net: summer fat and forgiving, autumn demands pack elk hunts,
       winter is hares and desperation — a difficulty curve driven by what you
       can eat.
-- [ ] 2 Hares spawn as many small scattered singletons (not herds), respawning
-      on a ~40 s timer near cover.
-- [ ] 2 Harness: each species carries its stat block; a solo elk catch fails and
+- [x] 2 Hares spawn as many small scattered singletons (not herds), respawning
+      on a ~40 s timer near cover. (Rides the existing day-based respawn at
+      `respawnDays: 4`, which is ~36 s at the current 9 s day.)
+- [x] 2 Harness: each species carries its stat block; a solo elk catch fails and
       can injure; a two-wolf elk catch succeeds; hare ambush is an instant kill;
       hares exist in every season; per-species seasonal respawn multipliers.
+- [x] 2 (found while building it) `preyUpdate` built its `hunters` list with a
+      positional COPY of Aspen — `{x, y}` only. Every rule reading a wolf's state
+      read nothing, so **her crouch and her stillness did nothing in actual play**
+      (`alertMotionMult` saw `undefined` and assumed upright), and identity checks
+      against `S.wolf` could never match. Part 1's crouch check passed because it
+      called `alertRiseFrom(S.wolf, …)` by hand. Fixed, with a check that goes
+      through the real `update()`.
 
 ### Part 3 — The pack grows (the progression engine)
 

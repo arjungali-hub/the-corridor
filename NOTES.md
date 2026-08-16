@@ -951,6 +951,49 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## fun pass, Part 2 — four species, four tactics (2026-08-16)
+
+Harness **425 green x6**, layout clean. Elk, deer, hare and cattle now each ask
+for something different, so there is never one right answer:
+
+- **Elk** — rich (45) and long-winded (`stam` 0.7), and **one wolf cannot bring
+  one down**. The catch is refused and the animal turns: 35% chance of a wound,
+  doubled if she came at it head-on, and the reason is named once. This is the
+  part of the design that teaches the pack, so it is a hard rule, not a penalty.
+- **Deer** — takeable alone, but `detectR` 420 means only off a clean stalk: wind
+  and cover stop being optional.
+- **Hare** — new, and not a herd at all: 16 scattered singletons over the whole
+  land, near cover, every season. An ambush takes one outright with no chase, for
+  7 food. This is the anti-death-spiral valve; a ruined pack always has something
+  it can still do.
+- **Cattle** — unchanged in consequence, now with its own envelope.
+
+Availability is per species now. `respawnMult` scales the respawn DELAY, so a
+bigger number is scarcer and 0 is gone: hare 1 always; deer 1/1/2/3; elk 1 until
+autumn, 2.5 in autumn, 0 in the winter east with the west holding all year;
+cattle 1. That is the year's difficulty curve, driven by what she can eat.
+
+**The bug this turned up is the important part of the session.** `preyUpdate`
+built its `hunters` list as `[{ x: S.wolf.x, y: S.wolf.y }, ...alivePack()]` — a
+positional COPY of Aspen. Every rule that reads a wolf's *state* therefore read
+nothing from her: `alertMotionMult` saw `undefined` for `crouched` and `moving`
+and assumed she was standing upright, so **the crouch did nothing whatsoever in
+actual play**. Part 1's crouch check passed the whole time because it called
+`alertRiseFrom(S.wolf, e)` by hand and never went through the real path. It
+surfaced only because the elk that turns on a lone wolf could never match
+`who === S.wolf` and kept blaming a nameless packmate. `hunters` holds the real
+wolves now, and there is a check that drives the crouch through `update()`.
+
+Lesson: a unit check that calls the function directly can pass forever while the
+feature is dead in the game. Where a system reads an object's state, the test
+should go through the path that supplies that object.
+
+Also mine, and recorded so I stop repeating it: I edited `test/harness.js` with a
+PowerShell `Get-Content -Raw | Set-Content` round-trip, which added a BOM and
+mojibaked every em dash in the file — the exact trap already written down. Restored
+from git and re-applied with the editing tools. **Never round-trip a file through
+PowerShell 5.1.**
+
 ## the roadside vibration, actually found (2026-08-11)
 
 Arjun, after the last batch: "they still vibrate a lot". My previous guess (a
