@@ -72,6 +72,25 @@ the ending card.
   throws Aspen clear (hurt, terrified, never gory); a hit packmate is lost,
   permanently. The culvert (`Water-Under-Stone`) is the safe unknown detour.
   Elk never cross the highway at all.
+- **The pack GROWS** (Part 32/3, superseding "the pack only ever shrinks"). Every
+  wolf, Aspen included, carries three counters — `hunting`, `nerve`, `endurance` —
+  earned only by doing: hunting at kills it was part of (+2 on it, +1 merely near),
+  nerve at barriers crossed without balking or being hit and at lines held, and
+  endurance at distance walked. Tiers at 15 / 40 / 80 (`untried`, `capable`,
+  `seasoned`, `prime`) drive chase speed, how fast prey is worn down, the fear a
+  wolf will still cross at (`nerveBalk` replaced the flat `FEAR_BALK`), what it
+  costs to keep, and how well it travels. `capable` is exactly the old baseline, so
+  a mid-year pack plays as the game always did.
+  **Yearlings** start at `youth` 0.55, which scales what their hunting and nerve
+  are WORTH and how they move; it rises only through participation, so a protected
+  yearling ends the year still a child while an invested one becomes a hunter.
+  That trade is the point — do not add a way to buy it.
+  There is **no resurrection or replacement**: losing a wolf you raised is meant to
+  cost a real capability. `w.onHunt` is the "currently chasing" flag; `w.hunting`
+  is the trait (they collided once).
+  Tier-ups **queue** (`S.tierQueue` / `tierUpTick`) and wait for a free voice —
+  `say()` is one line, and announcing on the spot stomped whatever the land was
+  already telling her.
 - **Four prey species** (Part 32/2), each asking for something different, so there
   is never one answer. `HERDS` carries `species` plus `detectR`, `ambushR` and
   `stam` (how fast a running animal spends itself). **Elk** — rich and

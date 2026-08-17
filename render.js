@@ -2815,6 +2815,41 @@ function drawWindMark() {
   ctx.restore();
 }
 
+// What a wolf has become, as three little gauges after its name. The TRACK is
+// carried by shape and by position (always hunting, nerve, endurance, left to
+// right); the TIER is carried by how full the shape is. Never by colour alone —
+// and no numbers, because the roster is a glance, not a spreadsheet.
+function drawTierMarks(w, x, y, onMap) {
+  if (typeof huntTier !== 'function') return;
+  const tiers = [huntTier(w), nerveTier(w), endTier(w)];
+  const r = 3.6, gap = 9.5;
+  const line = onMap ? 'rgba(74,58,38,0.75)' : 'rgba(240,234,216,0.7)';
+  const fill = onMap ? 'rgba(120,82,40,0.95)' : 'rgba(226,206,150,0.95)';
+  ctx.save();
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 3; i++) {
+    const cx = x + i * gap, frac = tiers[i] / 3;
+    ctx.beginPath();
+    if (i === 0) {            // hunting: a triangle, like a muzzle
+      ctx.moveTo(cx, y - r); ctx.lineTo(cx + r, y + r); ctx.lineTo(cx - r, y + r);
+      ctx.closePath();
+    } else if (i === 1) {     // nerve: a square, planted
+      ctx.rect(cx - r * 0.85, y - r * 0.85, r * 1.7, r * 1.7);
+    } else {                  // endurance: a circle, going round
+      ctx.arc(cx, y, r * 0.92, 0, Math.PI * 2);
+    }
+    ctx.strokeStyle = line; ctx.stroke();
+    if (frac > 0) {           // filled from the bottom up, by tier
+      ctx.save();
+      ctx.clip();
+      ctx.fillStyle = fill;
+      ctx.fillRect(cx - r - 1, y + r - frac * r * 2, (r + 1) * 2, frac * r * 2 + 1);
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+}
+
 function drawHUD() {
   resetTransform();
   drawWindMark();
@@ -2882,7 +2917,9 @@ function drawHUD() {
       // shrink to fit: "Bram · lost on their ground · hurt" is a long line on a phone
       const row = fitLines(w.name + glyph, canvas.width * 0.62, 13, 9, '');
       ctx.font = `${Math.round(row.size)}px ${FONT}`;
-      ctx.fillText(row.lines[0], canvas.width - 20, ry);
+      const marksW = alive ? 30 : 0;
+      ctx.fillText(row.lines[0], canvas.width - 20 - marksW, ry);
+      if (alive) drawTierMarks(w, canvas.width - 20 - marksW + 6, ry + row.size * 0.45, onMap);
       ry += Math.max(15, row.size + 5);
     }
     if (S.pups && !S.pups.traveling && S.pups.count > 0) {

@@ -951,6 +951,49 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## fun pass, Part 3 — the pack grows (2026-08-17)
+
+Harness **447 green x6**, layout clean. The pack used to only ever shrink; now
+every wolf, Aspen included, carries three tracks earned purely by doing —
+`hunting` at kills it was part of (+2 if it was ON the animal, +1 if it only came
+to eat), `nerve` at barriers crossed clean and lines held, `endurance` at ground
+actually walked. Tiers at 15/40/80 drive chase speed, how fast prey wears down,
+the fear a wolf will still cross at, what it costs to keep, and how well it
+travels. `capable` is deliberately the old baseline exactly, so a mid-year pack
+plays as the game always did and only the extremes are new.
+
+Yearlings are the real decision. `youth` starts at 0.55 and scales what their
+hunting and nerve are *worth* as well as how they move, and it rises only through
+participation — so the same 45 hunting is `seasoned` in a grown wolf and merely
+`capable` in a protected yearling. Take them along and they become hunters; keep
+them safe and they end the year as children. No way to buy it.
+
+Three things worth recording:
+
+**A name collision that would have been a nasty bug.** `w.hunting` was already the
+boolean "currently chasing" flag, and I had just made it the hunting *counter*.
+The two are now `w.onHunt` and `w.hunting`. Left alone this would have quietly
+zeroed a wolf's hunting every time it broke off a chase — and read "is chasing" as
+true for any wolf that had ever been on a kill.
+
+**Tier-ups were stomping the land's voice.** `say()` is a single line, so a
+tier-up announced on the spot overwrote whatever was already being said — it
+clobbered the edge-of-territory message, which is how the harness caught it. They
+queue now (`S.tierQueue`) and wait for both the moment gate AND an empty message
+line, so nothing is lost and nothing is trampled. Same lesson as the Part 33
+pacing gate, in a new place.
+
+**The yearling encoding drift is fixed at its cause.** Generational encoding needs
+a yearling within 420u when a leg completes, and an adult's independent hunt ranged
+to ~416u — right on the boundary. A yearling now keeps a much tighter leash
+(0.55x), which is both better fiction (it is young, it stays near her) and puts it
+comfortably inside the radius. Flagged in Part 34 as Part 3's to fix, and it was.
+
+The roster now shows three small gauges after each name: shape and position carry
+the track (triangle/square/circle, always hunting-nerve-endurance), fill carries
+the tier. No colour-only encoding, and no numbers — the roster is a glance.
+`packStrength()` exists for Part 5's climbing number.
+
 ## fun pass, Part 2 — four species, four tactics (2026-08-16)
 
 Harness **425 green x6**, layout clean. Elk, deer, hare and cattle now each ask

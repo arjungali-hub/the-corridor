@@ -1122,27 +1122,27 @@ prologue except the 1.7 lessons; multiplayer, crafting, inventory; a skill TREE
 
 ### Part 3 — The pack grows (the progression engine)
 
-- [ ] 3.1 Three trait counters per wolf (and Aspen): **Hunting** +1 within 200u
+- [x] 3.1 Three trait counters per wolf (and Aspen): **Hunting** +1 within 200u
       of a kill, +2 as a pursuer at the catch; **Nerve** +2 crossing road/rail
       with no strike or balk, +1 surviving a near-miss, +2 a won
       standoff/posture; **Endurance** +1 per 1200u travelled while following.
-- [ ] 3.1 Tiers (all three tracks): untried 0–14, capable 15–39, seasoned 40–79,
+- [x] 3.1 Tiers (all three tracks): untried 0–14, capable 15–39, seasoned 40–79,
       prime 80+. Effects multiplicative on existing values —
       Hunting: chase speed ×0.92/×1.00/×1.06/×1.12, prey drain
       ×0.9/×1.00/×1.15/×1.30; Nerve: balk threshold 0.45/0.55 (current)/0.68/
       0.80; Endurance: food drain ×1.06/×1.00/×0.94/×0.88, travel
       ×0.96/×1.00/×1.05/×1.09.
-- [ ] 3.2 Yearlings grow up: Alder and Fen start at `youth` 0.55 on speed,
+- [x] 3.2 Yearlings grow up: Alder and Fen start at `youth` 0.55 on speed,
       hunting contribution and nerve, rising ONLY through participation
       (`youth += 0.006` per hunting/nerve gain event, capped 1.0 by autumn). A
       protected yearling ends the year ~0.7; an invested one reaches 1.0 and
       earns tiers normally. The central risk/reward: take them along and they
       become hunters, keep them safe and they stay children.
-- [ ] 3.3 Roster read-out: each wolf shows their name + three small tier marks
+- [x] 3.3 Roster read-out: each wolf shows their name + three small tier marks
       (shape/position, not colour alone), visibly filling across a year.
-- [ ] 3.4 Loss costs a build — preserve the intent; add NO resurrection or
+- [x] 3.4 Loss costs a build — preserve the intent; add NO resurrection or
       replacement mechanic.
-- [ ] 3 Harness: each gain event increments the right counter by the right
+- [x] 3 Harness: each gain event increments the right counter by the right
       amount; tiers flip at the stated values; effects apply multiplicatively to
       chase speed, prey drain, balk threshold, food drain, travel speed; youth
       rises only on participation and is capped; traits + youth survive

@@ -768,6 +768,188 @@ check('the land is restocked after the species checks', G('S.elk.length') >= 25)
 check('...and it holds every species',
   G("new Set(S.elk.map(function(e){ return HERDS[e.herd].species; })).size") === 4);
 
+// ==== THE PACK GROWS (fun pass, Part 3) ====
+// Three tracks, earned only by doing. No points, no tree.
+(function packGrowsChecks() {
+  // tiers flip at exactly the stated counts
+  const tiers = G(`(function(){
+    return { at0: tierIndex(0), at14: tierIndex(14), at15: tierIndex(15), at39: tierIndex(39),
+             at40: tierIndex(40), at79: tierIndex(79), at80: tierIndex(80), at999: tierIndex(999),
+             names: TIER_NAMES.slice() };
+  })()`);
+  check('tiers flip at 15, 40 and 80, and nowhere else',
+    tiers.at0 === 0 && tiers.at14 === 0 && tiers.at15 === 1 && tiers.at39 === 1
+    && tiers.at40 === 2 && tiers.at79 === 2 && tiers.at80 === 3 && tiers.at999 === 3);
+  check('and they are named', tiers.names.join(',') === 'untried,capable,seasoned,prime');
+
+  // a kill pays the wolves that were ON it more than the ones who came to eat
+  const kill = G(`(function(){
+    var ei = HERDS.findIndex(function(H){ return H.species === 'elk'; });
+    S.elk.length = 0; S.elkRespawn.length = 0;
+    S.wolf.x = 2000; S.wolf.y = 2000; S.wolf.hunting = 0;
+    var on = S.pack[0], near = S.pack[1], away = S.pack[2];
+    [on, near, away].forEach(function(w){ w.state='stay'; w.hunting = 0; w.youth = 1;
+      w.frozenT = 0; w.balked = false; });
+    on.x = 2010; on.y = 2000; on.holdX = on.x; on.holdY = on.y;          // on it
+    near.x = 2000 + 180; near.y = 2000; near.holdX = near.x; near.holdY = near.y;  // came to eat
+    away.x = 2000 + 900; away.y = 2000; away.holdX = away.x; away.holdY = away.y;  // elsewhere
+    var target = { herd: ei, x: 2001, y: 2000, heading: 0, stamina: 1, fleeing: true, gait: 0,
+      bull: false, skittish: 1, grazeT: 99, tx: 2001, ty: 2000, vx: 0, vy: 0, homeX: 2001, homeY: 2000,
+      alert: 1, alertState: 'fleeing', jumpyT: JUMPY_TIME, stumbleT: 0, headUp: true, turnCd: 0 };
+    S.elk.push(target);
+    update(1/20);
+    return { taken: S.elk.indexOf(target) < 0, aspen: S.wolf.hunting,
+             on: on.hunting, near: near.hunting, away: away.hunting };
+  })()`);
+  check('a kill pays hunting: +2 to the wolves on it, +1 to those near, nothing further off',
+    kill.taken === true && kill.aspen === 2 && kill.on === 2 && kill.near === 1 && kill.away === 0);
+
+  // nerve comes from barriers crossed clean, and from lines held
+  const nerve = G(`(function(){
+    var h = OBSTACLES.highway, mid = (h.x0 + h.x1) / 2;
+    var w = S.pack[0];
+    w.nerve = 0; w.youth = 1; w.balked = false; w.frozenT = 0; w.state = 'follow';
+    w.x = mid - 200; w.y = 1800; w.roadSide = undefined; w.railSide = undefined;
+    barrierNerveUpdate();                 // establishes which side it is on
+    var before = w.nerve;
+    w.x = mid + 200;                      // …and now it is on the other
+    barrierNerveUpdate();
+    var crossed = w.nerve;
+    // a wolf that balked its way over earns nothing
+    w.nerve = 0; w.balked = true; w.x = mid - 200; barrierNerveUpdate();
+    w.x = mid + 200; barrierNerveUpdate();
+    var balked = w.nerve;
+    w.balked = false;
+    return { before: before, crossed: crossed, balked: balked };
+  })()`);
+  check('crossing a barrier clean is worth +2 nerve',
+    nerve.before === 0 && nerve.crossed === 2);
+  check('...but not if it balked its way across', nerve.balked === 0);
+
+  // endurance is banked from ground actually covered
+  const endur = G(`(function(){
+    var w = S.pack[0];
+    w.endurance = 0; w.travelAcc = 0;
+    addTravel(w, TRAVEL_PER_END - 1);
+    var justShort = w.endurance;
+    addTravel(w, 2);
+    var oneMore = w.endurance;
+    addTravel(w, TRAVEL_PER_END * 3);
+    return { justShort: justShort, oneMore: oneMore, after: w.endurance };
+  })()`);
+  check('endurance is one point per 1200u walked, and it keeps the remainder',
+    endur.justShort === 0 && endur.oneMore === 1 && endur.after === 4);
+
+  // the effects are the stated multipliers, applied off the tiers
+  const eff = G(`(function(){
+    var w = { yearling: false, hunting: 0, nerve: 0, endurance: 0 };
+    function at(v){ w.hunting = w.nerve = w.endurance = v;
+      return { chase: huntChaseMult(w), drain: huntDrainMult(w),
+               balk: nerveBalk(w), food: endFoodMult(w), travel: endTravelMult(w) }; }
+    return { untried: at(0), capable: at(20), seasoned: at(50), prime: at(100) };
+  })()`);
+  check('untried is a real handicap',
+    Math.abs(eff.untried.chase - 0.92) < 1e-9 && Math.abs(eff.untried.drain - 0.9) < 1e-9
+    && Math.abs(eff.untried.balk - 0.45) < 1e-9 && Math.abs(eff.untried.food - 1.06) < 1e-9
+    && Math.abs(eff.untried.travel - 0.96) < 1e-9);
+  check('capable is the old baseline exactly',
+    eff.capable.chase === 1 && eff.capable.drain === 1 && eff.capable.balk === 0.55
+    && eff.capable.food === 1 && eff.capable.travel === 1);
+  check('seasoned and prime are better at all five',
+    eff.seasoned.chase > 1 && eff.prime.chase > eff.seasoned.chase
+    && eff.prime.drain === 1.3 && eff.prime.balk === 0.8
+    && eff.prime.food < eff.seasoned.food && eff.prime.travel > eff.seasoned.travel);
+
+  // yearlings: youth rises ONLY by taking part, and is capped
+  const youth = G(`(function(){
+    var y = S.pack.find(function(w){ return w.yearling; });
+    y.youth = YOUTH_START; y.hunting = 0; y.nerve = 0; y.endurance = 0; y.travelAcc = 0;
+    var start = youthOf(y);
+    addTravel(y, TRAVEL_PER_END * 5);        // travel alone does NOT grow it up
+    var afterTravel = youthOf(y);
+    gainTrait(y, 'hunting', 2);              // being on a kill does
+    var afterHunt = youthOf(y);
+    gainTrait(y, 'nerve', 2);                // so does holding a line
+    var afterNerve = youthOf(y);
+    for (var i = 0; i < 400; i++) gainTrait(y, 'hunting', 2);
+    var capped = youthOf(y);
+    // a protected yearling is still a child at the same counts
+    // 45 is seasoned for a grown wolf; 45 x 0.55 = 24.75 is only capable
+    var kid = { yearling: true, youth: YOUTH_START, hunting: 45, nerve: 45, endurance: 0 };
+    var grown = { yearling: true, youth: 1, hunting: 45, nerve: 45, endurance: 0 };
+    return { start: start, afterTravel: afterTravel, afterHunt: afterHunt,
+             afterNerve: afterNerve, capped: capped,
+             kidTier: huntTier(kid), grownTier: huntTier(grown),
+             kidSpeed: endTravelMult({ yearling: true, youth: YOUTH_START, endurance: 50 }),
+             grownSpeed: endTravelMult({ yearling: true, youth: 1, endurance: 50 }) };
+  })()`);
+  check('a yearling starts as half a wolf', Math.abs(youth.start - G('YOUTH_START')) < 1e-9);
+  check('walking alone does not grow it up', youth.afterTravel === youth.start);
+  check('taking part does — hunting and nerve both',
+    youth.afterHunt > youth.start && youth.afterNerve > youth.afterHunt);
+  check('and youth is capped at a whole wolf', Math.abs(youth.capped - 1) < 1e-9);
+  check('a protected yearling is still untried at counts a grown one is seasoned at',
+    youth.kidTier === 1 && youth.grownTier === 2);
+  check('youth also shows in the legs', youth.kidSpeed < youth.grownSpeed);
+
+  // pack strength: one number that climbs across a good year
+  const strength = G(`(function(){
+    var before = packStrength();
+    [S.wolf].concat(alivePack()).forEach(function(w){
+      w.hunting = 100; w.nerve = 100; w.endurance = 100; w.youth = 1; });
+    var after = packStrength();
+    return { before: before, after: after, crew: alivePack().length + 1 };
+  })()`);
+  check('pack strength is a single number derived from the tiers, and it climbs',
+    strength.after === strength.crew * 9 && strength.after > strength.before);
+
+  // a year of becoming something survives a reload
+  const persisted = G(`(function(){
+    S.wolf.hunting = 41; S.wolf.nerve = 16; S.wolf.endurance = 81; S.wolf.travelAcc = 300;
+    var y = S.pack.find(function(w){ return w.yearling; });
+    y.hunting = 22; y.nerve = 7; y.endurance = 33; y.youth = 0.81;
+    saveGame();
+    var raw = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null');
+    var sy = raw && raw.pack.find(function(p){ return p.id === y.id; });
+    return { w: raw && raw.wolf, y: sy };
+  })()`);
+  check('her own three tracks are saved',
+    persisted.w.hunting === 41 && persisted.w.nerve === 16
+    && persisted.w.endurance === 81 && persisted.w.travelAcc === 300);
+  check('and a yearling\'s, youth included',
+    persisted.y.hunting === 22 && persisted.y.nerve === 7
+    && persisted.y.endurance === 33 && Math.abs(persisted.y.youth - 0.81) < 1e-9);
+
+  // a tier-up is announced, but never over the top of something else
+  const voice = G(`(function(){
+    S.tierQueue = []; S.msg = 'the land is already speaking'; S.msgT = 5; S.momentCd = 0;
+    var w = S.pack[0]; w.youth = 1; w.nerve = 14;
+    gainTrait(w, 'nerve', 2);                    // crosses into capable
+    var queued = S.tierQueue.length;
+    tierUpTick();
+    var heldBack = S.msg;
+    S.msgT = 0; S.momentCd = 0; S.calloutActive = null; S.forcedSenseT = 0;
+    S.pendingForcedSense = false; S.seasonGhostT = 0; S.inputLockT = 0;
+    tierUpTick();
+    return { queued: queued, heldBack: heldBack, spoken: S.msg, left: S.tierQueue.length };
+  })()`);
+  check('a tier-up queues rather than speaking on the spot', voice.queued === 1);
+  check('...it waits while the land is talking', voice.heldBack === 'the land is already speaking');
+  check('...and is then said, not lost', /capable now/.test(voice.spoken) && voice.left === 0);
+})();
+// leave the pack as the rest of the run expects: untried, whole, at her heels
+G(`[S.wolf].concat(S.pack).forEach(function(w){
+     w.hunting = 0; w.nerve = 0; w.endurance = 0; w.travelAcc = 0;
+     w.youth = w.yearling ? YOUTH_START : 1;
+     w.roadSide = undefined; w.railSide = undefined;
+   });
+   S.tierQueue = []; S.msg = ''; S.msgT = 0; S.momentCd = 0;
+   S.pack.forEach(function(w){ w.state='follow'; w.holdX=undefined; w.holdY=undefined; });
+   S.zoneAnchor = null; S.elk.length = 0; S.food = 85;
+   for (var i=0;i<HERDS.length;i++) for (var k=0;k<HERDS[i].count;k++) spawnPrey(i);`);
+check('the pack is back to untried after the growth checks',
+  G('S.wolf.hunting') === 0 && G('packStrength()') === 0);
+
 // F is TAUGHT in spring, not told: the pack is hers now and she is walked
 // through holding it and calling it on with her own body before the year opens
 G("S.tut.fLesson = 0; S.tut.fLessonDone = false; S.tut.fTaught = false; S.tut.fTeachT = 6.0; S.tut.step = 6; S.pack.forEach(w => w.state = 'follow'); S.zoneAnchor = null; S.cars.length = 0;");
@@ -900,7 +1082,7 @@ for (let i = 0; i < 1600; i++) {
   const w = G('({x: S.wolf.x, y: S.wolf.y})');
   if (Math.hypot(ybTarget.x - w.x, ybTarget.y - w.y) < 18) break;
   G(`input.left=${ybTarget.x - w.x < -6}; input.right=${ybTarget.x - w.x > 6}; input.up=${ybTarget.y - w.y < -6}; input.down=${ybTarget.y - w.y > 6};`);
-  G(`S.pack.forEach(function(p){ if (p.yearling) { p.state='follow'; p.hunting=false;
+  G(`S.pack.forEach(function(p){ if (p.yearling) { p.state='follow'; p.onHunt=false;
        p.x = S.wolf.x + 20; p.y = S.wolf.y + 14; } });`);
   step();
 }
@@ -1058,7 +1240,7 @@ const vibe = G(`(function(){
   S.wolf.x = mid - 90; S.wolf.y = 1800;         // right beside the asphalt
   S.pack.forEach(function(w, i){
     w.state = 'follow'; w.balked = false; w.frozenT = 0; w.fleeTo = null; w.lost = false;
-    w.hunting = false; w.holdX = undefined; w.holdY = undefined;
+    w.onHunt = false; w.holdX = undefined; w.holdY = undefined;
     w.x = mid - 110 - i * 14; w.y = 1800 + (i % 2 ? 18 : -18);
     w.tx = undefined; w.wanderT = 0; w.dwellT = 0; w.dwelled = false; w.roundSide = 0; w.stuckT = 0;
   });
@@ -1378,6 +1560,12 @@ G("S.wolf.x = (WORLD.x0 || 0) + WOLF_R + 1; S.wolf.y = 1500;");
 G("input.left = true; input.right = false; input.up = false; input.down = false;");
 step(1 / 20, 4);
 G("input.left = false;");
+if (!/edge of her territory/.test(G('S.msg') || '')) {
+  console.log('DEBUG-EDGE', G(`JSON.stringify({ msg: S.msg, msgT: +S.msgT.toFixed(1),
+    x: Math.round(S.wolf.x), bound: Math.round((WORLD.x0||0) + WOLF_R),
+    cd: +(S.edgeMsgCd||0).toFixed(1), moving: S.wolf.moving, mode: S.mode,
+    tierQ: (S.tierQueue||[]).length, nerve: S.wolf.nerve, end: S.wolf.endurance })`));
+}
 check('reaching the edge of her territory is announced, not silent',
   /edge of her territory/i.test(G('S.msg')));
 G("S.wolf.x = 2600; S.wolf.y = 1800; S.edgeMsgCd = 0; S.msg = ''; S.msgT = 0;");
@@ -1523,7 +1711,7 @@ G('S.wolf.x = 920; S.wolf.y = (OBSTACLES.overpass.y0 + OBSTACLES.overpass.y1) / 
 step();
 check('she scouts it herself; it reeks', G('S.tut.overpassWalked') === true);
 G('S.task = null; S.taskCooldown = 999; S.fear = 0; S.packFrozen = false;');
-G('S.pack.forEach(w => { w.lost = false; w.balked = false; w.frozenT = 0; w.fleeTo = null; w.hunting = false; if (w.state === "stay" || w.state === "balk") w.state = "follow"; });');
+G('S.pack.forEach(w => { w.lost = false; w.balked = false; w.frozenT = 0; w.fleeTo = null; w.onHunt = false; if (w.state === "stay" || w.state === "balk") w.state = "follow"; });');
 G('_wq = alivePack()[0];');
 // Drive until it has actually made three crossings, not exactly three attempts.
 // Each attempt is a teleport on and off the deck, and an attempt can be swallowed
@@ -1671,7 +1859,7 @@ G('_h = OBSTACLES.highway; _elkStash = S.elk; S.elk = [];');
 G('S.wolf.x = _h.x0 - 40; S.wolf.y = 1800; S.fear = 0; S.packFrozen = false;');
 // dwellT/dwelled cleared too: a wolf standing between wander moves legitimately
 // does not move, and this check measures a single frame's displacement
-G("_w3 = alivePack()[0]; _w3.state = 'follow'; _w3.balked = false; _w3.hunting = false; _w3.frozenT = 0; _w3.fleeTo = null; _w3.injuredT = 0; _w3.dwellT = 0; _w3.dwelled = false; _w3.stuckT = 0; _w3.roundSide = 0;");
+G("_w3 = alivePack()[0]; _w3.state = 'follow'; _w3.balked = false; _w3.onHunt = false; _w3.frozenT = 0; _w3.fleeTo = null; _w3.injuredT = 0; _w3.dwellT = 0; _w3.dwelled = false; _w3.stuckT = 0; _w3.roundSide = 0;");
 G('_w3.x = _h.x0 + 12; _w3.y = 1800; _w3.tx = _h.x1 + 60; _w3.ty = 1800; _w3.wanderT = 99; _x3 = _w3.x;');
 step();
 const roadStep = G('Math.hypot(_w3.x - _x3, _w3.y - 1800)');
@@ -1683,7 +1871,7 @@ const ambleStep = G('PACK_AMBLE * alivePack()[0].mult') / 20;
 check('mid-road, a pack wolf moves at full lope (not an amble)', roadStep > ambleStep * 1.15);
 
 // review fix 14: a packmate never takes asphalt Aspen is not on
-G("_w3.state = 'follow'; _w3.balked = false; _w3.frozenT = 0; _w3.fleeTo = null; _w3.hunting = false; S.fear = 0;");
+G("_w3.state = 'follow'; _w3.balked = false; _w3.frozenT = 0; _w3.fleeTo = null; _w3.onHunt = false; S.fear = 0;");
 G('S.wolf.x = _h.x0 - 60; S.wolf.y = 1800;');
 G('_w3.x = _h.x0 - 30; _w3.y = 1800; _w3.tx = _h.x1 + 80; _w3.ty = 1800; _w3.wanderT = 99;');
 step(1 / 20, 40);
@@ -1953,12 +2141,12 @@ check('touch: controls lay out, draw, and drive input without throwing' + (touch
 // the winter arrival — hers alone is not enough
 G('S.tut.earlyRange = false; S.tut.rangeWait = false;');
 G('S.clock.min = 260 * 1440 + 600; S.lastDay = day();');
-G("_wr = NbyId.get('winterRange'); S.wolf.x = _wr.x + 20; S.wolf.y = _wr.y; for (const w of alivePack()) { w.x = _wr.x + 40; w.y = _wr.y + 40; w.hunting = false; }");
+G("_wr = NbyId.get('winterRange'); S.wolf.x = _wr.x + 20; S.wolf.y = _wr.y; for (const w of alivePack()) { w.x = _wr.x + 40; w.y = _wr.y + 40; w.onHunt = false; }");
 step();
 check('the range before winter does not end the year', G('S.mode') === 'play' && G('S.tut.earlyRange') === true);
 check('…and she is told why', /season has not turned/.test(G('S.msg')));
 G('S.clock.min = 280 * 1440 + 600; S.lastDay = day();');
-G('_stray = alivePack()[0]; _stray.x = 4900; _stray.y = 300; _stray.hunting = false;');
+G('_stray = alivePack()[0]; _stray.x = 4900; _stray.y = 300; _stray.onHunt = false;');
 step();
 check('a stranded packmate holds the ending open', G('S.mode') === 'play' && G('S.tut.rangeWait') === true);
 check('she waits at the edge of the range', /waits at the edge/.test(G('S.msg')));

@@ -62,7 +62,110 @@ const PUPS_TRAVEL_DAY  = 240;
 const DEN_DEADLINE_DAY = 70;
 const CAR_SPEED     = 700;
 const FEAR_NEAR_MISS = 0.22;
-const FEAR_BALK     = 0.55;  // above this, packmates refuse the road
+const FEAR_BALK     = 0.55;  // above this, an untested packmate refuses the road
+
+// ── the pack grows ───────────────────────────────────────────────────────────
+// Three things a wolf can become better at, each earned only by DOING it. No
+// points, no tree: hunting rises at kills you were part of, nerve at barriers you
+// crossed and lines you held, endurance at distance walked. A wolf you raised from
+// a yearling to `prime` is a real capability — which is also what makes losing her
+// cost something the story cannot give back.
+const TIER_NAMES = ['untried', 'capable', 'seasoned', 'prime'];
+const TIER_AT    = [0, 15, 40, 80];
+const HUNT_CHASE = [0.92, 1.00, 1.06, 1.12];   // how fast it runs a chase
+const HUNT_DRAIN = [0.90, 1.00, 1.15, 1.30];   // how fast it wears prey down
+const NERVE_BALK = [0.45, 0.55, 0.68, 0.80];   // the fear it will still cross at
+const END_FOOD   = [1.06, 1.00, 0.94, 0.88];   // what it costs to keep
+const END_TRAVEL = [0.96, 1.00, 1.05, 1.09];   // and how well it travels
+const TRAVEL_PER_END = 1200;   // world-units walked per point of endurance
+const YOUTH_START = 0.55;      // a yearling is half a wolf…
+const YOUTH_GAIN  = 0.006;     // …and grows only by taking part
+
+function tierIndex(v) {
+  let t = 0;
+  for (let i = 1; i < TIER_AT.length; i++) if ((v || 0) >= TIER_AT[i]) t = i;
+  return t;
+}
+// A yearling's youth scales what its hunting and nerve are WORTH, so a protected
+// one stays a child: it can walk the whole year and still be untried.
+function youthOf(w) { return w && w.yearling ? (w.youth === undefined ? YOUTH_START : w.youth) : 1; }
+function huntTier(w) { return tierIndex((w.hunting || 0) * youthOf(w)); }
+function nerveTier(w) { return tierIndex((w.nerve || 0) * youthOf(w)); }
+function endTier(w)   { return tierIndex(w.endurance || 0); }
+function huntChaseMult(w) { return HUNT_CHASE[huntTier(w)] * youthOf(w); }
+function huntDrainMult(w) { return HUNT_DRAIN[huntTier(w)]; }
+function nerveBalk(w)     { return NERVE_BALK[nerveTier(w)]; }
+function endFoodMult(w)   { return END_FOOD[endTier(w)]; }
+function endTravelMult(w) { return END_TRAVEL[endTier(w)] * youthOf(w); }
+
+// Every gain runs through here, so a yearling's youth can only ever rise as a
+// side effect of really having been there.
+function gainTrait(w, track, amount) {
+  if (!w || amount <= 0) return;
+  if (w.state === 'dead' || w.state === 'gone') return;
+  const before = track === 'hunting' ? huntTier(w) : track === 'nerve' ? nerveTier(w) : endTier(w);
+  w[track] = (w[track] || 0) + amount;
+  if (w.yearling && (track === 'hunting' || track === 'nerve')) {
+    w.youth = Math.min(1, youthOf(w) + YOUTH_GAIN * amount);
+  }
+  const after = track === 'hunting' ? huntTier(w) : track === 'nerve' ? nerveTier(w) : endTier(w);
+  if (after > before) noteTierUp(w, track, after);
+}
+// A wolf crossing a tier is a small warm moment — so it QUEUES rather than
+// speaking on the spot. Said immediately, it stomped whatever the land was already
+// telling her (it clobbered the edge-of-territory line, which is how this was
+// caught). Part 6 hangs the howl and the roster animation off the same queue.
+function noteTierUp(w, track, tier) {
+  if (!S || S.mode !== 'play') return;
+  const who = (w === S.wolf) ? 'She' : w.name;
+  const word = { hunting: 'hunts', nerve: 'holds her nerve', endurance: 'travels' }[track];
+  S.tierQueue = S.tierQueue || [];
+  S.tierQueue.push(`${who} ${word} like ${TIER_NAMES[tier]} now.`);
+  if (S.tierQueue.length > 4) S.tierQueue.shift();   // never a backlog worth reading
+}
+function tierUpTick() {
+  if (!S || !S.tierQueue || !S.tierQueue.length) return;
+  // Wait for the voice itself to be free. A tier-up is warm but never urgent, and
+  // `say()` is a single line — speaking over whatever the land was already telling
+  // her is how this clobbered the edge-of-territory message. Queued, so it waits
+  // rather than being lost.
+  if (S.msgT > 0) return;
+  if (!momentFree()) return;
+  say(S.tierQueue.shift());
+  claimMoment();
+}
+// Coming out the far side of a barrier, without balking and without being hit, is
+// where nerve comes from. Tracked per wolf by which side of each barrier it is on.
+function barrierNerveUpdate() {
+  if (!S || S.mode !== 'play') return;
+  const hMid = (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2;
+  const rMid = (OBSTACLES.rail.x0 + OBSTACLES.rail.x1) / 2;
+  for (const w of [S.wolf, ...alivePack()]) {
+    const steady = !w.balked && (w.frozenT || 0) <= 0;
+    const rs = w.x < hMid ? -1 : 1;
+    if (w.roadSide === undefined) w.roadSide = rs;
+    else if (w.roadSide !== rs) { w.roadSide = rs; if (steady) gainTrait(w, 'nerve', 2); }
+    const ls = w.x < rMid ? -1 : 1;
+    if (w.railSide === undefined) w.railSide = ls;
+    else if (w.railSide !== ls) { w.railSide = ls; if (steady) gainTrait(w, 'nerve', 2); }
+  }
+}
+
+// Distance walked, banked into endurance a point at a time.
+function addTravel(w, d) {
+  if (!w || !(d > 0)) return;
+  w.travelAcc = (w.travelAcc || 0) + d;
+  while (w.travelAcc >= TRAVEL_PER_END) {
+    w.travelAcc -= TRAVEL_PER_END;
+    gainTrait(w, 'endurance', 1);
+  }
+}
+
+function packStrength() {
+  let n = 0;
+  for (const w of [S.wolf, ...alivePack()]) n += huntTier(w) + nerveTier(w) + endTier(w);
+  return n;
+}
 const INHERIT_HOLD  = 3.5;   // seconds of holding, at her side, at the end
 const SEASONS = ['Spring', 'Summer', 'Autumn', 'Winter'];
 const SEASON_RITUAL = 5.5;   // seconds the season-turn map ghost holds
@@ -105,6 +208,7 @@ const PREY_SPENT = 25;   // stamina at or below which a spent animal can be caug
 // An elk needs two wolves on it. Alone, the catch fails and the animal turns.
 const ELK_PURSUE_R = 150;   // close enough to count as being on it
 const ELK_INJURE   = 0.35;  // …and this is what trying it alone costs, doubled head-on
+const KILL_SHARE_R = 200;   // close enough to have been there when it went down
 
 const OVERLOOK = { x: 2050, y: 1500 };  // beat 2 and beat 8 share this camera
 const WILLOW_TONE_ID = 'willow';
@@ -379,7 +483,9 @@ function newGame() {
     clock: { min: 8 * 60 },
     lastDay: 1,
 
-    wolf: { x: DEN.x, y: DEN.y, heading: -Math.PI / 2, moving: false, gait: 0 },
+    // she carries the same three tracks as the pack — she is a wolf in the year too
+    wolf: { x: DEN.x, y: DEN.y, heading: -Math.PI / 2, moving: false, gait: 0,
+            hunting: 0, nerve: 0, endurance: 0, travelAcc: 0 },
     seen: new Uint8Array(GRID_W * GRID_H),   // the map's memory of walked ground
     injuredT: 0,
     roadEntrySide: null,
@@ -453,10 +559,14 @@ function newGame() {
     ambushT: 0,         // the pounce's afterglow, for the cue and the camera
     pounceMsgCd: 0,     // so a refused pounce explains itself without nagging
     momentCd: 0,        // the gate that keeps teaching moments from piling up
+    tierQueue: [],      // wolves that just came into their own, waiting to be named
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
       state: 'follow', gait: 0, moving: false,
+      // everything is earned from nothing; the yearlings start as children
+      hunting: 0, nerve: 0, endurance: 0, travelAcc: 0,
+      youth: d.yearling ? YOUTH_START : 1,
     })),
     trail: [{ x: DEN.x, y: DEN.y }],
     fear: 0,
@@ -862,6 +972,11 @@ function moveAspen(dt) {
     if (S.water <= 0) penalty *= 0.85;        // thirst dulls everything
     if (waterAt(S.wolf.x, S.wolf.y)) penalty *= 0.7;   // wading drags at her legs
     sp *= Math.max(0.5, penalty);
+    // what she has become shows in the walking, and in the running
+    if (S.mode === 'play') {
+      sp *= endTravelMult(S.wolf);
+      if (chaseIsOn()) sp *= huntChaseMult(S.wolf);
+    }
     // the crouch sits OUTSIDE the no-death-spiral floor: it is a choice she is
     // making, not a condition happening to her, and it must feel slow
     if (S.crouched) sp *= CROUCH_SPEED;
@@ -871,6 +986,8 @@ function moveAspen(dt) {
     S.wolf.moving = true;
     S.wolf.gait += sp * dt;
     S.tut.moved += sp * dt;
+    // the miles are hers too — endurance is banked from ground actually covered
+    if (S.mode === 'play') addTravel(S.wolf, dist(px, py, S.wolf.x, S.wolf.y));
     // the edge of her territory: pushing against a world bound and going nowhere
     // is the land ending, not a glitch — say so, but do not nag
     S.edgeMsgCd = Math.max(0, (S.edgeMsgCd || 0) - dt);
@@ -1651,7 +1768,7 @@ function packUpdate(dt) {
     // is the blunder the player learns to stage away with F.
     w.crouched = !!S.crouched && dZone <= wzr;
     if (w.crouched) {
-      w.hunting = false;
+      w.onHunt = false;
       w.moving = false;
       continue;
     }
@@ -1662,11 +1779,16 @@ function packUpdate(dt) {
         const d = dist(w.x, w.y, e.x, e.y);
         if (d < 280 && d < pd) { pd = d; prey = e; }
       }
-      const mayHunt = w.hunting ? dZone < wHuntLimit * 1.3 : dZone < wHuntLimit * 0.8;
+      // A yearling keeps a much tighter leash: it is young, it stays near her, and
+      // that is also what keeps it inside the radius generational encoding needs
+      // when a leg completes. An adult ranged out to ~416u, which sat right on the
+      // 420u boundary — a hunting yearling could drift out of its own inheritance.
+      const leash = wHuntLimit * (w.yearling ? 0.55 : 1);
+      const mayHunt = w.onHunt ? dZone < leash * 1.3 : dZone < leash * 0.8;
       if (prey && mayHunt) {
-        w.hunting = true;
+        w.onHunt = true;
         const d = pd || 1;
-        const sp = PACK_LOPE * w.mult * lag;
+        const sp = PACK_LOPE * w.mult * lag * huntChaseMult(w);
         moveAround(w, (prey.x - w.x) / d * sp * dt, (prey.y - w.y) / d * sp * dt,
           (x, y) => packBlockedAt(x, y) || onRoad(x, y), dt);
         w.heading = Math.atan2(prey.y - w.y, prey.x - w.x);
@@ -1674,7 +1796,7 @@ function packUpdate(dt) {
         w.moving = true;
         continue;
       }
-      w.hunting = false;
+      w.onHunt = false;
     }
 
     // outside the zone: lope smoothly back to a stable personal slot in it
@@ -1715,8 +1837,10 @@ function packUpdate(dt) {
     if (d < 10) { w.moving = false; continue; }
     // fear refuses the road: a frightened wolf will not step toward it
     const nx = w.x + (w.tx - w.x) / d * 24, ny = w.y + (w.ty - w.y) / d * 24;
+    // nerve decides how much roar a wolf will still walk toward: an untried one
+    // refuses early, a prime one crosses through fear that would root a yearling
     if ((onRoad(w.tx, w.ty) || onRoad(nx, ny)) && !onRoad(w.x, w.y)
-        && S.fear > FEAR_BALK && S.mode === 'play') {
+        && S.fear > nerveBalk(w) && S.mode === 'play') {
       w.state = 'balk';
       w.balked = true;
       w.frozenT = FREEZE_TIME;
@@ -1728,7 +1852,8 @@ function packUpdate(dt) {
     }
     // speed eases between amble and lope; heading turns, never snaps
     const urgency = clamp((dZone - zr * 0.7) / (zr * 0.6), 0, 1);
-    let sp = lerp(PACK_AMBLE, PACK_ROAD, urgency) * w.mult * lag;
+    // endurance shows in the walking; youth shows in everything
+    let sp = lerp(PACK_AMBLE, PACK_ROAD, urgency) * w.mult * lag * endTravelMult(w);
     // Closes up well before it falls out of sight — and, more importantly, well
     // inside the 420u that generational encoding needs a yearling to be within
     // when a leg completes. Wolves are slower than Aspen by design, so a follower
@@ -1790,6 +1915,8 @@ function packUpdate(dt) {
     w.heading = (w.heading || 0) + dh * Math.min(1, dt * 6);
     w.gait = (w.gait || 0) + step;
     w.moving = true;
+    // a wolf that follows, walks — and walking is what endurance is made of
+    if (S.mode === 'play' && w.state === 'follow') addTravel(w, step);
   }
 }
 
@@ -1850,6 +1977,11 @@ function togglePackStay() {
       S.fear = Math.min(1, S.fear + 0.25);
       playGrowl();
       say('The pack stands tall as one. The shapes think better of it.');
+      // a line held is nerve, for her and for everyone who held it with her
+      gainTrait(S.wolf, 'nerve', 2);
+      for (const w of alivePack()) {
+        if (!w.pup && dist(w.x, w.y, S.wolf.x, S.wolf.y) < 220) gainTrait(w, 'nerve', 2);
+      }
     } else {
       S.standoff.t = Math.max(S.standoff.t, 5.9);   // the nip comes at once
       say('She stands tall alone. It reads as bluster.');
@@ -1941,6 +2073,8 @@ function carCollisions() {
         S.fear = Math.min(1, S.fear + FEAR_NEAR_MISS);
         S.shake = Math.max(S.shake, 4);
         playWhoosh();
+        // it stood that close to the roar and is still standing: nerve
+        gainTrait(id === 'aspen' ? S.wolf : S.pack.find(p => p.id === id), 'nerve', 1);
       }
     }
   }
@@ -2207,7 +2341,7 @@ function preyUpdate(dt) {
     // flight is what happens when it fills. The repulsion vector is still built
     // from the same wolves, so a fleeing animal runs from them exactly as before.
     let fx = 0, fy = 0, near = 0;
-    let rise = 0, pursued = false;
+    let rise = 0, pursued = false, drainSum = 0;
     const detR = preyDetectR(elk);
     const pursuitR = detR * 1.6;
     for (const h of hunters) {
@@ -2218,6 +2352,7 @@ function preyUpdate(dt) {
         fy += (elk.y - h.y) / d * (detR - d);
         near++;
         rise += alertRiseFrom(h, elk);
+        drainSum += huntDrainMult(h);   // better hunters wear it down faster
       }
     }
     if (elk.alert === undefined) elk.alert = 0;
@@ -2283,11 +2418,14 @@ function preyUpdate(dt) {
 
     elk.fleeing = threat > 0;
     if (elk.fleeing) {
-      // more wolves on it wears it down faster — the pack's whole purpose
+      // more wolves on it wears it down faster — the pack's whole purpose — and
+      // so does the quality of the wolves on it (the average of their hunting)
       const pursuers = Math.max(1, near);
       const wear = Math.min(2, 1 + 0.25 * (pursuers - 1));
+      const skill = near > 0 ? drainSum / near : 1;
       // per species: an elk is long-winded, a hare spends itself almost at once
-      if (!burning) elk.stamina = Math.max(0, elk.stamina - (elk.wary ? 8 : 12) * (H.stam || 1) * wear * dt);
+      if (!burning) elk.stamina = Math.max(0, elk.stamina
+        - (elk.wary ? 8 : 12) * (H.stam || 1) * wear * skill * dt);
       fx += sx * 0.6; fy += sy * 0.6;
       // a hare does not run in a line — it jinks, and that is most of its defence
       const erratic = H.erratic || 1;
@@ -2508,6 +2646,13 @@ function takePrey(i) {
   S.food = Math.min(100, S.food + H.food * (elk.wary ? 0.65 : 1) + (sedgeIn ? 10 : 0));
   S.tut.usedHold = true;
   S.history.push({ type: 'hunt', day: day() });
+  // Hunting is earned at the kill, and more by the wolves that were ON it than by
+  // those who merely came to eat. This is why taking the yearlings along matters.
+  for (const w of [S.wolf, ...alivePack()]) {
+    const d = dist(w.x, w.y, elk.x, elk.y);
+    if (d <= ELK_PURSUE_R) gainTrait(w, 'hunting', 2);
+    else if (d <= KILL_SHARE_R) gainTrait(w, 'hunting', 1);
+  }
   if (H.cattle) {
     S.conflict = Math.min(1, S.conflict + 0.3);
     // her pack's hunger writes his ledger even when she is elsewhere
@@ -2542,7 +2687,12 @@ function hungerUpdate(dt) {
   // but sickness and thirst both burn the larder faster
   const mouths = Math.min(1.15, (1 + alivePack().length) / 5)
     * ((S.sickT || 0) > 0 ? 1.3 : 1) * (S.water <= 0 ? 1.25 : 1);
-  S.food = Math.max(0, S.food - FOOD_PER_SEC * mouths * dt);
+  // endurance is also thrift: a seasoned pack keeps on less than an untried one
+  const crew = [S.wolf, ...alivePack()];
+  let keep = 0;
+  for (const w of crew) keep += endFoodMult(w);
+  const thrift = crew.length ? keep / crew.length : 1;
+  S.food = Math.max(0, S.food - FOOD_PER_SEC * mouths * thrift * dt);
   if (S.food <= 0) S.starveT += dt; else S.starveT = 0;
 
   // in winter, an empty larder is the end of the year, not a setback
@@ -3049,6 +3199,11 @@ function westResolvePosture() {
     S.westRivals = [];
     playGrowl();
     say('They give way. Not friendship — arithmetic.');
+    // facing down another pack and winning the ground is the hardest nerve there is
+    gainTrait(S.wolf, 'nerve', 2);
+    for (const w of alivePack()) {
+      if (!w.pup && dist(w.x, w.y, S.wolf.x, S.wolf.y) < 300) gainTrait(w, 'nerve', 2);
+    }
   } else {
     westDriveBack();
     S.fear = Math.min(1, S.fear + 0.4);
@@ -4991,7 +5146,9 @@ function saveGame() {
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 2,
       clockMin: S.clock.min,
-      wolf: { x: S.wolf.x, y: S.wolf.y },
+      wolf: { x: S.wolf.x, y: S.wolf.y,
+              hunting: S.wolf.hunting || 0, nerve: S.wolf.nerve || 0,
+              endurance: S.wolf.endurance || 0, travelAcc: S.wolf.travelAcc || 0 },
       injuredT: S.injuredT,
       edges: S.edges.map(e => ({
         id: e.id, state: e.state, torn: e.torn, passCount: e.passCount,
@@ -5006,6 +5163,9 @@ function saveGame() {
         pup: !!w.pup, x: w.x, y: w.y, state: w.state,
         injuredT: w.injuredT || 0, lost: !!w.lost,
         deadCause: w.deadCause || null,   // how she was lost, so the roster can say
+        // a year of becoming something: it must not evaporate on a reload
+        hunting: w.hunting || 0, nerve: w.nerve || 0, endurance: w.endurance || 0,
+        travelAcc: w.travelAcc || 0, youth: youthOf(w),
       })),
       fear: S.fear, food: S.food,
       water: S.water, sickT: S.sickT || 0,
@@ -5066,6 +5226,8 @@ function loadGame() {
   S.clock.min = d.clockMin; S.lastDay = day();
   materializeDen(d.denId);   // rebuild the dug den before its edges restore
   S.wolf.x = d.wolf.x; S.wolf.y = d.wolf.y;
+  S.wolf.hunting = d.wolf.hunting || 0; S.wolf.nerve = d.wolf.nerve || 0;
+  S.wolf.endurance = d.wolf.endurance || 0; S.wolf.travelAcc = d.wolf.travelAcc || 0;
   S.injuredT = d.injuredT || 0;   // pre-fix saves carried injuredUntilDay; read as healed
   S.trail = [{ x: S.wolf.x, y: S.wolf.y }];
   S.cam.x = S.wolf.x; S.cam.y = S.wolf.y;
@@ -5084,6 +5246,9 @@ function loadGame() {
       w.injuredT = sw.injuredT || 0;
       w.lost = !!sw.lost;
       w.deadCause = sw.deadCause || null;
+      w.hunting = sw.hunting || 0; w.nerve = sw.nerve || 0;
+      w.endurance = sw.endurance || 0; w.travelAcc = sw.travelAcc || 0;
+      w.youth = sw.youth === undefined ? (w.yearling ? YOUTH_START : 1) : sw.youth;
     } else {
       // pups, Lichen — anyone who joined along the way
       S.pack.push({ ...sw, state: sw.state === 'balk' ? 'follow' : sw.state, gait: 0, moving: false });
@@ -5260,6 +5425,8 @@ function update(dt) {
         say('Nothing answers the hunt here. The living land has moved west.');
       }
     }
+    barrierNerveUpdate();
+    tierUpTick();
     rancherUpdate(dt);
     silenceUpdate(dt);
     standoffUpdate(dt);
