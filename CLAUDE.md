@@ -72,6 +72,16 @@ the ending card.
   throws Aspen clear (hurt, terrified, never gory); a hit packmate is lost,
   permanently. The culvert (`Water-Under-Stone`) is the safe unknown detour.
   Elk never cross the highway at all.
+- **Goals are a CURRICULUM** (Part 32/5), not a checklist: each of the sixteen
+  points at a system worth learning — the stalk, the pack, the map, nerve, the line
+  — and each is worded as an observation rather than a trophy. They live in
+  `LEGACY.goals`, fire exactly once, and a small card slides in from the left for a
+  few seconds without ever taking the middle of the screen or waiting for a key.
+  `G` from the intro lists them. In-run: a **hunt streak** as small marks beside
+  the food bar (breaking it is silent), **pack strength** on the roster as the one
+  number that climbs, and a **season card** at each turn of the season with real
+  figures — hunts and kills by species, pack strength then vs now, ways found,
+  and the share of the land she has actually laid eyes on.
 - **The BLOODLINE** (Part 32/4, superseding "a year is the whole game"). A year
   ends; the line does not. `LEGACY` lives under its own key
   (`the-corridor-legacy-v1`) that neither `clearSave()` nor New Year touches — only

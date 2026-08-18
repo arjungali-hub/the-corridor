@@ -64,6 +64,7 @@ const HELD_SLOTS = { sense: 1, scent: 1, drink: 1, crouch: 1 };   // the sustain
 const REBIND_ACTIONS = ['up', 'down', 'left', 'right', 'map', 'scent', 'drink', 'crouch', 'pounce'];
 const RESERVED_KEYS = ['r', 'm', 'h', 'f', 'escape', 'o'];
 let optionsOpen = false;
+let goalsOpen = false;   // the list of what the line has learned, from the intro
 let rebinding = null;   // the action awaiting a new key, while the options screen is up
 
 function applyBinding(action, key) {
@@ -98,6 +99,8 @@ window.addEventListener('keydown', (ev) => {
 
   // the options screen owns all input while it is up
   if (optionsOpen) { handleOptionsKey(k); return; }
+  // the goals list owns its own screen while it is up
+  if (goalsOpen) { goalsOpen = false; return; }
 
   // ESC pauses the year; while paused, ANY key resumes (9e)
   if (gamePaused) { gamePaused = false; return; }
@@ -105,6 +108,7 @@ window.addEventListener('keydown', (ev) => {
 
   if (S && S.mode === 'intro') {
     if (k === 'o') { optionsOpen = true; return; }   // O opens options from the intro
+    if (k === 'g') { goalsOpen = true; return; }     // G lists what the line has learned
     // the long year, once a year has been finished: a longer, leaner calendar
     if (k === 'l' && LEGACY.unlocks.longYear) { LEGACY.longYearOn = !LEGACY.longYearOn; saveLegacy(); return; }
     // R reclaims a year in progress; any other key lets it go and starts fresh

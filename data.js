@@ -184,6 +184,49 @@ const OBSTACLES = {
 // still have a world it can cross. Each one also tears one of the ways the LAST
 // generation earned: the point is not that the land is harder, it is that what you
 // learned stops being true.
+// Goals are a CURRICULUM, not a checklist: each one points at a system worth
+// learning, and each is worded as an observation rather than a trophy. They live
+// in the bloodline record, so they persist across years.
+const GOALS = [
+  // hunting — the stalk, the pack, and the lean months
+  { id: 'downwind', group: 'Hunting', name: 'Downwind',
+    line: 'Ten taken from close, before they knew.' },
+  { id: 'patience', group: 'Hunting', name: 'Patience',
+    line: 'An elk, head down, and she was already near enough.' },
+  { id: 'wholepack', group: 'Hunting', name: 'The Whole Pack',
+    line: 'Three of them on it at once. That is how it is done.' },
+  { id: 'leanseason', group: 'Hunting', name: 'Lean Season',
+    line: 'A month of winter on hares, and still here.' },
+  // map — the thing the game is about
+  { id: 'cartographer', group: 'Map', name: 'Cartographer',
+    line: 'Every tear walked around. The map is hers again.' },
+  { id: 'herways', group: 'Map', name: 'Her Ways, Mine',
+    line: 'Five of her own ways, handed down.' },
+  { id: 'blindfaith', group: 'Map', name: 'Blind Faith',
+    line: 'She held the way in her head the whole distance.' },
+  // pack — what she raised
+  { id: 'taughtthem', group: 'Pack', name: 'She Taught Them',
+    line: 'Both yearlings hunt now. She took them along.' },
+  { id: 'whole', group: 'Pack', name: 'Whole',
+    line: 'A year, and not one of them lost.' },
+  { id: 'prime', group: 'Pack', name: 'Prime',
+    line: 'One of them is everything a wolf gets to be.' },
+  // nerve — the lines she crossed and the ones she did not
+  { id: 'unseen', group: 'Nerve', name: 'Through Their Ground, Unseen',
+    line: 'Across their range, and they never stood up.' },
+  { id: 'quiet', group: 'Nerve', name: 'Quiet Neighbour',
+    line: 'A whole year, and the house never had cause.' },
+  { id: 'thegap', group: 'Nerve', name: 'The Gap',
+    line: 'All of them across, inside one silence.' },
+  // legacy — the line itself
+  { id: 'secondyear', group: 'Legacy', name: 'Second Year',
+    line: 'Her daughters walk it now.' },
+  { id: 'dynasty', group: 'Legacy', name: 'Dynasty',
+    line: 'Four generations of the same stubborn line.' },
+  { id: 'longyear', group: 'Legacy', name: 'The Long Year',
+    line: 'The longer calendar, carried all the way.' },
+];
+
 const ESCALATIONS = [
   { key: 'construction2', name: 'more groundwork, west of the first',
     rect: { x0: 3300, y0: 1500, x1: 3620, y1: 1820 } },

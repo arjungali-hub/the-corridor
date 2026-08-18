@@ -951,6 +951,38 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## fun pass, Part 5 — goals that teach mastery (2026-08-18)
+
+Harness **499 green x5**, layout clean. Sixteen goals, each pointing at a system
+worth learning rather than a box to tick, and each worded as an observation: "Ten
+taken from close, before they knew," not "Ambush Master." They live in
+`LEGACY.goals`, so they persist across years like everything else the line keeps.
+
+The presentation is deliberately small: a card slides in from the LEFT, sits for
+about three seconds and goes. It never takes the middle of the screen, never waits
+for a key, and never stops the world — the opposite of the usual achievement
+interruption. `G` from the intro lists them all, won and unwon.
+
+In-run, the three things the order asked for:
+- **hunt streak** as small marks beside the food bar. Breaking it is silent — the
+  marks simply go. It breaks when an animal she committed to stops running and is
+  still alive, which is the honest definition of a chase that came to nothing.
+- **pack strength** on the roster: one number from the tiers, and it climbs.
+- **season card** at each turn of the season, riding the existing howl and ritual:
+  hunts and kills by species, pack strength then vs now, ways found, and the share
+  of the land she has actually laid eyes on (straight off the seen-grid). Four
+  lines, a few seconds. This is the one place the year reports in the positive.
+
+Two interpretation calls worth recording:
+- **Cartographer** ("bridge every tear in one year") fires when every tear that has
+  opened is walked around AND at least three have opened. Read literally it would
+  fire on the first tear you bridged, which is not what the name means.
+- **Her Ways, Mine** counts `inheritedWays`, consistent with Part 4's decision that
+  the thing carried forward is an EDGE, not a `foundPath`.
+
+One test-side note: `/pack /` does not match `"the pack: 15"`. The card was right
+and my regex was wrong — worth remembering when asserting on prose.
+
 ## fun pass, Part 4 — the bloodline (2026-08-17)
 
 Harness **474 green x5**, layout clean. The reason to press play a second time,

@@ -112,7 +112,7 @@ function gainTrait(w, track, amount) {
   if (after > before) {
     noteTierUp(w, track, after);
     // a wolf that reaches prime in anything is remembered by name in the bloodline
-    if (after === TIER_NAMES.length - 1) notePrime(w);
+    if (after === TIER_NAMES.length - 1) { notePrime(w); awardGoal('prime'); }
   }
 }
 // A wolf crossing a tier is a small warm moment — so it QUEUES rather than
@@ -148,7 +148,12 @@ function barrierNerveUpdate() {
     const steady = !w.balked && (w.frozenT || 0) <= 0;
     const rs = w.x < hMid ? -1 : 1;
     if (w.roadSide === undefined) w.roadSide = rs;
-    else if (w.roadSide !== rs) { w.roadSide = rs; if (steady) gainTrait(w, 'nerve', 2); }
+    else if (w.roadSide !== rs) {
+      w.roadSide = rs;
+      if (steady) gainTrait(w, 'nerve', 2);
+      // the first of them across opens the window the rest have to make
+      if ((S.gapWindow || 0) <= 0 || S.gapSide !== rs) { S.gapWindow = 8; S.gapSide = rs; S.gapClean = true; }
+    }
     const ls = w.x < rMid ? -1 : 1;
     if (w.railSide === undefined) w.railSide = ls;
     else if (w.railSide !== ls) { w.railSide = ls; if (steady) gainTrait(w, 'nerve', 2); }
@@ -213,6 +218,8 @@ const PREY_SPENT = 25;   // stamina at or below which a spent animal can be caug
 const ELK_PURSUE_R = 150;   // close enough to count as being on it
 const ELK_INJURE   = 0.35;  // …and this is what trying it alone costs, doubled head-on
 const KILL_SHARE_R = 200;   // close enough to have been there when it went down
+const GOAL_CARD_TIME = 3.4; // seconds a goal card sits on screen, blocking nothing
+const SEASON_CARD_TIME = 7;  // …and the season summary, which is dismissible
 
 const OVERLOOK = { x: 2050, y: 1500 };  // beat 2 and beat 8 share this camera
 const WILLOW_TONE_ID = 'willow';
@@ -581,6 +588,13 @@ function newGame() {
     pounceMsgCd: 0,     // so a refused pounce explains itself without nagging
     momentCd: 0,        // the gate that keeps teaching moments from piling up
     tierQueue: [],      // wolves that just came into their own, waiting to be named
+    goalCards: [],      // goals just met, sliding through one at a time
+    stats: freshStats(),// what this year is keeping count of
+    seasonCard: null,   // the summary at each turn of the season
+    streak: 0,          // hunts running, unbroken
+    chaseElk: null,     // what she is currently trying for
+    lastNonHareDay: 1,  // for the lean-winter goal
+    seasonStrength: 0,
 
     pack: PACK_DEF.map((d, i) => ({
       ...d, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
@@ -1132,6 +1146,8 @@ function traversalUpdate() {
   if (S.routeTo) {
     const t = routeTargetPos();
     if (!t || dist(S.wolf.x, S.wolf.y, t.x, t.y) < NODE_VISIT_R) {
+      // she held the whole way in her head, and never once looked
+      if (t && S.blindOk && S.blindRoute === S.routeTo) awardGoal('blindfaith');
       S.routeTo = null;
       S.routePath = null;
     } else {
@@ -1235,10 +1251,12 @@ function doBridge(g, foundPath) {
     S.visited.add(g.chain[0]); S.visited.add(g.chain[g.chain.length - 1]);
   }
   playPatchChime();
+  S.stats.waysFound++;
   S.history.push({ type: 'bridge', day: day(), group: g.key });
   say(foundPath ? 'A new way around, right past the tear. She will remember it.'
                 : 'A new way around. She will remember it.');
   recomputeGhosts();
+  goalsCheckCartographer();
 }
 
 function simplifyPath(seg) {
@@ -2097,6 +2115,7 @@ function carCollisions() {
         car.met.add(id);
         S.fear = Math.min(1, S.fear + FEAR_NEAR_MISS);
         S.shake = Math.max(S.shake, 4);
+        S.gapClean = false;   // that was not a silence
         playWhoosh();
         // it stood that close to the roar and is still standing: nerve
         gainTrait(id === 'aspen' ? S.wolf : S.pack.find(p => p.id === id), 'nerve', 1);
@@ -2273,6 +2292,8 @@ function commitAmbush() {
     S.tut.ambushed = true;
     say('Close enough to choose the moment.');
   }
+  S.chaseElk = e;   // if this one gets away, the streak is over
+  if (HERDS[e.herd].species === 'elk' && fromGrazing) awardGoal('patience');
   // Small prey does not get a chase: a hare taken out of a good approach is
   // simply taken. It is the reliable, meagre meal that keeps a bad winter alive.
   if (HERDS[e.herd].species === 'hare') {
@@ -2585,6 +2606,14 @@ function preyUpdate(dt) {
     if (S.scent.length > 900) S.scent.splice(0, S.scent.length - 900);
   }
 
+  // A chase that comes to nothing ends the run of good hunts. Breaking it is
+  // silent — the mark simply goes.
+  if (S.chaseElk) {
+    const still = S.elk.indexOf(S.chaseElk) >= 0;
+    if (!still) S.chaseElk = null;
+    else if (alertStateOf(S.chaseElk) !== 'fleeing') { S.streak = 0; S.chaseElk = null; }
+  }
+
   // no kill exists until the hunt has been taught
   if (S.mode === 'prologue' && S.beat < 4) return;
   for (let i = S.elk.length - 1; i >= 0; i--) {
@@ -2671,6 +2700,23 @@ function takePrey(i) {
   S.food = Math.min(100, S.food + H.food * (elk.wary ? 0.65 : 1) + (sedgeIn ? 10 : 0));
   S.tut.usedHold = true;
   S.history.push({ type: 'hunt', day: day() });
+  // the year's ledger, for the goals and the season card
+  S.stats.hunts++;
+  if (S.stats.kills[H.species] !== undefined) S.stats.kills[H.species]++;
+  if (H.species !== 'hare') S.lastNonHareDay = day();
+  S.streak = (S.streak || 0) + 1;
+  if (S.streak === 3) say('Three running. The pack is eating well.');
+  if (S.chaseElk === elk) S.chaseElk = null;
+  // goals that resolve at a kill
+  if (elk.ambushed) {
+    LEGACY.lifetime.ambushKills = (LEGACY.lifetime.ambushKills || 0) + 1;
+    saveLegacy();
+    if (LEGACY.lifetime.ambushKills >= 10) awardGoal('downwind');
+  }
+  if (H.species === 'elk') {
+    const onIt = [S.wolf, ...alivePack()].filter(w => dist(w.x, w.y, elk.x, elk.y) <= ELK_PURSUE_R).length;
+    if (onIt >= 3) awardGoal('wholepack');
+  }
   // Hunting is earned at the kill, and more by the wolves that were ON it than by
   // those who merely came to eat. This is why taking the yearlings along matters.
   for (const w of [S.wolf, ...alivePack()]) {
@@ -4646,6 +4692,7 @@ function startEnding(kind) {
   // the year is banked into the line BEFORE the run save is cleared: a bloodline
   // continues even when its leader does not
   recordYear(kind);
+  goalsAtYearEnd(kind);
   clearSave();
 }
 
@@ -5155,7 +5202,8 @@ const LEGACY_KEY = 'the-corridor-legacy-v1';
 const LEGACY_YEARS_KEPT = 10;
 const ROSTER_SIZE = 4;
 function defaultLegacy() {
-  return { generation: 1, years: [], heirs: [], inheritedWays: [], names: [], unlocks: {}, longYearOn: false };
+  return { generation: 1, years: [], heirs: [], inheritedWays: [], names: [], unlocks: {},
+           goals: {}, lifetime: { ambushKills: 0 }, longYearOn: false };
 }
 let LEGACY = defaultLegacy();
 function loadLegacy() {
@@ -5171,6 +5219,8 @@ function loadLegacy() {
       inheritedWays: Array.isArray(d.inheritedWays) ? d.inheritedWays : base.inheritedWays,
       names: Array.isArray(d.names) ? d.names : base.names,
       unlocks: (d.unlocks && typeof d.unlocks === 'object') ? d.unlocks : base.unlocks,
+      goals: (d.goals && typeof d.goals === 'object') ? d.goals : base.goals,
+      lifetime: (d.lifetime && typeof d.lifetime === 'object') ? d.lifetime : base.lifetime,
       longYearOn: !!d.longYearOn,
     };
   } catch (_) { LEGACY = defaultLegacy(); }
@@ -5237,6 +5287,8 @@ function applyLegacy() {
   if (!S) return;
   S.escalations = escalationsFor(LEGACY.generation);
   S.generation = LEGACY.generation;
+  if (LEGACY.generation >= 2) awardGoal('secondyear');
+  if (LEGACY.generation >= 4) awardGoal('dynasty');
   S.tornWay = null;
   if (LEGACY.generation < 2) return;   // the first year inherits from Willow, not from us
 
@@ -5290,6 +5342,135 @@ function applyLegacy() {
     }
   }
   recomputeGhosts();
+}
+
+// ── goals ────────────────────────────────────────────────────────────────────
+// Each one points at a system worth learning, so they read as a curriculum: the
+// stalk, the pack, the map, nerve, the line itself. Kept in the bloodline record
+// and never repeated. The card is small and never blocks input — an observation,
+// not a trophy.
+function goalWon(id) { return !!(LEGACY.goals && LEGACY.goals[id]); }
+function awardGoal(id) {
+  if (!S || goalWon(id)) return false;
+  const g = GOALS.find(x => x.id === id);
+  if (!g) return false;
+  LEGACY.goals = LEGACY.goals || {};
+  LEGACY.goals[id] = { gen: LEGACY.generation, day: (S.clock ? day() : 1) };
+  saveLegacy();
+  S.goalCards = S.goalCards || [];
+  S.goalCards.push({ name: g.name, line: g.line, t: 0 });
+  playPatchChime();
+  return true;
+}
+function goalCardTick(dt) {
+  if (!S.goalCards || !S.goalCards.length) return;
+  const c = S.goalCards[0];
+  c.t += dt;
+  if (c.t > GOAL_CARD_TIME) S.goalCards.shift();
+}
+
+// Everything the year is keeping count of, for the goals and the season card.
+function freshStats() {
+  return { hunts: 0, kills: { elk: 0, deer: 0, hare: 0, cattle: 0 },
+           ambushKills: 0, waysFound: 0, strengthAtSeason: 0 };
+}
+
+// How much of the land she has actually laid eyes on — the seen-grid, as a share.
+function territoryMapped() {
+  if (!S.seen) return 0;
+  let n = 0;
+  for (let i = 0; i < S.seen.length; i++) if (S.seen[i]) n++;
+  return n / S.seen.length;
+}
+
+// ── the goals that watch the year go by ──────────────────────────────────────
+function goalsUpdate(dt) {
+  if (S.mode !== 'play') return;
+
+  // Lean Season: a full winter month with nothing but hares on the ledger
+  if (seasonIndex() === 3) {
+    const since = Math.max(WINTER_START, S.lastNonHareDay || WINTER_START);
+    if (day() - since >= 30) awardGoal('leanseason');
+  }
+
+  // She Taught Them: both yearlings hunting like grown wolves
+  const yearlings = S.pack.filter(w => w.yearling && w.state !== 'dead' && w.state !== 'gone');
+  if (yearlings.length >= 2 && yearlings.every(w => huntTier(w) >= 1)) awardGoal('taughtthem');
+
+  // Through Their Ground, Unseen: in one side of the western range and out the
+  // other, with the rival pack never standing up
+  if (typeof WEST_PACK !== 'undefined' && westActive && westActive()) {
+    const T = WEST_PACK.territory;
+    const d = dist(S.wolf.x, S.wolf.y, T.x, T.y);
+    if (d < T.r) {
+      if (!S.westEntered) { S.westEntered = true; S.westDirty = false; }
+      if (S.westState === 'confrontation' || S.westState === 'clash') S.westDirty = true;
+    } else if (S.westEntered && S.wolf.x < T.x) {
+      if (!S.westDirty) awardGoal('unseen');
+      S.westEntered = false;
+    }
+  }
+
+  // The Gap: everyone across the roar inside one silence
+  S.gapWindow = Math.max(0, (S.gapWindow || 0) - dt);
+  if (S.gapWindow > 0 && S.gapClean) {
+    const crew = [S.wolf, ...alivePack()];
+    if (crew.length > 1 && crew.every(w => w.roadSide === S.gapSide)) awardGoal('thegap');
+  }
+
+  // Blind Faith: a planned route walked the whole way without raising the map
+  if (S.routeTo) {
+    if (S.blindRoute !== S.routeTo) { S.blindRoute = S.routeTo; S.blindOk = true; }
+    if (S.senseBlend > 0.5) S.blindOk = false;
+  } else {
+    S.blindRoute = null;
+  }
+}
+
+// A tear bridged: if every tear that has opened this year is walked around, and
+// there were enough of them to mean it, the map is hers again.
+function goalsCheckCartographer() {
+  const torn = TEAR_GROUPS.filter(g => groupTorn(g));
+  if (torn.length >= 3 && torn.every(g => S.bridged.has(g.key))) awardGoal('cartographer');
+}
+
+// The turn of the season, as an accounting. Four lines, a few seconds, and it can
+// be waved away — this is where a player SEES what they have built, which the
+// year otherwise only ever tells them in the negative.
+function openSeasonCard() {
+  const k = S.stats.kills;
+  const strengthNow = packStrength();
+  const then = S.seasonStrength || 0;
+  const mapped = Math.round(territoryMapped() * 100);
+  const killLine = ['elk', 'deer', 'hare', 'cattle']
+    .filter(sp => k[sp] > 0).map(sp => k[sp] + ' ' + sp).join(', ');
+  S.seasonCard = {
+    title: seasonName() + ' — day ' + day(),
+    lines: [
+      S.stats.hunts + (S.stats.hunts === 1 ? ' hunt' : ' hunts')
+        + (killLine ? ': ' + killLine : ''),
+      'the pack: ' + strengthNow + (strengthNow > then ? ' (up from ' + then + ')' : ''),
+      S.stats.waysFound + (S.stats.waysFound === 1 ? ' way found around a tear'
+                                                   : ' ways found around tears'),
+      mapped + '% of the land seen with her own eyes',
+    ],
+    t: 0,
+  };
+  S.seasonStrength = strengthNow;
+}
+function seasonCardTick(dt) {
+  if (!S.seasonCard) return;
+  S.seasonCard.t += dt;
+  if (S.seasonCard.t > SEASON_CARD_TIME) S.seasonCard = null;
+}
+
+// The goals a year can only settle at its end.
+function goalsAtYearEnd(kind) {
+  const survivors = alivePack().filter(w => !w.pup);
+  if (survivors.length >= PACK_DEF.length) awardGoal('whole');
+  if ((S.conflict || 0) <= 0.0001) awardGoal('quiet');
+  if (longYear() && kind === 'arrived') awardGoal('longyear');
+  if (LEGACY.inheritedWays && LEGACY.inheritedWays.length >= 5) awardGoal('herways');
 }
 
 // A wolf that reached prime in anything is remembered by name.
@@ -5625,6 +5806,9 @@ function update(dt) {
     }
     barrierNerveUpdate();
     tierUpTick();
+    goalsUpdate(dt);
+    goalCardTick(dt);
+    seasonCardTick(dt);
     rancherUpdate(dt);
     silenceUpdate(dt);
     standoffUpdate(dt);
@@ -5705,6 +5889,7 @@ function update(dt) {
       } else {
         setCaption(seasonName() + '.', 3.5);   // wordless after the first
       }
+      openSeasonCard();
     }
     S.seasonGhostT = Math.max(0, (S.seasonGhostT || 0) - dt);
 

@@ -2627,6 +2627,210 @@ G('forgetBloodline(); clearSave(); newGame(); applyPostPrologue();'); G("S.mode 
 })();
 G('forgetBloodline(); clearSave(); newGame();');
 
+
+// ==== GOALS (fun pass, Part 5) ====
+// A curriculum, not a checklist: each one points at a system worth learning, each
+// fires exactly once, and they live in the bloodline so they persist across years.
+G('forgetBloodline(); clearSave(); newGame(); applyPostPrologue();'); G("S.mode = 'play';");
+(function goalChecks() {
+  check('every goal has a group, a name and an observation',
+    G('GOALS.length') >= 16
+    && G("GOALS.every(function(g){ return g.id && g.group && g.name && g.line; })") === true);
+  check('goal ids are unique', G("new Set(GOALS.map(function(g){ return g.id; })).size") === G('GOALS.length'));
+
+  // awarding: once, with a card, and remembered
+  const award = G(`(function(){
+    S.goalCards = [];
+    var first = awardGoal('prime');
+    var again = awardGoal('prime');
+    return { first: first, again: again, cards: S.goalCards.length,
+             won: goalWon('prime'), stored: !!LEGACY.goals.prime };
+  })()`);
+  check('a goal is awarded once and shows one card',
+    award.first === true && award.again === false && award.cards === 1);
+  check('...and is remembered in the line', award.won === true && award.stored === true);
+  const persisted = G("(function(){ loadLegacy(); return goalWon('prime'); })()");
+  check('...on disk, not only in memory', persisted === true);
+  G("forgetBloodline();");
+  check('forgetting the line forgets the goals too', G("goalWon('prime')") === false);
+
+  // the card is quiet: it times out on its own and never blocks
+  const card = G(`(function(){
+    S.goalCards = [{ name: 'x', line: 'y', t: 0 }];
+    goalCardTick(GOAL_CARD_TIME * 0.5);
+    var mid = S.goalCards.length;
+    goalCardTick(GOAL_CARD_TIME);
+    return { mid: mid, after: S.goalCards.length };
+  })()`);
+  check('a goal card sits for a moment, then goes by itself',
+    card.mid === 1 && card.after === 0);
+
+  // hunt streak: counts kills, and a chase that comes to nothing breaks it
+  const streak = G(`(function(){
+    var hi = HERDS.findIndex(function(H){ return H.species === 'hare'; });
+    function put(x){
+      S.elk.length = 0; S.elkRespawn.length = 0;
+      var e = { herd: hi, x: x, y: 2000, heading: 0, stamina: 100, fleeing: false, gait: 0,
+        bull: false, skittish: 1, grazeT: 99, tx: x, ty: 2000, vx: 0, vy: 0, homeX: x, homeY: 2000,
+        alert: 0, alertState: 'grazing', jumpyT: 0, stumbleT: 0, headUp: false };
+      S.elk.push(e); return e;
+    }
+    S.wolf.x = 2000; S.wolf.y = 2000; S.wind = { a: Math.PI / 2 };
+    S.streak = 0; S.chaseElk = null;
+    put(2040); commitAmbush();          // a hare ambush is the kill outright
+    var one = S.streak;
+    put(2040); commitAmbush();
+    var two = S.streak;
+    // now a chase that gets away: ambush something, then let it settle down
+    var e = put(2040); commitAmbush();
+    var three = S.streak;
+    var got = put(2040);
+    S.chaseElk = got; got.alert = 1; got.alertState = 'fleeing';
+    got.alert = 0; got.alertState = 'grazing';   // it got away
+    preyUpdate(1/20);
+    return { one: one, two: two, three: three, broken: S.streak };
+  })()`);
+  check('the streak counts hunts that land', streak.one === 1 && streak.two === 2 && streak.three === 3);
+  check('...and a chase that comes to nothing breaks it', streak.broken === 0);
+
+  // pack strength is derived from the tiers, and climbs
+  const strength = G(`(function(){
+    [S.wolf].concat(alivePack()).forEach(function(w){
+      w.hunting = 0; w.nerve = 0; w.endurance = 0; w.youth = 1; });
+    var low = packStrength();
+    [S.wolf].concat(alivePack()).forEach(function(w){ w.hunting = 100; });
+    var mid = packStrength();
+    return { low: low, mid: mid, crew: alivePack().length + 1 };
+  })()`);
+  check('pack strength is recomputed from the tiers and climbs',
+    strength.low === 0 && strength.mid === strength.crew * 3);
+
+  // the season card assembles real numbers
+  const season = G(`(function(){
+    S.stats = freshStats();
+    S.stats.hunts = 4; S.stats.kills.elk = 1; S.stats.kills.hare = 3; S.stats.waysFound = 2;
+    S.seasonStrength = 1;
+    S.seen.fill(0);
+    for (var i = 0; i < Math.floor(S.seen.length * 0.25); i++) S.seen[i] = 1;
+    openSeasonCard();
+    var c = S.seasonCard;
+    return { title: c.title, lines: c.lines.slice(), mapped: Math.round(territoryMapped() * 100) };
+  })()`);
+  check('the season card is built from what really happened',
+    /4 hunts/.test(season.lines[0]) && /1 elk/.test(season.lines[0]) && /3 hare/.test(season.lines[0]));
+  check('...including the pack, the ways and the ground she has seen',
+    /the pack: /.test(season.lines[1]) && /2 ways/.test(season.lines[2])
+    && season.lines[3].indexOf(season.mapped + '%') === 0 && season.mapped === 25);
+  const seasonGone = G("(function(){ seasonCardTick(SEASON_CARD_TIME + 1); return S.seasonCard === null; })()");
+  check('...and it clears itself', seasonGone === true);
+
+  // conditions: each fires at the thing it is about
+  const conds = G(`(function(){
+    forgetBloodline();
+    var out = {};
+    // Patience: an ambush out of a GRAZING elk
+    var ei = HERDS.findIndex(function(H){ return H.species === 'elk'; });
+    S.elk.length = 0; S.wolf.x = 2000; S.wolf.y = 2000; S.wind = { a: Math.PI/2 };
+    S.elk.push({ herd: ei, x: 2050, y: 2000, heading: 0, stamina: 100, fleeing: false, gait: 0,
+      bull: false, skittish: 1, grazeT: 99, tx: 2050, ty: 2000, vx: 0, vy: 0, homeX: 2050, homeY: 2000,
+      alert: 0, alertState: 'grazing', jumpyT: 0, stumbleT: 0, headUp: false });
+    commitAmbush();
+    out.patience = goalWon('patience');
+
+    // She Taught Them: both yearlings hunting like grown wolves
+    S.pack.filter(function(w){ return w.yearling; }).forEach(function(w){ w.youth = 1; w.hunting = TIER_AT[1]; });
+    goalsUpdate(0.05);
+    out.taught = goalWon('taughtthem');
+
+    // Lean Season: a winter month on hares
+    S.clock.min = (WINTER_START + 5) * 1440; S.lastDay = day();
+    S.lastNonHareDay = WINTER_START;
+    S.clock.min = (WINTER_START + 40) * 1440; S.lastDay = day();
+    goalsUpdate(0.05);
+    out.lean = goalWon('leanseason');
+
+    // The Gap: everyone across inside one silence
+    var mid = (OBSTACLES.highway.x0 + OBSTACLES.highway.x1) / 2;
+    S.gapWindow = 8; S.gapSide = 1; S.gapClean = true;
+    [S.wolf].concat(alivePack()).forEach(function(w){ w.roadSide = 1; });
+    goalsUpdate(0.05);
+    out.gap = goalWon('thegap');
+
+    // ...but not if a car went through it
+    forgetBloodline();
+    S.gapWindow = 8; S.gapSide = 1; S.gapClean = false;
+    goalsUpdate(0.05);
+    out.gapSpoiled = goalWon('thegap');
+    return out;
+  })()`);
+  check('Patience fires on an ambush out of a grazing elk', conds.patience === true);
+  check('She Taught Them fires when both yearlings can hunt', conds.taught === true);
+  check('Lean Season fires after a winter month on hares', conds.lean === true);
+  check('The Gap fires when the whole pack is across one silence', conds.gap === true);
+  check('...and not when a car came through it', conds.gapSpoiled === false);
+
+  // Cartographer wants the whole map walked around, not one lucky tear
+  const carto = G(`(function(){
+    forgetBloodline();
+    S.bridged = new Set();
+    var one = (function(){
+      TEAR_GROUPS.forEach(function(g){ g.edges.forEach(function(id){
+        var e = S.edges.find(function(x){ return x.id === id; }); if (e) e.torn = false; }); });
+      var g0 = TEAR_GROUPS[0];
+      g0.edges.forEach(function(id){ var e = S.edges.find(function(x){ return x.id === id; }); if (e) e.torn = true; });
+      S.bridged.add(g0.key);
+      goalsCheckCartographer();
+      return goalWon('cartographer');
+    })();
+    // now tear three and bridge them all
+    TEAR_GROUPS.slice(0, 3).forEach(function(g){
+      g.edges.forEach(function(id){ var e = S.edges.find(function(x){ return x.id === id; }); if (e) e.torn = true; });
+      S.bridged.add(g.key);
+    });
+    goalsCheckCartographer();
+    return { one: one, all: goalWon('cartographer') };
+  })()`);
+  check('Cartographer does not fire for a single tear walked around', carto.one === false);
+  check('...but does when every tear that opened has been', carto.all === true);
+
+  // the year-end goals
+  const ends = G(`(function(){
+    forgetBloodline(); clearSave(); newGame(); applyPostPrologue(); S.mode = 'play';
+    S.conflict = 0;
+    S.pack.forEach(function(w){ w.state = 'follow'; });
+    startEnding('arrived');
+    var whole = goalWon('whole'), quiet = goalWon('quiet');
+    // and a year with a loss, and a ledger, wins neither
+    forgetBloodline(); clearSave(); newGame(); applyPostPrologue(); S.mode = 'play';
+    S.conflict = 0.4;
+    S.pack[0].state = 'dead';
+    startEnding('failed');
+    return { whole: whole, quiet: quiet,
+             wholeAgain: goalWon('whole'), quietAgain: goalWon('quiet') };
+  })()`);
+  check('Whole and Quiet Neighbour fire on a clean, quiet year',
+    ends.whole === true && ends.quiet === true);
+  check('...and not on a year that lost a wolf or woke the house',
+    ends.wholeAgain === false && ends.quietAgain === false);
+
+  // the legacy goals ride the generations
+  const gens = G(`(function(){
+    forgetBloodline();
+    LEGACY.generation = 2; saveLegacy(); clearSave(); newGame();
+    var second = goalWon('secondyear'), dyn1 = goalWon('dynasty');
+    LEGACY.generation = 4; saveLegacy(); clearSave(); newGame();
+    return { second: second, dyn1: dyn1, dyn2: goalWon('dynasty') };
+  })()`);
+  check('Second Year fires when the line reaches generation 2', gens.second === true);
+  check('Dynasty waits for the fourth', gens.dyn1 === false && gens.dyn2 === true);
+
+  // the list draws, won and unwon
+  G('goalsOpen = true;');
+  smokeDraw('the goals list');
+  G('goalsOpen = false;');
+})();
+G('forgetBloodline(); clearSave(); newGame();');
+
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);
 })().catch(e => { console.error(e); process.exit(1); });

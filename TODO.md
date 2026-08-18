@@ -1209,24 +1209,24 @@ prologue except the 1.7 lessons; multiplayer, crafting, inventory; a skill TREE
 Achievements as a CURRICULUM, not a checklist — each points at a system worth
 learning. Stored in the legacy record (they persist across years).
 
-- [ ] 5.1 Hunting: *Downwind* (10 ambush kills); *Patience* (an ambush from
+- [x] 5.1 Hunting: *Downwind* (10 ambush kills); *Patience* (an ambush from
       grazing on an elk); *The Whole Pack* (an elk with ≥3 pursuers); *Lean
       Season* (survive a full winter month on hares alone).
-- [ ] 5.1 Map: *Cartographer* (bridge every tear in one year); *Her Ways, Mine*
+- [x] 5.1 Map: *Cartographer* (bridge every tear in one year); *Her Ways, Mine*
       (carry five found-ways into the next generation); *Blind Faith* (reach a
       node by a planned route without raising the map en route).
-- [ ] 5.1 Pack: *She Taught Them* (both yearlings reach capable Hunting);
+- [x] 5.1 Pack: *She Taught Them* (both yearlings reach capable Hunting);
       *Whole* (a year with no losses); *Prime* (any wolf to prime in any track).
-- [ ] 5.1 Nerve: *Through Their Ground, Unseen* (cross the western territory
+- [x] 5.1 Nerve: *Through Their Ground, Unseen* (cross the western territory
       with no posture triggered); *Quiet Neighbour* (finish with rancher
       conflict at zero); *The Gap* (the whole pack across the highway inside one
       traffic gap).
-- [ ] 5.1 Legacy: *Second Year* (begin gen 2); *Dynasty* (reach gen 4); *The
+- [x] 5.1 Legacy: *Second Year* (begin gen 2); *Dynasty* (reach gen 4); *The
       Long Year* (finish the long calendar).
-- [ ] 5.2 Presentation: a small quiet card on unlock (name + one line, ~3 s,
+- [x] 5.2 Presentation: a small quiet card on unlock (name + one line, ~3 s,
       soft chime, never blocking input); a list reachable from the intro;
       wording in the game's register — observations, not trophies.
-- [ ] 5.3 In-run milestones: **hunt streak** (consecutive successful hunts with
+- [x] 5.3 In-run milestones: **hunt streak** (consecutive successful hunts with
       no failed chase, a small mark near the food bar; breaking it is silent,
       past 3 gives a soft acknowledgement); **pack strength** (one derived
       number, sum of tiers across living wolves, on the roster — it should
@@ -1234,7 +1234,7 @@ learning. Stored in the legacy record (they persist across years).
       **season summary card** at each season turn beside the existing howl —
       days survived, hunts, kills by species, pack strength then vs now, ways
       found, territory mapped %. Four lines, three seconds, dismissible.
-- [ ] 5 Harness: each achievement fires exactly once at its condition and
+- [x] 5 Harness: each achievement fires exactly once at its condition and
       persists; streaks count and break correctly; pack strength recomputes from
       tiers; the season card assembles real numbers.
 

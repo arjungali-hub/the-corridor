@@ -2881,7 +2881,11 @@ function drawHUD() {
   // them (an empty bar is clutter, not information). Bars drop below the scaled
   // objective/suggestion prose.
   let by = S.suggestion ? Math.round(38 + 38 * s) : 60;
-  if (S.hud.food) { drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f'); by += 16; }
+  if (S.hud.food) {
+    drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f');
+    drawStreak(168, by + 6);   // the run of good hunts, beside the larder
+    by += 16;
+  }
   if (S.hud.food) { drawBar(20, by, 140, 'WATER', S.water / 100, S.water < 25 ? '#b0473a' : '#5f7d92'); by += 16; }
   if (S.hud.fear && S.fear > 0.01) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }
   if (S.hud.pups && S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food > 0.5) {
@@ -2925,6 +2929,13 @@ function drawHUD() {
     if (S.pups && !S.pups.traveling && S.pups.count > 0) {
       ctx.fillStyle = inkText;
       ctx.fillText(`Pups ×${S.pups.count} · at the den`, canvas.width - 20, ry);
+      ry += 18;
+    }
+    // one number for what the pack has become — it should visibly climb
+    if (typeof packStrength === 'function') {
+      ctx.font = `12px ${FONT}`;
+      ctx.fillStyle = onMap ? 'rgba(120,82,40,0.9)' : 'rgba(206,182,110,0.92)';
+      ctx.fillText('pack ' + packStrength(), canvas.width - 20, ry);
     }
     ctx.shadowBlur = 0;
   }
@@ -3034,10 +3045,12 @@ function drawIntro() {
     ctx.font = `13px ${FONT}`;
     ctx.fillStyle = '#8a8066';
     ctx.fillText('O — options (keys, hold-to-toggle, text size)', cx, cy + 182);
+    ctx.fillStyle = '#8a8066';
+    ctx.fillText('G — what the line has learned', cx, cy + 208);
     // earned by finishing a year: a longer, leaner calendar
     if (LEGACY.unlocks.longYear) {
       ctx.fillStyle = LEGACY.longYearOn ? '#c9b98e' : '#6b6353';
-      ctx.fillText('L — the long year: ' + (LEGACY.longYearOn ? 'on' : 'off'), cx, cy + 208);
+      ctx.fillText('L — the long year: ' + (LEGACY.longYearOn ? 'on' : 'off'), cx, cy + 232);
     }
   }
 }
@@ -3581,6 +3594,118 @@ function drawPassage() {
 }
 
 
+// ── goals, quietly ───────────────────────────────────────────────────────────
+// A small card slides in from the left, sits for a moment, and goes. It never
+// takes the middle of the screen and never waits for a key: an observation, not
+// a trophy ceremony.
+function drawGoalCard() {
+  if (!S.goalCards || !S.goalCards.length) return;
+  const c = S.goalCards[0];
+  const inA = clamp(c.t / 0.45, 0, 1);
+  const outA = clamp((GOAL_CARD_TIME - c.t) / 0.5, 0, 1);
+  const a = inA * outA;
+  if (a <= 0) return;
+  resetTransform();
+  const w = Math.min(320, canvas.width - 40);
+  const h = 54;
+  const x = -w + (w + 18) * inA;          // slides in, then holds
+  const y = canvas.height * 0.62;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(24,26,20,0.88)';
+  ctx.strokeStyle = 'rgba(201,185,142,0.55)';
+  ctx.lineWidth = 1.4;
+  rr(ctx, x, y, w, h, 6); ctx.fill(); ctx.stroke();
+  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+  ctx.fillStyle = '#c9b98e';
+  drawFitted(c.name, x + 12, y + 9, w - 24, 15, 11, '', false);
+  ctx.fillStyle = 'rgba(210,202,180,0.8)';
+  drawFitted(c.line, x + 12, y + 30, w - 24, 12, 9, 'italic', false);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// The turn of the season, as an accounting she can wave away.
+function drawSeasonCard() {
+  if (!S.seasonCard) return;
+  const c = S.seasonCard;
+  const a = clamp(c.t / 0.6, 0, 1) * clamp((SEASON_CARD_TIME - c.t) / 0.8, 0, 1);
+  if (a <= 0) return;
+  resetTransform();
+  const w = Math.min(380, canvas.width - 36);
+  const h = 150;
+  const x = canvas.width / 2 - w / 2, y = canvas.height * 0.2;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.fillStyle = 'rgba(20,22,17,0.9)';
+  ctx.strokeStyle = 'rgba(201,185,142,0.5)';
+  ctx.lineWidth = 1.5;
+  rr(ctx, x, y, w, h, 8); ctx.fill(); ctx.stroke();
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = C_PARCHMENT;
+  let ly = y + 14;
+  ly += drawFitted(c.title, x + w / 2, ly, w - 28, 17, 12, '', false).height + 8;
+  ctx.fillStyle = 'rgba(206,198,176,0.86)';
+  for (const line of c.lines) {
+    ly += drawFitted(line, x + w / 2, ly, w - 28, 13, 10, 'italic', false).height + 4;
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// The run of good hunts, as a row of small marks by the food bar. Breaking it is
+// silent: the marks are simply gone.
+function drawStreak(x, y) {
+  const n = Math.min(6, S.streak || 0);
+  if (n <= 0) return;
+  ctx.save();
+  ctx.fillStyle = 'rgba(206,182,110,0.9)';
+  for (let i = 0; i < n; i++) {
+    ctx.beginPath();
+    ctx.arc(x + i * 7, y, 2.1, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Every goal, and the ones still out there — reachable from the intro.
+function drawGoalsList() {
+  resetTransform();
+  ctx.fillStyle = '#151812';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width / 2;
+  const maxW = Math.min(560, canvas.width - 40);
+  let y = 34;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.fillStyle = C_PARCHMENT;
+  y += drawFitted('What the line has learned', cx, y, maxW, 24, 16, '', false).height + 4;
+  const won = GOALS.filter(g => goalWon(g.id)).length;
+  ctx.fillStyle = '#8a8066';
+  y += drawFitted(won + ' of ' + GOALS.length, cx, y, maxW, 13, 10, 'italic', false).height + 10;
+
+  const groups = [];
+  for (const g of GOALS) if (!groups.includes(g.group)) groups.push(g.group);
+  const rowH = Math.max(15, Math.min(21, (canvas.height - y - 60) / (GOALS.length + groups.length)));
+  ctx.textAlign = 'left';
+  const lx = cx - maxW / 2;
+  for (const grp of groups) {
+    ctx.fillStyle = '#7f8a6d';
+    drawFitted(grp, lx, y, maxW, 12, 10, 'italic', false);
+    y += rowH;
+    for (const g of GOALS.filter(x => x.group === grp)) {
+      const has = goalWon(g.id);
+      ctx.fillStyle = has ? C_PARCHMENT : '#5a5648';
+      drawFitted((has ? '— ' : '· ') + g.name + (has ? '   ' + g.line : ''),
+        lx + 14, y, maxW - 14, 13, 10, has ? '' : 'italic', false);
+      y += rowH;
+    }
+  }
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#8a8066';
+  drawFitted(touchMode ? 'tap to go back' : 'G or Esc to go back',
+    cx, canvas.height - 34, maxW, 13, 10, 'italic', false);
+}
+
 // ── the bloodline page ───────────────────────────────────────────────────────
 // After the ending card, before the next year. A quiet accounting of what the
 // line keeps: who lived and what they became, which of her ways are now the next
@@ -3690,6 +3815,7 @@ function draw() {
     drawOptions();
     return;
   }
+  if (typeof goalsOpen !== 'undefined' && goalsOpen) { drawGoalsList(); return; }
   if (S.mode === 'intro') { drawIntro(); return; }
   if (S.mode === 'ending') { drawEnding(); return; }
 
@@ -3704,6 +3830,7 @@ function draw() {
   drawPassage();
   drawPrompt();
   drawCaption();
+  if (S.mode === 'play') { drawSeasonCard(); drawGoalCard(); }
   drawHelp();
   drawTouchControls();
   if (typeof gamePaused !== 'undefined' && gamePaused) drawPause();
