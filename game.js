@@ -109,7 +109,11 @@ function gainTrait(w, track, amount) {
     w.youth = Math.min(1, youthOf(w) + YOUTH_GAIN * amount);
   }
   const after = track === 'hunting' ? huntTier(w) : track === 'nerve' ? nerveTier(w) : endTier(w);
-  if (after > before) noteTierUp(w, track, after);
+  if (after > before) {
+    noteTierUp(w, track, after);
+    // a wolf that reaches prime in anything is remembered by name in the bloodline
+    if (after === TIER_NAMES.length - 1) notePrime(w);
+  }
 }
 // A wolf crossing a tier is a small warm moment — so it QUEUES rather than
 // speaking on the spot. Said immediately, it stomped whatever the land was already
@@ -382,6 +386,25 @@ function inTreeAt(x, y, pad) {
 
 // The construction grows a little every season: the effective footprint of
 // the machines' ground expands, and its tear zone with it.
+// Declared up here, ahead of the geometry helpers, because some of them run at
+// LOAD time (edgeVia derives its waypoints immediately) and a `let` read before its
+// declaration is a TDZ error, not an undefined.
+let S = null;
+
+// The escalation footprints live in OBSTACLES like everything else, so every
+// existing lookup (collision, footprint outline, violet) finds them unchanged. They
+// only COUNT once the generation that built them has arrived.
+for (const e of ESCALATIONS) if (!OBSTACLES[e.key]) OBSTACLES[e.key] = e.rect;
+
+// Every solid human rect that is standing THIS run. The base three are always
+// there; the escalations arrive one generation at a time.
+function solidRects() {
+  const l = ['construction', 'subdivision', 'gravelPit'];
+  const n = (S && S.escalations) || 0;
+  for (let i = 0; i < n && i < ESCALATIONS.length; i++) l.push(ESCALATIONS[i].key);
+  return l;
+}
+
 function obstacleRect(key) {
   const o = OBSTACLES[key];
   if (key !== 'construction' || !S || S.era === 'past') return o;
@@ -421,7 +444,7 @@ function edgeVia(A, B) {
     const n = Math.hypot(px - ms.x, py - ms.y) || 1;
     vias.push({ t: hit.t, x: ms.x + (px - ms.x) / n * (ms.r + 170), y: ms.y + (py - ms.y) / n * (ms.r + 170) });
   }
-  for (const key of ['construction', 'subdivision', 'gravelPit']) {
+  for (const key of solidRects()) {
     const o = OBSTACLES[key];
     const cx = (o.x0 + o.x1) / 2, cy = (o.y0 + o.y1) / 2;
     const orad = Math.hypot(o.x1 - o.x0, o.y1 - o.y0) / 2;
@@ -470,8 +493,6 @@ function distToEdgePath(e) {
 var touchMode = false;
 
 const input = { up: false, down: false, left: false, right: false, sense: false, scent: false, drink: false, crouch: false };
-
-let S = null;
 
 function newGame() {
   stripDynamicDen();   // a den dug last year is not part of the eternal graph
@@ -616,10 +637,14 @@ function newGame() {
     saveT: 0,
     time: 0,
   };
+  deriveTriggers();
+  // the line before this one decides who the pack is, what they are born knowing,
+  // and which of those things the land has already taken back
+  applyLegacy();
+  // prey spawn AFTER the escalations are standing, so nothing spawns inside one
   for (let h = 0; h < HERDS.length; h++) {
     for (let i = 0; i < HERDS[h].count; i++) spawnPrey(h);
   }
-  deriveTriggers();
   recomputeGhosts();
 }
 
@@ -844,7 +869,7 @@ function blockedAt(x, y, r, canPassGap, margin) {
   if (bridgeWallAt(x, y, r)) return true;
   if (S.era === 'past') return false;  // none of it has been built yet
   if (inTreeAt(x, y, r)) return true;
-  for (const key of ['construction', 'subdivision', 'gravelPit']) {
+  for (const key of solidRects()) {
     const c = obstacleRect(key);
     if (x > c.x0 - r && x < c.x1 + r && y > c.y0 - r && y < c.y1 + r) return true;
   }
@@ -871,7 +896,7 @@ function wolfBlockedAt(x, y, margin) {
   }
   if (S.era === 'past') return false;
   if (inTreeAt(x, y, WOLF_R)) return true;
-  for (const key of ['construction', 'subdivision', 'gravelPit']) {
+  for (const key of solidRects()) {
     const c = obstacleRect(key);
     if (x > c.x0 - WOLF_R && x < c.x1 + WOLF_R && y > c.y0 - WOLF_R && y < c.y1 + WOLF_R) return true;
   }
@@ -1631,7 +1656,7 @@ function zoneRadius(c) {
   let clear = Infinity;
   clear = Math.min(clear, c.x < h.x0 ? h.x0 - c.x : c.x > h.x1 ? c.x - h.x1 : 0);
   if (S.era !== 'past') {
-    for (const key of ['construction', 'subdivision', 'gravelPit']) {
+    for (const key of solidRects()) {
       const o = obstacleRect(key);
       const dx = Math.max(o.x0 - c.x, 0, c.x - o.x1);
       const dy = Math.max(o.y0 - c.y, 0, c.y - o.y1);
@@ -3391,7 +3416,7 @@ function waterFouled(x, y) {
   if (S.era === 'past') return false;
   const ms = OBSTACLES.mudSink;
   if (dist(x, y, ms.x, ms.y) < 900) return true;                       // the impoundment
-  for (const key of ['construction', 'subdivision', 'gravelPit']) {
+  for (const key of solidRects()) {
     const o = obstacleRect(key);
     const dx = Math.max(o.x0 - x, 0, x - o.x1), dy = Math.max(o.y0 - y, 0, y - o.y1);
     if (Math.hypot(dx, dy) < 420) return true;
@@ -4596,7 +4621,7 @@ function endingCheck() {
       say('Not all of them are through. She waits at the edge of the range.');
     }
   }
-  if (day() > YEAR_DAYS) startEnding('failed');
+  if (day() > yearDays()) startEnding('failed');   // the long year runs further
 }
 
 function survivorCount() {
@@ -4618,7 +4643,24 @@ function startEnding(kind) {
   S.endKind = kind;
   S.endT = 0;
   if (kind === 'arrived') playMotif('arrived');
+  // the year is banked into the line BEFORE the run save is cleared: a bloodline
+  // continues even when its leader does not
+  recordYear(kind);
   clearSave();
+}
+
+// The ending card has been read; now the quiet page that says what the line keeps.
+function openLegacy() {
+  if (!S) return;
+  S.mode = 'legacy';
+  S.legacyT = 0;
+}
+// From the legacy page into the next generation. The bloodline is NOT cleared —
+// New Year means the next year of this line, not a reset.
+function beginNextGeneration() {
+  clearSave();
+  newGame();
+  if (S.wantPrologue) startPrologue(); else { applyPostPrologue(); S.mode = 'play'; }
 }
 
 // Abandoning a year is a real loss; it takes two presses to mean it.
@@ -5103,6 +5145,161 @@ function storageOk() { return typeof localStorage !== 'undefined'; }
 // v2: v1 could persist a scrambled movement set from an early remap session
 // (e.g. "s is right, a is down"); bumping the key retires those stale bindings so
 // a returning player gets the correct WASD defaults back.
+// ── the bloodline ────────────────────────────────────────────────────────────
+// A year ends; the line does not. Kept under its OWN key so neither clearSave()
+// nor New Year can touch it — only an explicit "forget the bloodline" can. This is
+// the thesis turned into a loop instead of an ending: the map YOU earned becomes
+// the next generation's frozen inheritance, and then the land moves again and part
+// of it stops being true.
+const LEGACY_KEY = 'the-corridor-legacy-v1';
+const LEGACY_YEARS_KEPT = 10;
+const ROSTER_SIZE = 4;
+function defaultLegacy() {
+  return { generation: 1, years: [], heirs: [], inheritedWays: [], names: [], unlocks: {}, longYearOn: false };
+}
+let LEGACY = defaultLegacy();
+function loadLegacy() {
+  if (!storageOk()) return;
+  try {
+    const d = JSON.parse(localStorage.getItem(LEGACY_KEY) || 'null');
+    if (!d || typeof d !== 'object') return;
+    const base = defaultLegacy();
+    LEGACY = {
+      generation: Math.max(1, d.generation || 1),
+      years: Array.isArray(d.years) ? d.years.slice(-LEGACY_YEARS_KEPT) : base.years,
+      heirs: Array.isArray(d.heirs) ? d.heirs : base.heirs,
+      inheritedWays: Array.isArray(d.inheritedWays) ? d.inheritedWays : base.inheritedWays,
+      names: Array.isArray(d.names) ? d.names : base.names,
+      unlocks: (d.unlocks && typeof d.unlocks === 'object') ? d.unlocks : base.unlocks,
+      longYearOn: !!d.longYearOn,
+    };
+  } catch (_) { LEGACY = defaultLegacy(); }
+}
+function saveLegacy() {
+  if (!storageOk()) return;
+  try { localStorage.setItem(LEGACY_KEY, JSON.stringify(LEGACY)); } catch (_) {}
+}
+// The only thing that ends a bloodline, and it has to be asked for by name.
+function forgetBloodline() {
+  LEGACY = defaultLegacy();
+  if (storageOk()) try { localStorage.removeItem(LEGACY_KEY); } catch (_) {}
+}
+function generation() { return LEGACY.generation; }
+function bestYear() {
+  let best = null;
+  for (const y of LEGACY.years) {
+    if (!best || (y.outcome === 'arrived' && best.outcome !== 'arrived')
+        || (y.outcome === best.outcome && y.daysLived > best.daysLived)) best = y;
+  }
+  return best;
+}
+// How many escalations are standing for a given generation, capped so the world
+// stays crossable however long the line runs.
+function escalationsFor(gen) { return Math.min(Math.max(0, gen - 1), ESCALATIONS.length); }
+function longYear() { return !!(LEGACY.unlocks.longYear && LEGACY.longYearOn); }
+function yearDays() { return longYear() ? Math.round(YEAR_DAYS * 1.35) : YEAR_DAYS; }
+
+// The year is over. Bank what the line keeps, then advance the generation.
+function recordYear(kind) {
+  loadLegacy();
+  const survivors = alivePack();
+  // heirs: everything they became, halved. A surviving yearling is an adult now,
+  // and keeps what it learned rather than starting over as a child.
+  LEGACY.heirs = survivors.filter(w => !w.pup).map(w => ({
+    id: w.id, name: w.name, mult: w.mult,
+    hunting: Math.floor((w.hunting || 0) / 2),
+    nerve: Math.floor((w.nerve || 0) / 2),
+    endurance: Math.floor((w.endurance || 0) / 2),
+  }));
+  // the ways she walked into solid ink: hers this year, inherited the next
+  LEGACY.inheritedWays = S.edges.filter(e => e.state === 'current-solid' && !e.torn).map(e => e.id);
+  // the route she actually walked, coarsely: the legacy map lays every
+  // generation's line over the same frame once the bloodline is old enough
+  const pos = S.history.filter(h => h.type === 'pos');
+  const route = [];
+  const stride = Math.max(1, Math.floor(pos.length / 160));
+  for (let i = 0; i < pos.length; i += stride) route.push([pos[i].x, pos[i].y]);
+  LEGACY.years.push({
+    outcome: kind, daysLived: day(), packEnd: survivors.length + 1, route: route,
+    notableWolf: (LEGACY.names[LEGACY.names.length - 1] || null),
+    generation: LEGACY.generation, ways: LEGACY.inheritedWays.length,
+  });
+  if (LEGACY.years.length > LEGACY_YEARS_KEPT) LEGACY.years = LEGACY.years.slice(-LEGACY_YEARS_KEPT);
+  // unlocks, all earned by finishing something
+  LEGACY.unlocks.longYear = true;                       // any completed year
+  if (survivors.filter(w => !w.pup).length >= PACK_DEF.length) LEGACY.unlocks.strongStart = true;
+  LEGACY.generation += 1;
+  if (LEGACY.generation >= 3) LEGACY.unlocks.legacyMap = true;
+  saveLegacy();
+}
+// Called at the end of newGame: build this generation out of the last one.
+function applyLegacy() {
+  if (!S) return;
+  S.escalations = escalationsFor(LEGACY.generation);
+  S.generation = LEGACY.generation;
+  S.tornWay = null;
+  if (LEGACY.generation < 2) return;   // the first year inherits from Willow, not from us
+
+  // 1. The heirs. Survivors first, at half of what they became; the roster is then
+  //    topped up with untried newcomers. A yearling that lived is an adult now.
+  const heirs = LEGACY.heirs.slice(0, ROSTER_SIZE);
+  const kept = [];
+  for (const h of heirs) {
+    const def = PACK_DEF.find(d => d.id === h.id);
+    kept.push({
+      id: h.id, name: h.name, mult: h.mult || (def ? def.mult : 1),
+      yearling: false, youth: 1,           // it grew up; it keeps what it learned
+      hunting: h.hunting || 0, nerve: h.nerve || 0, endurance: h.endurance || 0,
+      travelAcc: 0,
+    });
+  }
+  // newcomers fill the gaps, and a line that lost nobody last year starts its
+  // newcomers a tier up in hunting
+  const startHunt = LEGACY.unlocks.strongStart ? TIER_AT[1] : 0;
+  const spare = PACK_DEF.filter(d => !kept.some(k => k.id === d.id));
+  let si = 0;
+  while (kept.length < ROSTER_SIZE && si < spare.length) {
+    const d = spare[si++];
+    kept.push({ id: d.id, name: d.name, mult: d.mult, yearling: d.yearling,
+                youth: d.yearling ? YOUTH_START : 1,
+                hunting: startHunt, nerve: 0, endurance: 0, travelAcc: 0 });
+  }
+  S.pack = kept.map((k, i) => ({
+    ...k, x: DEN.x - 30 * (i + 1), y: DEN.y + 20 * (i % 2 ? 1 : -1),
+    state: 'follow', gait: 0, moving: false,
+  }));
+
+  // 2. The ways she earned are the ways they are BORN knowing — her own teal ink,
+  //    frozen into inherited amber for whoever comes next.
+  for (const id of LEGACY.inheritedWays) {
+    const e = S.edges.find(x => x.id === id);
+    if (e && !e.torn) { e.state = 'inherited'; e.passCount = 0; e.covBits = 0; }
+  }
+
+  // 3. And it will be wrong. The obstacle this generation brought tears one of
+  //    them — the exact thing Aspen was handed in the prologue, now done to the
+  //    player's own map, with their own miles in it.
+  if (S.escalations > 0 && LEGACY.inheritedWays.length) {
+    const idx = (LEGACY.generation * 7) % LEGACY.inheritedWays.length;   // stable, not random
+    const wayId = LEGACY.inheritedWays[idx];
+    const e = S.edges.find(x => x.id === wayId);
+    if (e) {
+      e.torn = true;
+      S.tornWay = wayId;
+      S.tornWayName = ESCALATIONS[Math.min(S.escalations, ESCALATIONS.length) - 1].name;
+    }
+  }
+  recomputeGhosts();
+}
+
+// A wolf that reached prime in anything is remembered by name.
+function notePrime(w) {
+  const nm = (w === S.wolf) ? 'Aspen' : w.name;
+  if (!nm) return;
+  loadLegacy();
+  if (!LEGACY.names.includes(nm)) { LEGACY.names.push(nm); saveLegacy(); }
+}
+
 const OPTIONS_KEY = 'the-corridor-options-v2';
 // `crouch` is the stalk (held); `pounce` commits the ambush. Pounce needs a key
 // of its own: the map key must stay free mid-stalk (the map is the whole game),
@@ -5336,6 +5533,7 @@ function update(dt) {
   if (!S) return;
   if (S.mode === 'intro') return;
   if (S.mode === 'ending') { S.endT += dt; return; }
+  if (S.mode === 'legacy') { S.legacyT = (S.legacyT || 0) + dt; return; }
   if (gamePaused) return;   // ESC-pause: the whole world holds its breath
   // …and so does it while the settings are open, mid-year
   if (typeof optionsOpen !== 'undefined' && optionsOpen) return;

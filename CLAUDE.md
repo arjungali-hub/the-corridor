@@ -72,6 +72,22 @@ the ending card.
   throws Aspen clear (hurt, terrified, never gory); a hit packmate is lost,
   permanently. The culvert (`Water-Under-Stone`) is the safe unknown detour.
   Elk never cross the highway at all.
+- **The BLOODLINE** (Part 32/4, superseding "a year is the whole game"). A year
+  ends; the line does not. `LEGACY` lives under its own key
+  (`the-corridor-legacy-v1`) that neither `clearSave()` nor New Year touches — only
+  an explicit "forget the bloodline" on the legacy page. Every ending, including
+  `failed` and `dead`, banks the year: survivors become **heirs** carrying half of
+  what they became (a surviving yearling is an adult now and keeps it), the roster
+  is topped up to four with untried newcomers, and every edge she walked to
+  **solid** ink becomes the next generation's **inherited amber**. Then the land
+  moves again: one more escalation footprint stands per generation (capped at four,
+  and a flood-fill check proves the winter range stays reachable), and it **tears
+  one of the ways she earned** — the prologue's blow, dealt to the player's own map
+  with their own miles in it. That is the thesis as a loop, not an ending flourish;
+  it must not be softened into a bonus.
+  Flow: ending card → the bloodline page → the next year. Unlocks are modest and
+  never gate the game (the long year, a strong start after a clean year, names
+  remembered at `prime`, the legacy map at three generations).
 - **The pack GROWS** (Part 32/3, superseding "the pack only ever shrinks"). Every
   wolf, Aspen included, carries three counters — `hunting`, `nerve`, `endurance` —
   earned only by doing: hunting at kills it was part of (+2 on it, +1 merely near),

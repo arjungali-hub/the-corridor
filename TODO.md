@@ -906,6 +906,24 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
 
+## Part 36 — Notes from Part 4 (2026-08-17)
+
+- [x] The legacy record stores the ways as EDGE IDS (`inheritedWays`), not
+      `foundPaths`: the record schema in the order says `[edgeIds]`, and an edge is
+      what can be re-inked as amber and then torn. A found-path around a tear is a
+      shortcut between two ends, not a way that can be inherited and broken.
+- [x] The escalation tears an inherited way by a STABLE index derived from the
+      generation, not at random — a bloodline should be re-playable, and an
+      inevitable betrayal is a better story than a random one.
+- [x] A torn inherited way keeps `state: 'inherited'` and carries `torn: true`, the
+      same as every other tear in the game. (My first harness assertion assumed it
+      stopped being inherited; it does not, and should not.)
+- [x] `let S = null` had to move above the geometry helpers: `solidRects()` is
+      reached at LOAD time through `edgeVia`, and reading a `let` before its
+      declaration is a TDZ error rather than `undefined`.
+- [x] Verified by flood-fill that with ALL four escalations standing the winter
+      range is still reachable — the standing fairness rule, now under test.
+
 ## Part 35 — The roadside vibration, found properly (Arjun, 2026-08-11)
 
 - [x] Measured instead of guessed: path length vs NET displacement over 2 s. Beside
@@ -1150,38 +1168,38 @@ prologue except the 1.7 lessons; multiplayer, crafting, inventory; a skill TREE
 
 ### Part 4 — The bloodline: progression that survives the year
 
-- [ ] 4.1 A legacy record under its OWN key (`the-corridor-legacy-v1`), never
+- [x] 4.1 A legacy record under its OWN key (`the-corridor-legacy-v1`), never
       cleared by `clearSave()` or New Year — only by an explicit "forget the
       bloodline" on the legacy screen: `{ generation, years[] (outcome,
       daysLived, packEnd, notableWolf; last 10), heirs[] (name + halved traits),
       inheritedWays[] (edgeIds), unlocks{} }`.
-- [ ] 4.2 On ANY ending (arrived / failed / dead — a bloodline continues even
+- [x] 4.2 On ANY ending (arrived / failed / dead — a bloodline continues even
       when its leader does not): **heirs** — every wolf alive at the end carries
       its three counters at 50% floored; surviving yearlings become adults
       (`youth` 1.0) and KEEP what they learned; next year's pack is built from
       heirs first, topped up with untried newcomers to a roster of four.
-- [ ] 4.2 **Inherited ways** — every `foundPath` walked into solid ink carries
+- [x] 4.2 **Inherited ways** — every `foundPath` walked into solid ink carries
       forward as inherited (amber) ink next year: the player's own map becomes
       the next generation's frozen inheritance. Build exactly this way; it is
       the thesis as a mechanic.
-- [ ] 4.2 **And it will be wrong** — each new generation activates one more human
+- [x] 4.2 **And it will be wrong** — each new generation activates one more human
       obstacle from a defined escalation list (a second construction footprint,
       an extended subdivision, a new rail spur, a widened powerline) and it TEARS
       one of the inherited ways the player earned last year: *I walked this. It
       worked. It is gone.* Escalation caps after 4 generations.
-- [ ] 4.2 Generation counter + the bloodline's best year on the intro; New Year
+- [x] 4.2 Generation counter + the bloodline's best year on the intro; New Year
       (R) starts the next generation, not a reset.
-- [ ] 4.3 Unlocks (modest, earned, never gating): finish any year → "the long
+- [x] 4.3 Unlocks (modest, earned, never gating): finish any year → "the long
       year" (a longer, harder calendar) at the intro; finish with no losses →
       next founding pack starts one Hunting tier higher; reach prime in any track
       → that wolf's name persists in the bloodline's story; three generations →
       the **legacy map** (every generation's route overlaid on one satellite
       frame — also the best shareable image).
-- [ ] 4.4 The legacy screen, after the ending card and before the intro: the
+- [x] 4.4 The legacy screen, after the ending card and before the intro: the
       generation, the outcome, which wolves survived and what they became, which
       ways carried forward, and (gen 2+) previous generations' routes ghosted
       beneath. Then "Press any key to begin the next year."
-- [ ] 4 Harness: legacy survives `clearSave()` and New Year; traits carry at
+- [x] 4 Harness: legacy survives `clearSave()` and New Year; traits carry at
       50%; surviving yearlings adult with traits intact; solid found-ways become
       inherited ink next generation; exactly one inherited way is torn per
       generation; escalation caps at 4; unlocks fire at their conditions.

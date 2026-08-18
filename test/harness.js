@@ -2167,9 +2167,18 @@ G("S.endKind = 'arrived'; S.endT = 21;");
 smokeDraw('ending card: the sourced impact panel');
 G("S.endKind = 'arrived'; S.endT = 16;");
 
-// R after the ending: straight to a new year, prologue not repeated
+// After the ending: the bloodline page, and from there the next year. A year that
+// ends is banked into the line rather than thrown away, so this is two keys now.
 key('r');
-check('restart skips the finished prologue', G('S.mode') === 'play' && G('day()') === 1);
+check('the ending leads to the bloodline page', G('S.mode') === 'legacy');
+smokeDraw('the bloodline page');
+key('x');
+check('and from there into the next year, prologue not repeated',
+  G('S.mode') === 'play' && G('day()') === 1);
+// The rest of this file wants an ORDINARY first year. The ending above banked a
+// generation into the bloodline, so without this the pack would arrive as heirs
+// (Sedge may not be among them) on escalated ground.
+G('forgetBloodline(); clearSave(); newGame(); applyPostPrologue();'); G("S.mode = 'play';");
 
 // the terrain layer builds once, then never again while nothing changes
 G('globalThis._bbCount = 0; const _origBB = buildBaseLayer; buildBaseLayer = function () { globalThis._bbCount++; return _origBB(); }; baseKey = "force-rebuild";');
@@ -2198,6 +2207,7 @@ G("S.mode = 'play'; S.endKind = null; S.endSurvivors = null; S.starveT = 0; S.fo
 G('S.clock.min = 361 * 1440 + 10; S.lastDay = day();');
 step();
 check('the year running out is its own ending', G('S.mode') === 'ending' && G("S.endKind") === 'failed');
+G('forgetBloodline();');   // that ending banked another generation; the checks below want a plain year
 
 // review fix 7: R from the intro reclaims a year in progress
 G("S.mode = 'play'; S.endKind = null; S.endSurvivors = null; S.food = 60; S.starveT = 0;");
@@ -2442,6 +2452,180 @@ G('_loadCorrupt = loadGame();');
 check('a structurally-unusable save fails safe to a fresh start (no crash)',
   G('_loadCorrupt') === false && G('S.mode') === 'intro');
 G('clearSave();');
+
+
+// ==== THE BLOODLINE (fun pass, Part 4) ====
+// A year ends; the line does not. What the player earned becomes the next
+// generation's frozen inheritance -- and then the land moves again and part of it
+// stops being true. The thesis as a loop rather than an ending flourish.
+G('forgetBloodline(); clearSave(); newGame(); applyPostPrologue();'); G("S.mode = 'play';");
+(function bloodlineChecks() {
+  check('a fresh line starts at generation 1, with nothing behind it',
+    G('generation()') === 1 && G('LEGACY.heirs.length') === 0
+    && G('LEGACY.inheritedWays.length') === 0 && G('S.escalations') === 0);
+
+  // finish a year: survivors, their halved traits, and the ways she walked solid
+  const banked = G(`(function(){
+    S.pack.forEach(function(w){ w.state = 'follow'; w.hunting = 40; w.nerve = 21; w.endurance = 9; });
+    var y = S.pack.find(function(w){ return w.yearling; });
+    y.youth = 1;
+    var lost = S.pack[S.pack.length - 1];
+    lost.state = 'dead'; lost.deadCause = 'lost to the road';
+    var solid = S.edges.filter(function(e){ return !e.torn; }).slice(0, 2);
+    solid.forEach(function(e){ e.state = 'current-solid'; });
+    var dotted = S.edges.filter(function(e){ return !e.torn && solid.indexOf(e) < 0; })[0];
+    dotted.state = 'current-dotted';
+    startEnding('failed');
+    return { gen: LEGACY.generation, heirs: LEGACY.heirs.length,
+             heirHunt: LEGACY.heirs[0] && LEGACY.heirs[0].hunting,
+             heirNerve: LEGACY.heirs[0] && LEGACY.heirs[0].nerve,
+             ways: LEGACY.inheritedWays.slice(),
+             solidIds: solid.map(function(e){ return e.id; }),
+             dottedId: dotted.id, years: LEGACY.years.length,
+             strong: !!LEGACY.unlocks.strongStart, longY: !!LEGACY.unlocks.longYear };
+  })()`);
+  check('the year is banked and the generation advances', banked.gen === 2 && banked.years === 1);
+  check('every survivor becomes an heir, and a lost wolf does not',
+    banked.heirs === G('PACK_DEF.length') - 1);
+  check('an heir carries half of what it became, floored',
+    banked.heirHunt === 20 && banked.heirNerve === 10);
+  check('the ways she walked SOLID carry forward; a dotted one does not',
+    banked.ways.length === banked.solidIds.length
+    && banked.solidIds.every(function(id){ return banked.ways.indexOf(id) >= 0; })
+    && banked.ways.indexOf(banked.dottedId) < 0);
+  check('finishing a year unlocks the long year', banked.longY === true);
+  check('...but losing a wolf does not unlock the strong start', banked.strong === false);
+
+  // the line survives everything that clears a run
+  G('clearSave();');
+  check('the bloodline survives clearSave()', G('generation()') === 2);
+  G('newGame();');
+  check('...and survives New Year', G('generation()') === 2);
+  G('loadLegacy();');
+  check('...and is really on disk, not only in memory', G('generation()') === 2);
+
+  // generation 2 is BUILT from generation 1
+  G('clearSave(); newGame(); applyPostPrologue();'); G("S.mode = 'play';");
+  const gen2 = G(`(function(){
+    var byId = {};
+    S.pack.forEach(function(w){ byId[w.id] = w; });
+    var heir = LEGACY.heirs[0];
+    var h = byId[heir.id];
+    var yearlings = S.pack.filter(function(w){ return w.yearling; });
+    var inherited = LEGACY.inheritedWays.filter(function(id){
+      var e = S.edges.find(function(x){ return x.id === id; });
+      return e && e.state === 'inherited';
+    });
+    var torn = S.edges.filter(function(e){ return e.torn && LEGACY.inheritedWays.indexOf(e.id) >= 0; });
+    return { roster: S.pack.length, heirHunt: h && h.hunting, heirYouth: h && h.youth,
+             heirYearling: h && !!h.yearling, yearlings: yearlings.length,
+             inherited: inherited.length, ways: LEGACY.inheritedWays.length,
+             torn: torn.length, tornWay: S.tornWay, esc: S.escalations };
+  })()`);
+  check('the next roster is heirs first, topped up to four', gen2.roster === G('ROSTER_SIZE'));
+  check('an heir arrives with what it earned, halved', gen2.heirHunt === 20);
+  check('a yearling that lived is an adult now, and keeps what it learned',
+    gen2.heirYearling === false && gen2.heirYouth === 1);
+  // every way carries as inherited amber; the torn one keeps that state and is
+  // ALSO flagged torn, which is exactly how a tear works everywhere else
+  check('her own solid ink is their inherited amber',
+    gen2.ways > 0 && gen2.inherited === gen2.ways);
+  check('one escalation is standing in generation 2', gen2.esc === 1);
+  check('and it has torn exactly one of the ways she earned',
+    gen2.torn === 1 && !!gen2.tornWay);
+
+  // the escalation is real ground, not decoration
+  const solid = G(`(function(){
+    var e = ESCALATIONS[0].rect;
+    var mx = (e.x0 + e.x1) / 2, my = (e.y0 + e.y1) / 2;
+    var was = S.escalations;
+    S.escalations = 0; var open = !blockedAt(mx, my, 14, false, 0) && !wolfBlockedAt(mx, my);
+    S.escalations = 1; var shut = blockedAt(mx, my, 14, false, 0) && wolfBlockedAt(mx, my);
+    S.escalations = was;
+    return { open: open, shut: shut };
+  })()`);
+  check('an escalation is open ground before its generation, and solid after',
+    solid.open === true && solid.shut === true);
+
+  // ...and the world stays crossable however long the line runs
+  const crossable = G(`(function(){
+    var was = S.escalations;
+    S.escalations = ESCALATIONS.length;
+    var wr = NbyId.get('winterRange');
+    var STEP = 60, x0 = WORLD.x0 || 0;
+    function open(cx, cy){
+      var x = x0 + cx * STEP, y = cy * STEP;
+      if (x < x0 || y < 0 || x > WORLD.w || y > WORLD.h) return false;
+      return !wolfBlockedAt(x, y);
+    }
+    var start = [Math.round((DEN.x - x0) / STEP), Math.round(DEN.y / STEP)];
+    var goal  = [Math.round((wr.x - x0) / STEP), Math.round(wr.y / STEP)];
+    var seen = {}, q = [start], found = false, guard = 0;
+    seen[start[0] + ',' + start[1]] = 1;
+    while (q.length && guard++ < 300000) {
+      var c = q.shift();
+      if (Math.abs(c[0] - goal[0]) <= 2 && Math.abs(c[1] - goal[1]) <= 2) { found = true; break; }
+      var dirs = [[1,0],[-1,0],[0,1],[0,-1]];
+      for (var d = 0; d < 4; d++) {
+        var nx = c[0] + dirs[d][0], ny = c[1] + dirs[d][1], k = nx + ',' + ny;
+        if (seen[k] || !open(nx, ny)) continue;
+        seen[k] = 1; q.push([nx, ny]);
+      }
+    }
+    S.escalations = was;
+    return found;
+  })()`);
+  check('with every escalation standing, the winter range is still reachable',
+    crossable === true);
+
+  check('escalations cap at four, however old the line gets',
+    G('escalationsFor(1)') === 0 && G('escalationsFor(2)') === 1
+    && G('escalationsFor(5)') === 4 && G('escalationsFor(40)') === 4);
+
+  // a clean year unlocks the strong start, and it shows in the next newcomers
+  const strong = G(`(function(){
+    forgetBloodline(); clearSave(); newGame(); applyPostPrologue(); S.mode = 'play';
+    S.pack.forEach(function(w){ w.state = 'follow'; w.hunting = 0; });
+    startEnding('arrived');
+    var unlocked = !!LEGACY.unlocks.strongStart;
+    LEGACY.heirs = []; saveLegacy();
+    clearSave(); newGame();
+    return { unlocked: unlocked, newcomerHunt: S.pack[0].hunting };
+  })()`);
+  check('a year with no losses unlocks the strong start', strong.unlocked === true);
+  check('...and the next newcomers begin a tier up in hunting',
+    strong.newcomerHunt === G('TIER_AT[1]'));
+
+  // the long year is longer, and only when it is switched on
+  const longy = G(`(function(){
+    LEGACY.unlocks.longYear = true; LEGACY.longYearOn = false;
+    var off = yearDays();
+    LEGACY.longYearOn = true;
+    var on = yearDays();
+    LEGACY.longYearOn = false;
+    return { off: off, on: on };
+  })()`);
+  check('the long year runs further than the ordinary one',
+    longy.off === G('YEAR_DAYS') && longy.on > longy.off);
+
+  // a wolf that reaches prime is remembered by name
+  const named = G(`(function(){
+    forgetBloodline();
+    var w = S.pack[0]; w.youth = 1; w.hunting = TIER_AT[3] - 1;
+    gainTrait(w, 'hunting', 2);
+    return { names: LEGACY.names.slice(), tier: huntTier(w) };
+  })()`);
+  check('a wolf that reaches prime is remembered by name in the line',
+    named.tier === 3 && named.names.length === 1);
+
+  // and the one thing that ends a bloodline
+  G('forgetBloodline();');
+  check('forgetting the bloodline really forgets it',
+    G('generation()') === 1 && G('LEGACY.heirs.length') === 0 && G('LEGACY.names.length') === 0);
+  G('loadLegacy();');
+  check('...on disk as well as in memory', G('generation()') === 1);
+})();
+G('forgetBloodline(); clearSave(); newGame();');
 
 console.log(failures === 0 ? '\nALL CHECKS PASSED' : `\n${failures} CHECK(S) FAILED`);
 process.exit(failures === 0 ? 0 : 1);

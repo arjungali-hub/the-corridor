@@ -57,6 +57,7 @@ function rebuildKeymap() {
   }
 }
 loadOptions();
+loadLegacy();     // the bloodline is read before the first newGame() builds a pack
 rebuildKeymap();
 
 const HELD_SLOTS = { sense: 1, scent: 1, drink: 1, crouch: 1 };   // the sustained-hold verbs (9b)
@@ -104,6 +105,8 @@ window.addEventListener('keydown', (ev) => {
 
   if (S && S.mode === 'intro') {
     if (k === 'o') { optionsOpen = true; return; }   // O opens options from the intro
+    // the long year, once a year has been finished: a longer, leaner calendar
+    if (k === 'l' && LEGACY.unlocks.longYear) { LEGACY.longYearOn = !LEGACY.longYearOn; saveLegacy(); return; }
     // R reclaims a year in progress; any other key lets it go and starts fresh
     if (k === 'r' && hasResumableSave()) { if (!loadGame()) { clearSave(); beginFromIntro(); } return; }
     clearSave();
@@ -114,6 +117,14 @@ window.addEventListener('keydown', (ev) => {
   // a held prologue vista lowers on any key — and that key does nothing else
   if (S && S.vistaWait && !ev.repeat) { releaseVista(); return; }
 
+  // the ending card, then the quiet page of what the line keeps, then the next year
+  if (S && S.mode === 'ending') { openLegacy(); return; }
+  if (S && S.mode === 'legacy') {
+    // the one thing that ends a bloodline has to be asked for by name
+    if (k === 'delete' || k === 'backspace') { forgetBloodline(); return; }
+    beginNextGeneration();
+    return;
+  }
   if (k === 'r') { requestNewYear(); return; }
   if (k === 'm') { toggleMute(); return; }
   // settings, mid-year as well as from the intro — the world holds while they are
@@ -213,7 +224,8 @@ canvas.addEventListener('touchstart', (ev) => {
   if (typeof gamePaused !== 'undefined' && gamePaused) { gamePaused = false; return; }
   // the ending screen: a keyboard player presses R, and a tap had no handler at
   // all — the touch build dead-ended on its own last frame
-  if (S && S.mode === 'ending') { requestNewYear(); return; }
+  if (S && S.mode === 'ending') { openLegacy(); return; }
+  if (S && S.mode === 'legacy') { beginNextGeneration(); return; }
   if (S && S.vistaWait) { releaseVista(); return; }
   const L = touchLayout();
   for (const t of ev.changedTouches) {

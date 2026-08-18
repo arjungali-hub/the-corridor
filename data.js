@@ -179,6 +179,22 @@ const OBSTACLES = {
   fence: { x0: 4400, y0: 300, x1: 5100, y1: 900 },
 };
 
+// Each generation after the first, the land takes one more bite. These activate in
+// order, one per generation, and stop after four — a bloodline that lasts has to
+// still have a world it can cross. Each one also tears one of the ways the LAST
+// generation earned: the point is not that the land is harder, it is that what you
+// learned stops being true.
+const ESCALATIONS = [
+  { key: 'construction2', name: 'more groundwork, west of the first',
+    rect: { x0: 3300, y0: 1500, x1: 3620, y1: 1820 } },
+  { key: 'subdivision2', name: 'another row of rooflines',
+    rect: { x0: 3900, y0: 2900, x1: 4260, y1: 3240 } },
+  { key: 'railSpur', name: 'a spur off the rail',
+    rect: { x0: -1070, y0: 900, x1: -620, y1: 960 } },
+  { key: 'powerlineWide', name: 'the wires, widened',
+    rect: { x0: 4080, y0: 1980, x1: 4400, y1: 2300 } },
+];
+
 const TERRAIN = {
   // runs in from beyond the world to the north, the way the road does, so it
   // reads as continuing into the distance rather than stopping at the edge

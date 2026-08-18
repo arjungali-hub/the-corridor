@@ -951,6 +951,52 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## fun pass, Part 4 — the bloodline (2026-08-17)
+
+Harness **474 green x5**, layout clean. The reason to press play a second time,
+and the thesis turned into a loop instead of an ending flourish.
+
+`LEGACY` lives under its own key that neither `clearSave()` nor New Year can
+touch — only an explicit "forget the bloodline" on the legacy page. Every ending
+banks the year, `failed` and `dead` included: a line continues even when its
+leader does not. Survivors become **heirs** at half of what they became; a
+surviving yearling is an adult now and keeps what it learned; the roster is topped
+up to four with untried newcomers. Every edge she walked to **solid** ink becomes
+the next generation's **inherited amber** — her map, frozen, handed down.
+
+And then the land moves again. One escalation footprint stands per generation
+(capped at four), and it **tears one of the ways she earned**. That is the exact
+blow Aspen takes in the prologue, now dealt to the player's own map with their own
+miles in it: *I walked this. It worked. It is gone.*
+
+Design calls worth recording:
+
+- The record stores **edge ids**, not `foundPaths`. The order's schema says
+  `[edgeIds]`, and an edge is the thing that can be re-inked amber and then torn; a
+  found-path around a tear is a shortcut between two ends, not an inheritance.
+- The escalation picks its victim by a **stable index off the generation**, not at
+  random. A bloodline should be re-playable, and an inevitable betrayal is a better
+  story than a random one.
+- A torn inherited way keeps `state: 'inherited'` and carries `torn: true`, exactly
+  like every other tear. My first harness assertion assumed it stopped being
+  inherited — it does not, and should not.
+- **Fairness is under test now**: a flood-fill from the den proves the winter range
+  is still reachable with all four escalations standing. The standing rule was that
+  both a strong and a ruined run must finish; escalation could have quietly walled
+  the map otherwise.
+
+One real trap: `let S = null` had to move above the geometry helpers, because
+`solidRects()` is reached at LOAD time through `edgeVia`, and reading a `let`
+before its declaration is a TDZ ReferenceError rather than `undefined` — so the
+whole file failed to parse-and-run rather than degrading.
+
+Harness housekeeping: the bloodline now persists across the run, so tests that
+just want an ordinary first year call `forgetBloodline()` first — otherwise the
+pack arrives as heirs on escalated ground and unrelated checks fail in confusing
+places. Also worth knowing for future sessions: **test/harness.js is CRLF in the
+working tree**, so plain multi-line string matching from a script silently fails to
+match; edit it with the editing tools or match line by line.
+
 ## fun pass, Part 3 — the pack grows (2026-08-17)
 
 Harness **447 green x6**, layout clean. The pack used to only ever shrink; now

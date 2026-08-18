@@ -3034,6 +3034,11 @@ function drawIntro() {
     ctx.font = `13px ${FONT}`;
     ctx.fillStyle = '#8a8066';
     ctx.fillText('O — options (keys, hold-to-toggle, text size)', cx, cy + 182);
+    // earned by finishing a year: a longer, leaner calendar
+    if (LEGACY.unlocks.longYear) {
+      ctx.fillStyle = LEGACY.longYearOn ? '#c9b98e' : '#6b6353';
+      ctx.fillText('L — the long year: ' + (LEGACY.longYearOn ? 'on' : 'off'), cx, cy + 208);
+    }
   }
 }
 
@@ -3573,6 +3578,106 @@ function drawPassage() {
     const x = ((bx + Math.sin(S.time * 0.8 + i) * 14) % canvas.width + canvas.width) % canvas.width;
     ctx.beginPath(); ctx.arc(x, y, 1.2 + rngS() * 1.4, 0, Math.PI * 2); ctx.fill();
   }
+}
+
+
+// ── the bloodline page ───────────────────────────────────────────────────────
+// After the ending card, before the next year. A quiet accounting of what the
+// line keeps: who lived and what they became, which of her ways are now the next
+// generation's inheritance — and, once the bloodline is old enough, every
+// generation's route laid over the same frame.
+function drawLegacy() {
+  resetTransform();
+  ctx.fillStyle = '#14160f';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  const cx = canvas.width / 2;
+  const t = S.legacyT || 0;
+  const maxW = canvas.width - 48;
+
+  // the generations' routes, ghosted beneath everything, once there are some
+  const years = LEGACY.years || [];
+  if (LEGACY.unlocks.legacyMap && years.length > 1) {
+    const X0 = WORLD.x0 || 0, span = WORLD.w - X0;
+    const sc = Math.min(canvas.width / span, canvas.height / WORLD.h) * 0.82;
+    const ox = cx - (X0 + WORLD.w) / 2 * sc, oy = canvas.height / 2 - WORLD.h / 2 * sc;
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    years.forEach((y, i) => {
+      if (!y.route || y.route.length < 2) return;
+      const age = (years.length - 1 - i) / Math.max(1, years.length - 1);
+      ctx.globalAlpha = (0.10 + 0.30 * (1 - age)) * clamp(t / 1.2, 0, 1);
+      ctx.strokeStyle = i === years.length - 1 ? '#7fb0c4' : '#6d7a63';
+      ctx.lineWidth = i === years.length - 1 ? 2.2 : 1.4;
+      ctx.beginPath();
+      y.route.forEach((p, j) => {
+        const px = ox + p[0] * sc, py = oy + p[1] * sc;
+        if (j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  const last = years[years.length - 1] || null;
+  let y = Math.max(56, canvas.height * 0.16);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ctx.globalAlpha = clamp(t / 0.8, 0, 1);
+
+  ctx.fillStyle = C_PARCHMENT;
+  y += drawFitted('The bloodline', cx, y, maxW, 30, 18, '', false).height + 6;
+  ctx.fillStyle = '#8a8066';
+  const genPlayed = last ? last.generation : 1;
+  y += drawFitted('generation ' + genPlayed + ' of the line', cx, y, maxW, 15, 11, 'italic', false).height + 18;
+
+  // what became of them
+  ctx.fillStyle = '#cfc4a6';
+  const heirs = LEGACY.heirs || [];
+  if (heirs.length) {
+    y += drawFitted('They came through with her', cx, y, maxW, 16, 12, 'italic', false).height + 6;
+    ctx.fillStyle = C_PARCHMENT;
+    for (const h of heirs) {
+      const marks = [h.hunting, h.nerve, h.endurance]
+        .map(v => TIER_NAMES[tierIndex(v * 2)]).join(' · ');
+      y += drawFitted(h.name + ' — ' + marks, cx, y, maxW, 14, 10, '', false).height + 3;
+    }
+  } else {
+    ctx.fillStyle = '#a08c7a';
+    y += drawFitted('No one came through with her.', cx, y, maxW, 16, 12, 'italic', false).height;
+  }
+  y += 16;
+
+  // what they are born knowing — and it is her own ink
+  ctx.fillStyle = '#cfc4a6';
+  const ways = (LEGACY.inheritedWays || []).length;
+  const wayLine = ways
+    ? ways + (ways === 1 ? ' way she walked is theirs now, in her mother’s amber.'
+                         : ' ways she walked are theirs now, in her mother’s amber.')
+    : 'She left them no ways of her own.';
+  y += drawFitted(wayLine, cx, y, maxW, 15, 11, 'italic', false).height + 6;
+
+  // and the land has already moved again
+  const nextEsc = escalationsFor(LEGACY.generation);
+  if (nextEsc > 0 && nextEsc <= ESCALATIONS.length) {
+    ctx.fillStyle = '#b08d7a';
+    y += drawFitted('And already, ' + ESCALATIONS[nextEsc - 1].name + '.',
+      cx, y, maxW, 15, 11, 'italic', false).height + 6;
+  }
+  // the ones worth remembering by name
+  if ((LEGACY.names || []).length) {
+    ctx.fillStyle = '#9d9a80';
+    y += 8;
+    y += drawFitted('Remembered: ' + LEGACY.names.join(', '), cx, y, maxW, 13, 10, 'italic', false).height;
+  }
+
+  ctx.globalAlpha = clamp((t - 0.9) / 0.8, 0, 1);
+  ctx.fillStyle = '#8a8066';
+  drawFitted(touchMode ? 'tap to begin the next year' : 'press any key to begin the next year',
+    cx, canvas.height - 62, maxW, 15, 11, 'italic', false);
+  if (!touchMode) {
+    ctx.fillStyle = '#6b6353';
+    drawFitted('delete — forget the bloodline', cx, canvas.height - 34, maxW, 12, 10, 'italic', false);
+  }
+  ctx.globalAlpha = 1;
 }
 
 // ── dispatcher ───────────────────────────────────────────────────────────────
