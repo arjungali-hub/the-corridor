@@ -951,6 +951,70 @@ spring #8fa06f are the same muted olive. Bumped PAST_GROUND to a lush green
 seasons keep their own muted ground; if Act I spring should match, bump
 SEASON_GROUND[0] too.
 
+## fun pass, Parts 6 & 7 — juice and rebalance, and the gate (2026-08-19)
+
+Harness **520 green x3**, layout clean. The last two parts of the order, and the
+closing gate.
+
+**Part 6 — juice.** Two moments bend time and only two: the catch holds ~110 ms so
+the kill lands, and the pounce runs at 0.35 for a quarter second. Nothing else in
+the game slows down, which is the whole point — slow-motion always means *this is
+the thing you got right*. Around them: dust and a low thud (deliberately duller
+than `playImpact`, so a kill never sounds like a car), the pack coming down to feed
+and drawing low while they do, a desaturation pulse when something she was on gets
+away, a howl and a roster mark-flash at a tier crossing, and idle play-bows, rests
+and nose-touches when the pack is fed, unafraid and standing still.
+
+One real bug in the middle of it, and it is the kind that would have been very
+hard to find later: **the hit-stop first zeroed the whole frame**. On a 50 ms frame
+that is correct; on a 1-second frame (a slow device, a background tab catching up,
+or a test stepping a whole second) a 110 ms beat of held breath swallowed an entire
+second of world. It now eats only its own duration out of the frame and hands back
+the remainder. The harness caught it as a tutorial that would not advance.
+
+**Part 7 — rebalance.** `FOOD_PER_SEC` up 10% to 0.165, because hares floor the
+economy and a clean ambush feeds well, so hunting had to stay a live pressure. The
+year now asks exactly one question, in her own register, at the first spring: *a
+mild year, or a hard one*. Mild is the **same game** with drains at x0.75 and
+warnings x1.5 wider — asked once per player, not once per year, and persisted.
+A year measures 54 minutes, the long year 73; the target was 45-70, so the stalk
+did not push it out of range and the calendar did not need shortening.
+
+The standing fairness rule is now a test rather than an intention: a **strong** run
+and a deliberately **ruined** one (one wolf, hurt, hungry, no ink of her own, on
+hard) are both driven to the end of the calendar and both must reach an ending
+rather than hang.
+
+### The gate — and the one thing I cannot do
+
+`npm test` is green across three consecutive runs (520 checks), `npm run layout`
+is clean, and CLAUDE.md now carries every superseded rule.
+
+The last item on the order is: *play a full year in the browser and answer
+honestly — was that fun?* **I cannot answer that, and I am not going to pretend
+to.** I have no way to run the browser build or watch a year play out; everything
+above is verified by a headless harness that proves correctness and can say nothing
+whatsoever about feel. The verdict is Arjun's, and it is still owed.
+
+What I would watch for, in rough order of how likely I think each is to be wrong:
+
+1. **Does the stalk read?** It only started actually working in Part 2, when the
+   `hunters` copy bug was fixed — before that the crouch did nothing at all. This
+   has never been felt by anyone.
+2. **Is the elk rule a lesson or a wall?** One wolf cannot take an elk. That should
+   teach the pack; it could just as easily read as an arbitrary refusal.
+3. **Are slow wolves slow, or sluggish?** WOLF_PACE 0.62 is a single dial and easy
+   to re-tune, but only play can say which side of the line it is on.
+4. **Do the numbers cheapen it?** Pack strength, streak marks and the season card
+   were authorized on purpose, but this is the game's austerity being spent, and
+   the trade only works if it still reads as The Corridor.
+5. **Is a generation's escalation devastating or merely annoying?** Losing a way
+   you earned should land like the prologue does.
+
+If the answer is no, the order is explicit that the next session tunes Parts 1-3
+rather than building anything new — and everything is behind named constants
+(`WOLF_PACE`, `ALERT_*`, `HUNT_*`, `FOOD_PER_SEC`, `MOMENT_GAP`) for exactly that.
+
 ## fun pass, Part 5 — goals that teach mastery (2026-08-18)
 
 Harness **499 green x5**, layout clean. Sixteen goals, each pointing at a system

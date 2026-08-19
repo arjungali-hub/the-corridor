@@ -33,6 +33,24 @@ const PACK_AMBLE    = 120 * WOLF_PACE;   // …drifting inside the zone
 const PACK_ROAD     = 240 * WOLF_PACE;   // …never ambling on asphalt
 const WILLOW_PACE   = 235 * WOLF_PACE;   // a mother teaching, not a guide rushing
 const INJURY_SPEED  = 0.7;   // while hurt
+// The one question the year asks: a mild year or a hard one. Mild is not a
+// different game — the same systems, with the drains eased and the warnings wider.
+const MILD_DRAIN = 0.75;
+const MILD_WARN  = 1.5;
+// answering the year's one question
+function chooseDifficulty(kind) {
+  if (!S || !S.askDifficulty) return false;
+  OPTIONS.difficulty = kind === 'mild' ? 'mild' : 'hard';
+  saveOptions();
+  S.askDifficulty = false;
+  clearPrompt();
+  say(kind === 'mild' ? 'A mild year, then. The land will give a little.'
+                      : 'A hard year, then. It always was.');
+  return true;
+}
+function mildYear() { return (typeof OPTIONS !== 'undefined' && OPTIONS && OPTIONS.difficulty === 'mild'); }
+function drainMult() { return mildYear() ? MILD_DRAIN : 1; }
+function warnMult()  { return mildYear() ? MILD_WARN : 1; }
 const SICK_TIME     = 75;    // real seconds of wrong water
 const SICK_SPEED    = 0.6;   // worst of it — worse than a wound
 const SICK_EASE     = 45;    // …and it eases back to full over the last stretch
@@ -55,7 +73,8 @@ const YEAR_DAYS     = 360;
 const WINTER_START  = 271;
 // Survival pressure is priced in REAL time, decoupled from the fast
 // calendar: the same pace it had at the old 48 min/s clock.
-const FOOD_PER_SEC     = 0.15;
+const FOOD_PER_SEC     = 0.165;  // +10% (Part 7): hares floor the economy and a
+                                 // clean ambush feeds well, so the pressure had to rise
 const PUP_FOOD_PER_SEC = 0.45;  // less than half the old pace — pups keep for minutes
 const PUPS_BORN_DAY    = 75;
 const PUPS_TRAVEL_DAY  = 240;
@@ -125,6 +144,7 @@ function noteTierUp(w, track, tier) {
   const word = { hunting: 'hunts', nerve: 'holds her nerve', endurance: 'travels' }[track];
   S.tierQueue = S.tierQueue || [];
   S.tierQueue.push(`${who} ${word} like ${TIER_NAMES[tier]} now.`);
+  w.tierFlashT = 2.2;   // the mark fills, on the roster, where it can be seen
   if (S.tierQueue.length > 4) S.tierQueue.shift();   // never a backlog worth reading
 }
 function tierUpTick() {
@@ -136,6 +156,7 @@ function tierUpTick() {
   if (S.msgT > 0) return;
   if (!momentFree()) return;
   say(S.tierQueue.shift());
+  playHowl();                 // short, warm, and only ever for this
   claimMoment();
 }
 // Coming out the far side of a barrier, without balking and without being hit, is
@@ -218,6 +239,16 @@ const PREY_SPENT = 25;   // stamina at or below which a spent animal can be caug
 const ELK_PURSUE_R = 150;   // close enough to count as being on it
 const ELK_INJURE   = 0.35;  // …and this is what trying it alone costs, doubled head-on
 const KILL_SHARE_R = 200;   // close enough to have been there when it went down
+// ── juice ────────────────────────────────────────────────────────────────────
+// Two moments get to bend time, and only two: the catch, which stops for a beat so
+// the kill LANDS, and the pounce, which is the one skill moment in the game.
+// Nothing else in The Corridor slows down, so the slow-motion always means "this
+// is the thing you got right".
+const HIT_STOP = 0.11;      // seconds of held breath on a catch
+const SLOWMO_T = 0.25;      // …and of slow-motion through a pounce
+const SLOWMO_SCALE = 0.35;
+const FEED_TIME = 7;        // how long the pack stays down at a kill
+const IDLE_CHANCE = 0.35;   // …and how readily it plays when there is nothing to do
 const GOAL_CARD_TIME = 3.4; // seconds a goal card sits on screen, blocking nothing
 const SEASON_CARD_TIME = 7;  // …and the season summary, which is dismissible
 
@@ -589,6 +620,9 @@ function newGame() {
     momentCd: 0,        // the gate that keeps teaching moments from piling up
     tierQueue: [],      // wolves that just came into their own, waiting to be named
     goalCards: [],      // goals just met, sliding through one at a time
+    hitStopT: 0, slowMoT: 0, escapePulseT: 0,   // the only two moments that bend time
+    puffs: [],          // dust where something went down
+    feedAt: null,       // the kill the pack is coming down to
     stats: freshStats(),// what this year is keeping count of
     seasonCard: null,   // the summary at each turn of the season
     streak: 0,          // hunts running, unbroken
@@ -1816,6 +1850,38 @@ function packUpdate(dt) {
       continue;
     }
 
+    // a kill pulls the pack down to it — they come, and then they feed
+    if (S.feedAt && !held && S.mode === 'play') {
+      const df = dist(w.x, w.y, S.feedAt.x, S.feedAt.y);
+      if (df > 46) {
+        const sp = PACK_LOPE * w.mult * lag;
+        moveAround(w, (S.feedAt.x - w.x) / df * sp * dt, (S.feedAt.y - w.y) / df * sp * dt,
+          (x, y) => packBlockedAt(x, y) || onRoad(x, y), dt);
+        w.heading = Math.atan2(S.feedAt.y - w.y, S.feedAt.x - w.x);
+        w.gait += sp * dt; w.moving = true; w.feeding = false;
+      } else {
+        w.feeding = true; w.moving = false;
+      }
+      continue;
+    }
+    w.feeding = false;
+
+    // and when there is nothing to do, it plays, or lies down, or comes to say hello
+    if (w.idle && w.idleT > 0) {
+      if (w.idle === 'greet') {
+        const dg = dist(w.x, w.y, S.wolf.x, S.wolf.y) || 1;
+        if (dg > 34) {
+          const sp = PACK_AMBLE * w.mult;
+          tryMove(w, (S.wolf.x - w.x) / dg * sp * dt, (S.wolf.y - w.y) / dg * sp * dt, packBlockedAt);
+          w.heading = Math.atan2(S.wolf.y - w.y, S.wolf.x - w.x);
+          w.gait += sp * dt; w.moving = true;
+        } else { w.moving = false; }
+      } else {
+        w.moving = false;
+      }
+      continue;
+    }
+
     if (!w.pup && !held && S.mode === 'play') {
       let prey = null, pd = 1e9;
       for (const e of S.elk) {
@@ -2286,7 +2352,8 @@ function commitAmbush() {
   e.jumpyT = JUMPY_TIME;
   e.ambushed = true;
   e.ambushFromGrazing = fromGrazing;
-  S.ambushT = 0.45;            // the cue's afterglow; Part 6 hangs the slow-motion here
+  S.ambushT = 0.45;            // the cue's afterglow
+  S.slowMoT = SLOWMO_T;        // the one slow-motion in the game, and it is this
   playWhoosh();                // the coil and the spring; Part 6 gives it its own voice
   if (!S.tut.ambushed) {
     S.tut.ambushed = true;
@@ -2584,6 +2651,8 @@ function preyUpdate(dt) {
       || (elk.outT || 0) > 7;
     if (gone) {
       S.elk.splice(i, 1);
+      // failure gets a beat of its own: the colour goes out of the world for a moment
+      if (dist(elk.x, elk.y, S.wolf.x, S.wolf.y) < 1400) S.escapePulseT = 0.5;
       const nd = {
         herd: 1,
         x: WORLD.w / 2 + (Math.random() - 0.5) * 500,
@@ -2611,7 +2680,10 @@ function preyUpdate(dt) {
   if (S.chaseElk) {
     const still = S.elk.indexOf(S.chaseElk) >= 0;
     if (!still) S.chaseElk = null;
-    else if (alertStateOf(S.chaseElk) !== 'fleeing') { S.streak = 0; S.chaseElk = null; }
+    else if (alertStateOf(S.chaseElk) !== 'fleeing') {
+      S.streak = 0; S.chaseElk = null;
+      S.escapePulseT = 0.5;
+    }
   }
 
   // no kill exists until the hunt has been taught
@@ -2699,6 +2771,13 @@ function takePrey(i) {
     && dist(sedge.x, sedge.y, elk.x, elk.y) < 500;
   S.food = Math.min(100, S.food + H.food * (elk.wary ? 0.65 : 1) + (sedgeIn ? 10 : 0));
   S.tut.usedHold = true;
+  // the kill LANDS: a beat of held breath, a low thud, dust, and the pack comes down
+  S.hitStopT = HIT_STOP;
+  S.shake = Math.max(S.shake, 5);
+  S.puffs = S.puffs || [];
+  S.puffs.push({ x: elk.x, y: elk.y, t: 0 });
+  S.feedAt = { x: elk.x, y: elk.y, t: FEED_TIME };
+  playThud();
   S.history.push({ type: 'hunt', day: day() });
   // the year's ledger, for the goals and the season card
   S.stats.hunts++;
@@ -2763,7 +2842,7 @@ function hungerUpdate(dt) {
   let keep = 0;
   for (const w of crew) keep += endFoodMult(w);
   const thrift = crew.length ? keep / crew.length : 1;
-  S.food = Math.max(0, S.food - FOOD_PER_SEC * mouths * thrift * dt);
+  S.food = Math.max(0, S.food - FOOD_PER_SEC * mouths * thrift * drainMult() * dt);
   if (S.food <= 0) S.starveT += dt; else S.starveT = 0;
 
   // in winter, an empty larder is the end of the year, not a setback
@@ -2879,7 +2958,7 @@ function pupUpdate(dt) {
   }
   if (!S.pups || S.pups.count <= 0 || S.pups.traveling) return;
 
-  S.pups.food = Math.max(0, S.pups.food - PUP_FOOD_PER_SEC * dt);
+  S.pups.food = Math.max(0, S.pups.food - PUP_FOOD_PER_SEC * drainMult() * dt);
 
   if (S.denSite && dist(S.wolf.x, S.wolf.y, S.denSite.x, S.denSite.y) < 90
       && S.food > 25 && S.pups.food < 98) {
@@ -3494,7 +3573,7 @@ function waterAt(x, y) {
 
 function drinkHint() { return `Water underfoot. Hold ${capOf('drink')} to drink.`; }
 function waterUpdate(dt) {
-  S.water = Math.max(0, S.water - WATER_PER_SEC * dt);
+  S.water = Math.max(0, S.water - WATER_PER_SEC * drainMult() * dt);
   S.sickT = Math.max(0, (S.sickT || 0) - dt);
   S.foulCd = Math.max(0, (S.foulCd || 0) - dt);
   S.iceCd = Math.max(0, (S.iceCd || 0) - dt);
@@ -3623,7 +3702,7 @@ function trainUpdate(dt) {
       // to the rail — a felt warning, not only a heard one
       const near = railProximity();
       if (near > 0.05) S.shake = Math.max(S.shake, 6 * near * (t.warnT / TRAIN_WARN));
-      if (t.warnT >= TRAIN_WARN) t.warning = false;
+      if (t.warnT >= TRAIN_WARN * warnMult()) t.warning = false;   // a mild year telegraphs for longer
       continue;
     }
     t.y += t.vy * dt;
@@ -4218,6 +4297,13 @@ function applyPostPrologue() {
   }
   S.passageFade = 1.8;   // the white lets go slowly over the first thaw
   setCaption('Spring.', 3.5, 'the first thaw after her — the pack is yours now');
+  // The one question the year asks, before the first of its decisions. Asked once
+  // per player, not once per year — and it is the same game either way, with the
+  // drains eased and the warnings wider.
+  if (typeof OPTIONS !== 'undefined' && OPTIONS && !OPTIONS.difficulty) {
+    S.askDifficulty = true;
+    showPrompt('A mild year, or a hard one?   1 — mild, and the land forgives.   2 — hard.', ['1', '2'], 14);
+  }
   // the year's first decision, named at once
   S.tut.denPrompt = true;
   showPrompt(`The pups will come with the late spring. A den must be chosen — raise the map (${capOf('map')}); the hollows are marked.`, [capOf('map')], 9);
@@ -5344,6 +5430,71 @@ function applyLegacy() {
   recomputeGhosts();
 }
 
+// The body going down: lower and duller than playImpact (which is metal and the
+// road), so a kill never sounds like a car.
+function playThud() {
+  const ac = getAudioCtx(); if (!ac) return;
+  const now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(120, now);
+  o.frequency.exponentialRampToValueAtTime(38, now + 0.22);
+  g.gain.setValueAtTime(0.0001, now);
+  g.gain.exponentialRampToValueAtTime(0.16, now + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + 0.34);
+  o.connect(g); g.connect(masterGain);
+  o.start(now); o.stop(now + 0.36);
+}
+
+// Dust where something hit the ground, and the pack coming down to the kill.
+function juiceUpdate(dt) {
+  for (const w of [S.wolf, ...S.pack]) if (w.tierFlashT) w.tierFlashT = Math.max(0, w.tierFlashT - dt);
+  if (S.puffs && S.puffs.length) {
+    for (let i = S.puffs.length - 1; i >= 0; i--) {
+      S.puffs[i].t += dt;
+      if (S.puffs[i].t > 1.1) S.puffs.splice(i, 1);
+    }
+  }
+  if (S.feedAt) {
+    S.feedAt.t -= dt;
+    if (S.feedAt.t <= 0) {
+      S.feedAt = null;
+      for (const w of S.pack) w.feeding = false;
+    }
+  }
+}
+
+// When there is nothing to do — fed, unafraid, standing still — the pack behaves
+// like a family rather than an escort. Cheap, and it is what makes losing one of
+// them land later.
+function packIdleUpdate(dt) {
+  if (S.mode !== 'play') return;
+  const calm = S.fear < 0.05 && !S.packFrozen && S.food > 45 && !S.feedAt
+    && !S.standoff && S.westState !== 'confrontation' && S.westState !== 'clash';
+  for (const w of alivePack()) {
+    w.idleT = Math.max(0, (w.idleT || 0) - dt);
+    if (w.idleT > 0) continue;
+    if (w.idle) { w.idle = null; w.idleCd = 6 + Math.random() * 14; }
+    w.idleCd = Math.max(0, (w.idleCd || 0) - dt);
+    if (!calm || w.moving || w.state === 'balk' || w.pup) continue;
+    if (w.idleCd > 0) continue;
+    if (Math.random() > IDLE_CHANCE * dt * 8) continue;
+    // a yearling with another yearling plays; a wolf on its own lies down or
+    // drifts over to her and touches noses
+    const mate = alivePack().find(o => o !== w && o.yearling && w.yearling
+      && !o.idle && dist(o.x, o.y, w.x, w.y) < 170);
+    if (mate) {
+      w.idle = 'bow'; mate.idle = 'bow';
+      w.idleT = mate.idleT = 1.6 + Math.random();
+      playYip();
+    } else if (dist(w.x, w.y, S.wolf.x, S.wolf.y) < 150 && Math.random() < 0.4) {
+      w.idle = 'greet'; w.idleT = 1.4;
+    } else {
+      w.idle = 'rest'; w.idleT = 3 + Math.random() * 5;
+    }
+  }
+}
+
 // ── goals ────────────────────────────────────────────────────────────────────
 // Each one points at a system worth learning, so they read as a curriculum: the
 // stalk, the pack, the map, nerve, the line itself. Kept in the bloodline record
@@ -5488,7 +5639,7 @@ const OPTIONS_KEY = 'the-corridor-options-v2';
 // while crouched" commit cannot be distinguished from the hold — nor would it
 // exist at all for players using the hold-to-toggle accessibility option.
 const DEFAULT_BINDINGS = { up: 'w', down: 's', left: 'a', right: 'd', map: ' ', scent: 'e', drink: 'q', crouch: 'shift', pounce: 'x' };
-let OPTIONS = { bindings: { ...DEFAULT_BINDINGS }, holdToggle: false, textScale: 1 };
+let OPTIONS = { bindings: { ...DEFAULT_BINDINGS }, holdToggle: false, textScale: 1, difficulty: null };
 // A persisted set is only usable if every action has a key and no key drives two
 // actions; anything else is corruption and we fall back to the defaults rather
 // than ship scrambled controls. (A clean custom remap is still a valid set.)
@@ -5507,6 +5658,7 @@ function loadOptions() {
     const d = JSON.parse(localStorage.getItem(OPTIONS_KEY) || 'null');
     if (d && typeof d === 'object') {
       OPTIONS.bindings = { ...DEFAULT_BINDINGS, ...(d.bindings || {}) };
+      OPTIONS.difficulty = (d.difficulty === 'mild' || d.difficulty === 'hard') ? d.difficulty : null;
       if (!bindingsValid(OPTIONS.bindings)) OPTIONS.bindings = { ...DEFAULT_BINDINGS };
       if (typeof d.holdToggle === 'boolean') OPTIONS.holdToggle = d.holdToggle;
       if (typeof d.textScale === 'number') OPTIONS.textScale = clamp(d.textScale, 1, 2);
@@ -5719,6 +5871,23 @@ function update(dt) {
   // …and so does it while the settings are open, mid-year
   if (typeof optionsOpen !== 'undefined' && optionsOpen) return;
 
+  // The hit-stop and the pounce's slow-motion both live here, ahead of everything,
+  // so the WHOLE world bends together — prey, pack, cars, timers. Their own clocks
+  // run on real time, or they could never end.
+  const rawDt = dt;
+  S.slowMoT = Math.max(0, (S.slowMoT || 0) - rawDt);
+  S.escapePulseT = Math.max(0, (S.escapePulseT || 0) - rawDt);
+  // The hit-stop EATS its own duration out of the frame rather than discarding the
+  // whole frame: a long frame (a slow device, or a test stepping a whole second)
+  // must still advance by the remainder, or a beat of held breath can swallow an
+  // arbitrary amount of the world.
+  if ((S.hitStopT || 0) > 0) {
+    const eaten = Math.min(rawDt, S.hitStopT);
+    S.hitStopT -= eaten;
+    dt = rawDt - eaten;
+  }
+  if (S.slowMoT > 0) dt *= SLOWMO_SCALE;
+
   S.time += dt;
   promptTick(dt);
   ambienceUpdate(dt);
@@ -5807,6 +5976,8 @@ function update(dt) {
     barrierNerveUpdate();
     tierUpTick();
     goalsUpdate(dt);
+    juiceUpdate(dt);
+    packIdleUpdate(dt);
     goalCardTick(dt);
     seasonCardTick(dt);
     rancherUpdate(dt);

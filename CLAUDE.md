@@ -72,6 +72,21 @@ the ending card.
   throws Aspen clear (hurt, terrified, never gory); a hit packmate is lost,
   permanently. The culvert (`Water-Under-Stone`) is the safe unknown detour.
   Elk never cross the highway at all.
+- **Two moments bend time, and only two** (Part 32/6, superseding the blanket
+  austerity of feedback). The **catch** holds for ~110 ms so the kill lands, and
+  the **pounce** runs at 0.35 for a quarter-second. Nothing else in the game slows
+  down, so slow-motion always means *this is the thing you got right* — do not
+  spend it anywhere else. A hit-stop **eats only its own duration** out of the
+  frame, never the whole frame, or a long frame on a slow device loses the world.
+  Also here: dust and a low thud on a kill, the pack coming down to feed, a
+  desaturation pulse when something gets away, a howl and a roster mark-flash at a
+  tier crossing, and idle play-bows/rests/nose-touches when the pack is fed,
+  unafraid, and standing still.
+- **The year asks one question** (Part 32/7): *a mild year, or a hard one* — once
+  per player, at the first spring, persisted in `OPTIONS.difficulty`. Mild is the
+  same game with drains at ×0.75 and warnings ×1.5 wider, never a different one.
+  `FOOD_PER_SEC` sits at 0.165 (+10%) because hares floor the economy and a clean
+  ambush feeds well. A year is ~54 minutes; the long year ~73.
 - **Goals are a CURRICULUM** (Part 32/5), not a checklist: each of the sixteen
   points at a system worth learning — the stalk, the pack, the map, nerve, the line
   — and each is worded as an observation rather than a trophy. They live in

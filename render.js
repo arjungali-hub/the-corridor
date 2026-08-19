@@ -1552,7 +1552,21 @@ function drawWorld() {
   for (const w of S.pack) {
     if (w.state === 'dead' || w.state === 'gone') continue;
     const tone = WOLF_TONES[w.pup ? 'pup' : w.id] || WOLF_TONES.fen;
-    drawWolfBody(w.x, w.y, w.heading || 0, w.pup ? 6.5 : (w.id === 'bram' ? 11 : 10), tone, w.moving, w.gait || 0, false);
+    // feeding and resting both draw LOW: head down at a kill, curled when idle
+    const low = w.feeding || w.idle === 'rest';
+    const sz = (w.pup ? 6.5 : (w.id === 'bram' ? 11 : 10)) * (low ? 0.88 : 1);
+    drawWolfBody(w.x, w.y, w.heading || 0, sz, tone, w.moving, w.gait || 0, false);
+    if (w.idle === 'bow') {
+      // a play-bow: front down, tail up, and it reads even at this size
+      ctx.save();
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = tone.dark; ctx.lineWidth = 2; ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(w.x - 9, w.y + 7); ctx.quadraticCurveTo(w.x, w.y - 9, w.x + 10, w.y + 3);
+      ctx.stroke();
+      ctx.restore();
+      ctx.globalAlpha = 1;
+    }
     if (w.state === 'balk') {
       const p = screenPos(w.x, w.y);
       resetTransform();
@@ -1573,6 +1587,8 @@ function drawWorld() {
     S.wolf.moving, S.wolf.gait, isInjured());
   drawAmbushCue();
 
+  drawPuffs();
+  drawWindMotes();
   drawPrologueWorldBits();
 
   // the soft chevron: where to look, when the land won't say. Kept small and
@@ -2842,7 +2858,10 @@ function drawTierMarks(w, x, y, onMap) {
     if (frac > 0) {           // filled from the bottom up, by tier
       ctx.save();
       ctx.clip();
-      ctx.fillStyle = fill;
+      // a wolf that has just crossed a tier glows for a moment, so the level-up is
+      // SEEN on the roster and not only said in the register
+      const flash = (w.tierFlashT || 0) > 0 && Math.sin(S.time * 12) > 0;
+      ctx.fillStyle = flash ? '#f4e6b4' : fill;
       ctx.fillRect(cx - r - 1, y + r - frac * r * 2, (r + 1) * 2, frac * r * 2 + 1);
       ctx.restore();
     }
@@ -3594,6 +3613,62 @@ function drawPassage() {
 }
 
 
+// ── juice ────────────────────────────────────────────────────────────────────
+// Dust where something went down. Cheap, brief, and it makes the catch land.
+function drawPuffs() {
+  if (!S.puffs || !S.puffs.length) return;
+  ctx.save();
+  for (const p of S.puffs) {
+    const k = p.t / 1.1;
+    const r = 10 + k * 46;
+    ctx.globalAlpha = (1 - k) * 0.34;
+    ctx.fillStyle = '#b8ac91';
+    ctx.beginPath(); ctx.arc(p.x, p.y + 4, r, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = (1 - k) * 0.2;
+    ctx.beginPath(); ctx.arc(p.x - r * 0.4, p.y + 2, r * 0.55, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// Failure gets a beat too: the colour goes out of the world for half a second when
+// something she was on gets away.
+function drawEscapePulse() {
+  const t = S.escapePulseT || 0;
+  if (t <= 0) return;
+  resetTransform();
+  ctx.save();
+  ctx.globalAlpha = Math.min(0.5, t) * 0.5;
+  ctx.globalCompositeOperation = 'saturation';
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
+// The wind, made visible in the world itself now that it decides hunts: a scatter
+// of motes riding it across the view.
+function drawWindMotes() {
+  if (!S.wind || S.era === 'past') return;
+  const a = S.wind.a;
+  const ux = Math.cos(a), uy = Math.sin(a);
+  const vw = canvas.width / S.cam.scale, vh = canvas.height / S.cam.scale;
+  const x0 = S.cam.x - vw / 2, y0 = S.cam.y - vh / 2;
+  const rng = makePrng(7);
+  ctx.save();
+  ctx.fillStyle = 'rgba(232,226,203,0.5)';
+  for (let i = 0; i < 26; i++) {
+    const bx = rng() * vw, by = rng() * vh;
+    const drift = ((S.time * 46 * (0.6 + rng() * 0.8)) % (vw + 120));
+    const px = x0 + ((bx + ux * drift) % vw + vw) % vw;
+    const py = y0 + ((by + uy * drift) % vh + vh) % vh;
+    ctx.globalAlpha = 0.10 + 0.16 * Math.abs(Math.sin(S.time * 1.3 + i));
+    ctx.beginPath(); ctx.arc(px, py, 1.3, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 // ── goals, quietly ───────────────────────────────────────────────────────────
 // A small card slides in from the left, sits for a moment, and goes. It never
 // takes the middle of the screen and never waits for a key: an observation, not
@@ -3830,6 +3905,7 @@ function draw() {
   drawPassage();
   drawPrompt();
   drawCaption();
+  drawEscapePulse();
   if (S.mode === 'play') { drawSeasonCard(); drawGoalCard(); }
   drawHelp();
   drawTouchControls();

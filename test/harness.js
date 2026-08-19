@@ -952,7 +952,9 @@ check('the pack is back to untried after the growth checks',
 
 // F is TAUGHT in spring, not told: the pack is hers now and she is walked
 // through holding it and calling it on with her own body before the year opens
-G("S.tut.fLesson = 0; S.tut.fLessonDone = false; S.tut.fTaught = false; S.tut.fTeachT = 6.0; S.tut.step = 6; S.pack.forEach(w => w.state = 'follow'); S.zoneAnchor = null; S.cars.length = 0;");
+// clear the juice left over from the kills above: a hit-stop legitimately eats a
+// whole 50ms frame, and this check sets its timer to exactly the threshold
+G("S.tut.fLesson = 0; S.tut.fLessonDone = false; S.tut.fTaught = false; S.tut.fTeachT = 6.0; S.tut.step = 6; S.pack.forEach(w => w.state = 'follow'); S.zoneAnchor = null; S.cars.length = 0; S.hitStopT = 0; S.slowMoT = 0; S.feedAt = null;");
 step();
 check('the F lesson opens in spring and the verb becomes usable',
   G('S.tut.fLesson') === 1 && G('S.tut.fTaught') === true);
@@ -1859,7 +1861,7 @@ G('_h = OBSTACLES.highway; _elkStash = S.elk; S.elk = [];');
 G('S.wolf.x = _h.x0 - 40; S.wolf.y = 1800; S.fear = 0; S.packFrozen = false;');
 // dwellT/dwelled cleared too: a wolf standing between wander moves legitimately
 // does not move, and this check measures a single frame's displacement
-G("_w3 = alivePack()[0]; _w3.state = 'follow'; _w3.balked = false; _w3.onHunt = false; _w3.frozenT = 0; _w3.fleeTo = null; _w3.injuredT = 0; _w3.dwellT = 0; _w3.dwelled = false; _w3.stuckT = 0; _w3.roundSide = 0;");
+G("_w3 = alivePack()[0]; _w3.state = 'follow'; _w3.balked = false; _w3.onHunt = false; _w3.frozenT = 0; _w3.fleeTo = null; _w3.injuredT = 0; _w3.dwellT = 0; _w3.dwelled = false; _w3.stuckT = 0; _w3.roundSide = 0; _w3.idle = null; _w3.idleT = 0; _w3.idleCd = 999; S.feedAt = null;");
 G('_w3.x = _h.x0 + 12; _w3.y = 1800; _w3.tx = _h.x1 + 60; _w3.ty = 1800; _w3.wanderT = 99; _x3 = _w3.x;');
 step();
 const roadStep = G('Math.hypot(_w3.x - _x3, _w3.y - 1800)');
@@ -2828,6 +2830,199 @@ G('forgetBloodline(); clearSave(); newGame(); applyPostPrologue();'); G("S.mode 
   G('goalsOpen = true;');
   smokeDraw('the goals list');
   G('goalsOpen = false;');
+})();
+G('forgetBloodline(); clearSave(); newGame();');
+
+
+// ==== JUICE (fun pass, Part 6) ====
+// Thin on purpose: the harness can prove the time scale is bent AND restored, and
+// that an idle only happens when there is nothing to do. Whether it FEELS good is
+// a browser question.
+G('forgetBloodline(); clearSave(); newGame(); applyPostPrologue();'); G("S.mode = 'play';");
+(function juiceChecks() {
+  // only two moments bend time, and both give it back
+  const bend = G(`(function(){
+    S.hitStopT = 0; S.slowMoT = 0; S.elk.length = 0;
+    var t0 = S.time;
+    update(1/20);
+    var normal = S.time - t0;
+    S.slowMoT = SLOWMO_T;
+    t0 = S.time; update(1/20);
+    var slowed = S.time - t0;
+    S.slowMoT = 0;
+    S.hitStopT = HIT_STOP;
+    t0 = S.time; update(1/20);
+    var stopped = S.time - t0;
+    // and it always gives the clock back
+    for (var i = 0; i < 20; i++) update(1/20);
+    t0 = S.time; update(1/20);
+    var restored = S.time - t0;
+    return { normal: normal, slowed: slowed, stopped: stopped, restored: restored,
+             hit: S.hitStopT, slow: S.slowMoT };
+  })()`);
+  check('slow-motion really slows the world',
+    Math.abs(bend.slowed - bend.normal * G('SLOWMO_SCALE')) < 1e-9);
+  check('a hit-stop holds it', bend.stopped === 0);
+  check('...and both hand the clock straight back',
+    Math.abs(bend.restored - bend.normal) < 1e-9 && bend.hit === 0 && bend.slow === 0);
+
+  // a hit-stop eats only its own length, never a whole long frame
+  const eaten = G(`(function(){
+    S.hitStopT = HIT_STOP; S.slowMoT = 0;
+    var t0 = S.time;
+    update(1.0);                       // a whole second of frame
+    return { advanced: S.time - t0, left: S.hitStopT };
+  })()`);
+  check('a hit-stop eats its own duration, not the whole frame',
+    Math.abs(eaten.advanced - (1.0 - G('HIT_STOP'))) < 1e-6 && eaten.left === 0);
+
+  // the pounce is the only thing that reaches for slow-motion
+  const pounce = G(`(function(){
+    var hi = HERDS.findIndex(function(H){ return H.species === 'hare'; });
+    S.elk.length = 0; S.slowMoT = 0; S.hitStopT = 0;
+    S.wolf.x = 2000; S.wolf.y = 2000; S.wind = { a: Math.PI/2 };
+    S.elk.push({ herd: hi, x: 2040, y: 2000, heading: 0, stamina: 100, fleeing: false, gait: 0,
+      bull: false, skittish: 1, grazeT: 99, tx: 2040, ty: 2000, vx: 0, vy: 0, homeX: 2040, homeY: 2000,
+      alert: 0, alertState: 'grazing', jumpyT: 0, stumbleT: 0, headUp: false });
+    commitAmbush();
+    return { slow: S.slowMoT, hit: S.hitStopT, puffs: (S.puffs || []).length, feed: !!S.feedAt };
+  })()`);
+  check('the pounce bends time', pounce.slow > 0);
+  check('...and the kill it lands stops it, with dust and a place to feed',
+    pounce.hit > 0 && pounce.puffs > 0 && pounce.feed === true);
+
+  // a tier crossing fires exactly one level-up, and it shows on the roster
+  const levelup = G(`(function(){
+    S.tierQueue = []; S.msg = ''; S.msgT = 0;
+    var w = S.pack[0]; w.youth = 1; w.nerve = TIER_AT[1] - 1; w.tierFlashT = 0;
+    gainTrait(w, 'nerve', 2);
+    var once = S.tierQueue.length, flash = w.tierFlashT;
+    gainTrait(w, 'nerve', 1);           // still capable: no second event
+    return { once: once, after: S.tierQueue.length, flash: flash };
+  })()`);
+  check('a tier crossing fires exactly one level-up',
+    levelup.once === 1 && levelup.after === 1);
+  check('...and the roster mark flashes for it', levelup.flash > 0);
+
+  // idles only when there is genuinely nothing to do
+  const idle = G(`(function(){
+    function tryIdle(setup){
+      S.pack.forEach(function(w){ w.idle = null; w.idleT = 0; w.idleCd = 0; w.moving = false; });
+      S.fear = 0; S.packFrozen = false; S.food = 90; S.feedAt = null;
+      S.standoff = null; S.westState = 'calm';
+      setup();
+      for (var i = 0; i < 400; i++) packIdleUpdate(1/20);
+      return alivePack().some(function(w){ return !!w.idle; });
+    }
+    var calm    = tryIdle(function(){});
+    var afraid  = tryIdle(function(){ S.fear = 0.6; });
+    var hungry  = tryIdle(function(){ S.food = 10; });
+    var feeding = tryIdle(function(){ S.feedAt = { x: 0, y: 0, t: 5 }; });
+    var moving  = tryIdle(function(){ S.pack.forEach(function(w){ w.moving = true; }); });
+    S.fear = 0; S.food = 85; S.feedAt = null;
+    S.pack.forEach(function(w){ w.idle = null; w.idleT = 0; });
+    return { calm: calm, afraid: afraid, hungry: hungry, feeding: feeding, moving: moving };
+  })()`);
+  check('the pack plays when there is nothing to do', idle.calm === true);
+  check('...and never while afraid, hungry, feeding, or on the move',
+    idle.afraid === false && idle.hungry === false
+    && idle.feeding === false && idle.moving === false);
+
+  // an escape has weight
+  const esc = G(`(function(){
+    S.escapePulseT = 0;
+    var hi = HERDS.findIndex(function(H){ return H.species === 'deer'; });
+    S.elk.length = 0;
+    var e = { herd: hi, x: S.wolf.x + 60, y: S.wolf.y, heading: 0, stamina: 100, fleeing: true,
+      gait: 0, bull: false, skittish: 1, grazeT: 99, tx: 0, ty: 0, vx: 0, vy: 0,
+      homeX: S.wolf.x + 60, homeY: S.wolf.y,
+      alert: 1, alertState: 'fleeing', jumpyT: 0, stumbleT: 0, headUp: true };
+    S.elk.push(e); S.chaseElk = e; S.streak = 4;
+    e.alert = 0; e.alertState = 'grazing';        // it got away
+    preyUpdate(1/20);
+    return { pulse: S.escapePulseT, streak: S.streak };
+  })()`);
+  check('an animal that gets away costs the streak and dims the world',
+    esc.streak === 0 && esc.pulse > 0);
+})();
+
+// ==== REBALANCE (fun pass, Part 7) ====
+(function rebalanceChecks() {
+  check('the larder runs a shade tighter than it did',
+    Math.abs(G('FOOD_PER_SEC') - 0.165) < 1e-9);
+
+  // the fork: mild eases the drains and widens the warnings, and it persists
+  const fork = G(`(function(){
+    OPTIONS.difficulty = 'hard'; var hard = { drain: drainMult(), warn: warnMult() };
+    OPTIONS.difficulty = 'mild'; var mild = { drain: drainMult(), warn: warnMult() };
+    saveOptions();
+    OPTIONS.difficulty = null; loadOptions();
+    var persisted = OPTIONS.difficulty;
+    OPTIONS.difficulty = null; saveOptions();
+    return { hard: hard, mild: mild, persisted: persisted };
+  })()`);
+  check('a hard year is the values as written',
+    fork.hard.drain === 1 && fork.hard.warn === 1);
+  check('a mild year eases the drains and widens the warnings',
+    Math.abs(fork.mild.drain - 0.75) < 1e-9 && fork.mild.warn > 1);
+  check('...and the choice persists', fork.persisted === 'mild');
+
+  // it is asked once, in her own register, and answering settles it
+  const asked = G(`(function(){
+    OPTIONS.difficulty = null; saveOptions();
+    clearSave(); newGame(); applyPostPrologue();
+    var askedAtSpring = !!S.askDifficulty;
+    var answered = chooseDifficulty('mild');
+    var settled = OPTIONS.difficulty;
+    var askedAgain = S.askDifficulty;
+    clearSave(); newGame(); applyPostPrologue();
+    var askedNextYear = !!S.askDifficulty;
+    OPTIONS.difficulty = null; saveOptions();
+    return { askedAtSpring: askedAtSpring, answered: answered, settled: settled,
+             askedAgain: askedAgain, askedNextYear: askedNextYear };
+  })()`);
+  check('the year asks its one question at the first spring', asked.askedAtSpring === true);
+  check('...answering settles it', asked.answered === true && asked.settled === 'mild');
+  check('...and it is never asked again',
+    asked.askedAgain === false && asked.askedNextYear === false);
+
+  // the standing fairness rule: a strong pack AND a ruined one both reach an end
+  const fair = G(`(function(){
+    function run(ruined){
+      forgetBloodline(); clearSave(); newGame(); applyPostPrologue(); S.mode = 'play';
+      OPTIONS.difficulty = ruined ? 'hard' : 'mild';
+      if (ruined) {
+        // one wolf, hurt, hungry, and no ink of her own
+        S.pack.forEach(function(w, i){ if (i > 0) { w.state = 'dead'; w.deadCause = 'lost'; } });
+        S.food = 12; S.water = 20; S.injuredT = INJURY_TIME;
+        S.pack.forEach(function(w){ w.hunting = 0; w.nerve = 0; w.endurance = 0; });
+      } else {
+        [S.wolf].concat(alivePack()).forEach(function(w){
+          w.hunting = 100; w.nerve = 100; w.endurance = 100; w.youth = 1; });
+        S.food = 95;
+      }
+      // run the calendar out; the year must END rather than hang
+      S.clock.min = (yearDays() - 1) * 1440;
+      S.lastDay = day();
+      var guard = 0;
+      while (S.mode === 'play' && guard++ < 4000) update(1/20);
+      return { mode: S.mode, kind: S.endKind, guard: guard };
+    }
+    var strong = run(false), broken = run(true);
+    OPTIONS.difficulty = null; saveOptions();
+    return { strong: strong, broken: broken };
+  })()`);
+  check('a strong run reaches an ending', fair.strong.mode === 'ending');
+  check('and a ruined one reaches one too — never a hang, never a soft-lock',
+    fair.broken.mode === 'ending');
+
+  // session length: a year should still be an evening, not a commute
+  const length = G(`(function(){
+    var secPerDay = 1440 / MIN_PER_SEC;
+    return { normal: YEAR_DAYS * secPerDay / 60, long: yearDays() * secPerDay / 60 };
+  })()`);
+  check('an ordinary year runs 45-70 minutes',
+    length.normal >= 45 && length.normal <= 70);
 })();
 G('forgetBloodline(); clearSave(); newGame();');
 

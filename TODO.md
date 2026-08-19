@@ -1240,45 +1240,45 @@ learning. Stored in the legacy record (they persist across years).
 
 ### Part 6 — Juice
 
-- [ ] 6.1 The kill: ~110 ms hit-stop on the catch, a low body-fall thud, a dust
+- [x] 6.1 The kill: ~110 ms hit-stop on the catch, a low body-fall thud, a dust
       puff, and the pack converging to feed with a warm idle-feeding cluster.
-- [ ] 6.2 The ambush: on commit a 0.25 s slow-motion (time scale 0.35) through
+- [x] 6.2 The ambush: on commit a 0.25 s slow-motion (time scale 0.35) through
       the pounce, then snap back. **Reserved entirely for the ambush** so it
       reads as THE skill moment.
-- [ ] 6.3 Level-up: on a tier crossing, a short howl, a mark-fill animation on
+- [x] 6.3 Level-up: on a tier crossing, a short howl, a mark-fill animation on
       the roster, and one line in the register (`'Fen runs like she means it
       now.'`).
-- [ ] 6.4 Near-miss/escape: keep the whoosh; add a brief chromatic/desaturation
+- [x] 6.4 Near-miss/escape: keep the whoosh; add a brief chromatic/desaturation
       pulse on a prey escape so failure has weight.
-- [ ] 6.5 The pack feels alive: idles when stationary and fed — play-bows
+- [x] 6.5 The pack feels alive: idles when stationary and fed — play-bows
       between yearlings, a wolf lying down, one drifting to Aspen to touch
       noses. Attachment is what makes both the fun and the loss land.
-- [ ] 6.6 Wind and weather presence, now that wind is mechanical: drifting
+- [x] 6.6 Wind and weather presence, now that wind is mechanical: drifting
       motes, grass lean, a stronger gust sound on high wind.
-- [ ] 6 Harness (thin — browser-judged): hit-stop and slow-mo set AND restore
+- [x] 6 Harness (thin — browser-judged): hit-stop and slow-mo set AND restore
       the time scale; a tier crossing fires exactly one level-up; idles only
       when stationary, fed, and unthreatened.
 
 ### Part 7 — Rebalance for the new engine
 
-- [ ] 7.1 Food economy: with hares as a floor and ambush efficiency as a skill,
+- [x] 7.1 Food economy: with hares as a floor and ambush efficiency as a skill,
       raise baseline drain ~+10% so hunting stays a live pressure. Verify a
       skilled player is comfortable and a careless one is not.
-- [ ] 7.2 The difficulty fork: one diegetic question at year start — "A mild
+- [x] 7.2 The difficulty fork: one diegetic question at year start — "A mild
       year, or a hard one?" Mild = drains ×0.75 and wider warnings; hard = these
       values. Persisted in options.
-- [ ] 7.3 Winter: with deer ×3 and no eastern elk, winter is hare-and-nerve —
+- [x] 7.3 Winter: with deer ×3 and no eastern elk, winter is hare-and-nerve —
       genuinely lean, survivable by a strong pack, brutal for a weak one. Verify
       both the strong and the ruined run still finish (standing fairness rule).
-- [ ] 7.4 Session length: target 45–70 min for a year. If the stalk pushes past
+- [x] 7.4 Session length: target 45–70 min for a year. If the stalk pushes past
       80, shorten the CALENDAR rather than speeding the clock — the stalk needs
       its time.
-- [ ] 7 Harness: mild/hard multipliers apply and persist; a scripted "strong"
+- [x] 7 Harness: mild/hard multipliers apply and persist; a scripted "strong"
       run and a scripted "ruined" run both reach an ending.
 
 ### Part 32 closing gate
 
-- [ ] `npm test` green three runs; `npm run layout` clean; CLAUDE.md's
+- [x] `npm test` green three runs; `npm run layout` clean; CLAUDE.md's
       superseded locked rules (pack only shrinks, hunt = spot-and-chase, no
       persistent progression, austere feedback) all amended.
 - [ ] **Play a full year in the browser and answer honestly in NOTES.md — was

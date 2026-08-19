@@ -129,6 +129,8 @@ window.addEventListener('keydown', (ev) => {
     beginNextGeneration();
     return;
   }
+  // the year's one question, answered
+  if (S && S.askDifficulty && (k === '1' || k === '2')) { chooseDifficulty(k === '1' ? 'mild' : 'hard'); return; }
   if (k === 'r') { requestNewYear(); return; }
   if (k === 'm') { toggleMute(); return; }
   // settings, mid-year as well as from the intro — the world holds while they are
