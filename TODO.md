@@ -906,6 +906,82 @@ Additive only — preserve every system. Harness + NOTES + commit per part.
       polygons: the canopy is now a smooth closed curve (16 points, gentle 0.93–
       1.05 wobble + a slight random ellipse, quadratics through edge midpoints).
 
+## Part 38 — Playtest batch after the fun pass (Arjun, 2026-08-19)
+
+Arjun's list, deduplicated. **The tutorial/prologue rework (T1–T4) is the most
+important item in this batch** — the game now has far more to teach than it did,
+and it currently teaches almost none of it.
+
+### T — the tutorial and the prologue (the big one)
+- [ ] T1 The hunt is taught properly and at length: the stalk as its own lesson —
+      wind, cover, staying low, closing the distance, the ambush window, the
+      pounce — instead of one line about running prey down.
+- [ ] T2 The tutorial teaches EVERYTHING, slowly, one thing at a time, rather than
+      leaving verbs (drinking, above all) to be discovered after Willow is dead.
+      Anything a player needs is taught before it is needed.
+- [ ] T3 Every new symbol is explained the first time it appears, one by one: the
+      alert marks over prey (what "wary" and "alarmed" look like), the three tier
+      shapes on the roster (hunting / nerve / endurance), the streak dots beside
+      the food bar, `pack N`, and what "the long year" means.
+- [ ] T4 Holding at Willow's side changes more than the circle — the moment is the
+      emotional centre of the game and should feel like it.
+
+### H — the hunt
+- [ ] H1 The pounce actually pounces: a real leap that covers ground, with an
+      animation. At the moment it is indistinguishable from walking.
+- [ ] H2 Rename `crouch` to **stalk** everywhere, including the touch button (it
+      currently reads "Low", which explains nothing).
+- [ ] H3 Stalking is available at ANY time. After a hunt goes wrong it is
+      currently blocked for a long stretch, and pressing pounce answers "it has
+      already seen her" — a bad decision should be allowed, not refused.
+- [ ] H4 Prey routes around trees. Hitting one currently pins an animal and makes
+      it trivial to catch.
+- [ ] H5 Cattle are bigger than elk: they need the whole pack, not one wolf.
+- [ ] H6 The prologue's scripted animal is a DEER, not an elk — an elk now needs
+      the pack, so it cannot be the tutorial's first solo kill.
+- [ ] H7 The scripted animal is genuinely on screen when it is named.
+- [ ] H8 An arrow points back toward the pack when she is far from them after a
+      hunt.
+
+### P — the pack
+- [ ] P1 The pack stops vibrating when Aspen moves slowly (stalking, sick, hurt) —
+      one root cause, two reports.
+- [ ] P2 A wolf that will not cross waits on ONE SIDE, never standing on the
+      bridge/road itself.
+- [ ] P3 Frightened wolves near the town run to safe ground first, then freeze —
+      at the moment they root where they stand.
+- [ ] P4 Wolves stop getting stuck in trees (reported both in the prologue and in
+      the year proper).
+- [ ] P5 Sedge is a little faster than now, but still slower than Aspen.
+- [ ] P6 "F to stand tall" only appears when there is actually something to stand
+      tall at.
+
+### W — the western pack
+- [ ] W1 They have visible marks and scent, and a patrol that can actually be
+      read and timed — the game tells the player to read sign that is not there.
+
+### U — UI, and what the screen says
+- [ ] U1 The pup-food bar stays while there are pups to feed; it only goes when
+      there are none or they travel with her.
+- [ ] U2 No prompt names a key on a touch device (reported for "press F" and
+      "WASD to walk").
+- [ ] U3 The touch buttons fit the screen on any device.
+- [ ] U4 A touch settings menu, top-right: restart the year (with a confirm),
+      sound, and a way to skip the prologue.
+- [ ] U5 The first time the map opens, say that the same key closes it.
+- [ ] U6 Leaving the map no longer flashes a wide view before settling to the
+      normal one.
+- [ ] U7 The fence line is visible.
+
+### S — the world
+- [ ] S1 Human-area sounds are quieter.
+- [ ] S2 Cattle stay inside the dogs' ground; that ground is bigger, and the dogs
+      are a little slower.
+- [ ] S3 Willow's dying head reads as a head, not a curved arrow, and her eye is
+      not unsettling.
+- [ ] S4 Skills show in the thing they are about — endurance in how she moves,
+      not only in what she eats.
+
 ## Part 36 — Notes from Part 4 (2026-08-17)
 
 - [x] The legacy record stores the ways as EDGE IDS (`inheritedWays`), not
