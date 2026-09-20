@@ -1,1 +1,5 @@
 .claude/
+
+# Not part of the game: an Elpys skill that was dropped in this folder.
+# The files are left on disk; they belong with the volunteer-site project.
+elpys-opportunity-scout skill/
