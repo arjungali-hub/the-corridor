@@ -2907,7 +2907,7 @@ function drawHUD() {
   }
   if (S.hud.food) { drawBar(20, by, 140, 'WATER', S.water / 100, S.water < 25 ? '#b0473a' : '#5f7d92'); by += 16; }
   if (S.hud.fear && S.fear > 0.01) { drawBar(20, by, 140, 'FEAR', S.fear, '#a5443a'); by += 16; }
-  if (S.hud.pups && S.pups && !S.pups.traveling && S.pups.count > 0 && S.pups.food > 0.5) {
+  if (S.hud.pups && S.pups && !S.pups.traveling && S.pups.count > 0) {
     drawBar(20, by, 140, `PUP FOOD ×${S.pups.count}`, S.pups.food / 100, '#8d6f4a'); by += 16;
   }
   if (isInjured() || (S.sickT || 0) > 0) {

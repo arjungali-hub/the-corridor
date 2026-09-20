@@ -81,6 +81,8 @@ const PUPS_TRAVEL_DAY  = 240;
 const DEN_DEADLINE_DAY = 70;
 const CAR_SPEED     = 700;
 const FEAR_NEAR_MISS = 0.22;
+// nerve is not only about crossing: a steady wolf simply frightens less
+function fearGainMult() { return S ? [1.15, 1.0, 0.88, 0.76][nerveTier(S.wolf)] : 1; }
 const FEAR_BALK     = 0.55;  // above this, an untested packmate refuses the road
 
 // ── the pack grows ───────────────────────────────────────────────────────────
@@ -818,7 +820,7 @@ function capOf(action) {
   // On a touch device there are no keys — the teaching text names the on-screen
   // buttons instead, so "Hold E to smell" becomes "Hold Smell to smell".
   if (touchMode) {
-    const label = { map: 'Map', scent: 'Smell', drink: 'Drink', crouch: 'Low', pounce: 'Leap' }[action];
+    const label = { map: 'Map', scent: 'Smell', drink: 'Drink', crouch: 'Stalk', pounce: 'Pounce' }[action];
     if (label) return label;
   }
   const k = (typeof OPTIONS !== 'undefined' && OPTIONS && OPTIONS.bindings) ? OPTIONS.bindings[action] : null;
@@ -1996,6 +1998,12 @@ function packUpdate(dt) {
     const railTargetBad = !railOk && (onRail(w.tx, w.ty) || ((w.x < railMid) !== (w.tx < railMid)));
     if (roadTargetBad || railTargetBad) {
       if (roadTargetBad) w.tx = w.x < hMid ? Math.min(w.tx, hw.x0 - 46) : Math.max(w.tx, hw.x1 + 46);
+      // and if it is standing ON the crossing it does not wait there: it steps off
+      // to its own side rather than loitering in the traffic
+      if (onRoad(w.x, w.y) || (onDeck(w.x, w.y) && overpassOpen() && !overpassTrusted())) {
+        w.tx = w.x < hMid ? hw.x0 - 60 : hw.x1 + 60;
+        w.ty = w.y;
+      }
       if (railTargetBad) w.tx = w.x < railMid ? Math.min(w.tx, rl.x0 - 46) : Math.max(w.tx, rl.x1 + 46);
       // and stop re-rolling a fresh slot onto the asphalt every frame
       w.wanderT = Math.max(w.wanderT || 0, 1.5 + Math.random() * 2);
@@ -2179,7 +2187,7 @@ function carCollisions() {
         }
       } else if (dy < 130 && receding) {
         car.met.add(id);
-        S.fear = Math.min(1, S.fear + FEAR_NEAR_MISS);
+        S.fear = Math.min(1, S.fear + FEAR_NEAR_MISS * fearGainMult());
         S.shake = Math.max(S.shake, 4);
         S.gapClean = false;   // that was not a silence
         playWhoosh();
@@ -2252,7 +2260,9 @@ function crouchActive() {
   if (S.mode !== 'play' && S.mode !== 'prologue') return false;
   if (S.senseBlend > 0.25 || S.inputLockT > 0) return false;
   if (onRoad(S.wolf.x, S.wolf.y)) return false;
-  if (chaseIsOn()) return false;
+  // Deliberately NOT blocked mid-chase any more. Stalking while something is
+  // already running is a poor choice, not an impossible one, and refusing the key
+  // read as the verb being broken.
   return true;
 }
 function chaseIsOn() {
@@ -2334,7 +2344,7 @@ function pounceRefused() {
   if (!best || bd > 900) { say('Nothing near enough to take.'); return; }
   const st = alertStateOf(best);
   if (st === 'alarmed' || st === 'fleeing') {
-    say('It has already seen her. Run it down, or let it go and find another.');
+    say('That one has its head up. Too late for close work — run it, or find another.');
   } else if (!S.crouched) {
     say(`Too far, and too tall. Hold ${capOf('crouch')} and come at it low, downwind.`);
   } else {
@@ -2621,7 +2631,9 @@ function preyUpdate(dt) {
     const spd = Math.hypot(elk.vx, elk.vy);
     if (spd > 2) {
       // prey may roam the apron, where Aspen cannot follow
-      tryMove(elk, elk.vx * dt, elk.vy * dt, (x, y) => blockedAt(x, y, 14, false, APRON));
+      // moveAround, not tryMove: a pinned animal against a trunk had no way to
+      // slide and became trivial to catch. Prey rounds obstacles like wolves do.
+      moveAround(elk, elk.vx * dt, elk.vy * dt, (x, y) => blockedAt(x, y, 14, false, APRON), dt);
       const targetHd = Math.atan2(elk.vy, elk.vx);
       let dh = targetHd - elk.heading;
       while (dh > Math.PI) dh -= Math.PI * 2;
@@ -2702,9 +2714,12 @@ function preyUpdate(dt) {
     if (caught) {
       // An elk is not brought down by one wolf. Spent or not, alone she cannot
       // finish it — it turns, and it can hurt her. This is what teaches the pack.
-      if (HERDS[elk.herd].species === 'elk' && !elk.scripted && S.mode === 'play') {
+      // An elk wants two wolves; cattle are bigger again and want three.
+      const bigSp = HERDS[elk.herd].species;
+      const needed = bigSp === 'cattle' ? 3 : bigSp === 'elk' ? 2 : 0;
+      if (needed && !elk.scripted && S.mode === 'play') {
         const pursuers = catchers.filter(h => dist(elk.x, elk.y, h.x, h.y) < ELK_PURSUE_R).length;
-        if (pursuers < 2) { elkTurns(elk, catchers); continue; }
+        if (pursuers < needed) { elkTurns(elk, catchers, needed); continue; }
       }
       takePrey(i);
     }
@@ -2713,7 +2728,7 @@ function preyUpdate(dt) {
 
 // The elk turns on a wolf that came alone. No gore: a wound, a shove, and the
 // lesson — said once, because the point is to learn it, not to be told it twice.
-function elkTurns(elk, catchers) {
+function elkTurns(elk, catchers, needed) {
   elk.turnCd = Math.max(0, (elk.turnCd || 0));
   if (elk.turnCd > 0) return;
   elk.turnCd = 3.5;
@@ -2747,7 +2762,9 @@ function elkTurns(elk, catchers) {
   }
   if (!S.tut.elkNeedsPack) {
     S.tut.elkNeedsPack = true;
-    stickyPrompt(`An elk needs the pack at your shoulder — bring them, or hunt something smaller.`, []);
+    const what = HERDS[elk.herd].species === 'cattle' ? 'One of the cattle' : 'An elk';
+    const n = needed || 2;
+    stickyPrompt(`${what} needs ${n === 3 ? 'the whole pack' : 'the pack'} at your shoulder — bring them, or hunt something smaller.`, []);
   }
 }
 
@@ -3126,7 +3143,11 @@ function silenceUpdate(dt) {
     if (S.alarm >= 1) {
       S.alarm = 0;
       S.conflict = Math.min(1, S.conflict + 0.08);
-      S.fear = Math.min(1, S.fear + 0.3);
+      // enough fright to send them for cover, and a source to run FROM — they
+      // used to root where they stood while people walked at them
+      S.fear = Math.min(1, S.fear + 0.62 * fearGainMult());
+      S.fearSource = { x: (OBSTACLES.subdivision.x0 + OBSTACLES.subdivision.x1) / 2,
+                       y: (OBSTACLES.subdivision.y0 + OBSTACLES.subdivision.y1) / 2 };
       S.flickerT = 0.3;
       playBark();
       say('Porch lights. Doors open. People spill out toward the pack. Seen.');
@@ -3327,8 +3348,13 @@ function westPackUpdate(dt) {
   if (prev !== 'confrontation' && S.westState === 'confrontation') {
     S.fear = Math.min(1, S.fear + 0.2);
     playGrowl();
-    stickyPrompt('Their line. Stand the pack tall — F — or fall back.', ['F']);
+    const cap = touchMode ? 'Wait' : 'F';
+    stickyPrompt(`Their line. Stand the pack tall — ${cap} — or fall back.`, [cap]);
   }
+  // …and it goes the moment their line does. It is a STICKY prompt, so backing off
+  // used to leave "stand the pack tall" on screen miles from their ground.
+  if (prev === 'confrontation' && S.westState !== 'confrontation'
+      && S.prompt && /stand the pack tall/i.test(S.prompt.text)) clearPrompt();
   // P5: a clash is only reached by forcing deeper with no withdraw; it is a
   // costly failure, resolved and then she is pushed out regardless
   if (S.westState === 'clash' && prev !== 'clash') {
@@ -5003,6 +5029,7 @@ function playMotif(name) {
 
 // A distant machine: a dull thump, sometimes with the back-up beep behind it.
 function playClank(vol) {
+  vol = (vol || 1) * 0.45;   // the human noise sat too loud over everything else
   const ac = getAudioCtx(); if (!ac) return;
   const now = ac.currentTime;
   const o = ac.createOscillator(), g = ac.createGain();

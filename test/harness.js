@@ -1549,7 +1549,11 @@ check('the townsfolk move (out toward the pack, then back home)',
 G('S.townsfolk = []; S.alarm = 0;');
 
 // taking cattle: easy meat, hard arithmetic
-G("(() => { const c = S.elk.find(e => HERDS[e.herd].cattle); c.stamina = 5; S.wolf.x = c.x; S.wolf.y = c.y; })()");
+// cattle are bigger than elk now and want the WHOLE pack: bring two with her
+G(`(() => { const c = S.elk.find(e => HERDS[e.herd].cattle); c.stamina = 5; S.wolf.x = c.x; S.wolf.y = c.y;
+   const crew = alivePack().slice(0, 2);
+   crew.forEach((w, i) => { w.state = 'follow'; w.balked = false; w.frozenT = 0; w.fleeTo = null;
+     w.x = c.x + 10 + i * 8; w.y = c.y; }); })()`);
 const conflictBeforeCalf = G('S.conflict');
 step(1 / 20, 6);
 check('cattle are taken and the house will know', G('S.conflict') >= conflictBeforeCalf + 0.29);
@@ -2907,12 +2911,20 @@ G('forgetBloodline(); clearSave(); newGame(); applyPostPrologue();'); G("S.mode 
   // idles only when there is genuinely nothing to do
   const idle = G(`(function(){
     function tryIdle(setup){
-      S.pack.forEach(function(w){ w.idle = null; w.idleT = 0; w.idleCd = 0; w.moving = false; });
+      S.pack.forEach(function(w){ w.idle = null; w.idleT = 0; w.idleCd = 0; w.moving = false;
+        if (w.state !== 'dead' && w.state !== 'gone') { w.state = 'follow'; w.balked = false; w.frozenT = 0; w.fleeTo = null; } });
       S.fear = 0; S.packFrozen = false; S.food = 90; S.feedAt = null;
       S.standoff = null; S.westState = 'calm';
       setup();
-      for (var i = 0; i < 400; i++) packIdleUpdate(1/20);
-      return alivePack().some(function(w){ return !!w.idle; });
+      // ask whether it played AT ALL across the window, not whether one happens to
+      // be mid-play on the final frame — an idle ends and then sits in a cooldown,
+      // so sampling only the last frame is a coin toss
+      var played = false;
+      for (var i = 0; i < 400; i++) {
+        packIdleUpdate(1/20);
+        if (alivePack().some(function(w){ return !!w.idle; })) played = true;
+      }
+      return played;
     }
     var calm    = tryIdle(function(){});
     var afraid  = tryIdle(function(){ S.fear = 0.6; });

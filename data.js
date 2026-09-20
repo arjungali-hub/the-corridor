@@ -266,7 +266,7 @@ const TERRAIN = {
 // yearling: routes walked while they follow are silently copied to their map.
 const PACK_DEF = [
   { id: 'bram',  name: 'Bram',  mult: 0.80, yearling: false },
-  { id: 'sedge', name: 'Sedge', mult: 1.08, yearling: false },   // prey-pace, no faster
+  { id: 'sedge', name: 'Sedge', mult: 1.10, yearling: false },   // quick, but never quicker than Aspen
   { id: 'alder', name: 'Alder', mult: 1.00, yearling: true },
   { id: 'fen',   name: 'Fen',   mult: 1.00, yearling: true },
 ];
