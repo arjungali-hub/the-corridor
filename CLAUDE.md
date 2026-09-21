@@ -30,7 +30,7 @@ the ending card.
   `requestAnimationFrame` exists, so the whole game runs headless under
   Node's `vm` for testing (stub `document`/`window`/`localStorage`, call
   `update`/`draw` directly).
-- `test/harness.js` — the headless harness, 338 checks, no dependencies:
+- `test/harness.js` — the headless harness, 537 checks, no dependencies:
   `npm test` (or `node test/harness.js`). Drives the real keydown handler and
   the real `update(dt)` through the prologue and the year. Must print
   `ALL CHECKS PASSED` before every commit. Three stack traces just before the
@@ -171,6 +171,28 @@ the ending card.
   "freezes" only when it is rooted. Text is fitted with `fitLines`/`drawFitted` so
   it fits any screen, and on touch nothing ever names a key — `capOf()` returns
   button names, and keyboard-only verbs are omitted entirely rather than described.
+  A phone also has no O/M/R: everything those keys do lives behind one gear in the
+  top-right (`drawTouchMenu`) — restart the year (asked twice), sound, and a way
+  past the prologue.
+- **A draw function sets its own context state; it never inherits it.** Alpha,
+  composite op and transform all leak forward, and a function that runs late in
+  `draw()` sees whatever the last one left. `drawVigil` set alpha for its first
+  pass inside a `save`/`restore` and not for its second, and ran at roughly half
+  strength for as long as it existed. When a visual effect is "not showing",
+  measure the *frame's own* output — calling the function again by hand stacks a
+  second pass and makes a working effect look broken.
+- **A check goes in for every fix that came from a playtest report**, not just for
+  fixes that came from a test. Part 38 shipped three fixes with no check, and two
+  of them were wrong: H8's arrow was written inside `prologueUpdate()`, so it could
+  never run in the year it was for. Writing the check found it. Measure the
+  quantity the item is actually about — "camera is within 8% of world scale" fails
+  on tuning; "camera is less than 15% of the way back toward the MAP's scale" fails
+  on the regression.
+- **Give a flaky timing check more TIME, never a weaker assertion.** The
+  rail-crossing check gave a wolf 7s to cover 340u and failed one run in three,
+  because crossing time genuinely varies (the dwell, and which side of an obstacle
+  `moveAround` commits to). It loops until crossed now, up to 21s, and still
+  asserts that it crosses.
 - **The hunt is a STALK** (superseded the old spot-and-chase in the fun pass,
   Part 32/1 — the approach is the skill, the chase is the consequence). Prey
   carry `alert` 0..1 → `grazing` / `wary` / `alarmed` / `fleeing`. It rises while

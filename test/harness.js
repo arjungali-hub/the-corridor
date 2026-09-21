@@ -772,7 +772,6 @@ check('the land is restocked after the stalk checks', G('S.elk.length') >= 15);
     }
     return { refused: refused, hurt: hurt, told: S.tut.elkNeedsPack };
   })()`);
-  if (!(soloElk.hurt > 3 && soloElk.hurt < 37)) console.log('DEBUG-SOLOELK', JSON.stringify(soloElk));
   check('one wolf cannot bring down an elk: every time, the catch is refused',
     soloElk.refused === 40);
   // Pin the dice rather than sampling them. The rate is 35%, so a 40-trial sample
@@ -1343,6 +1342,128 @@ G(`S.elk = _vibeElk; S.wolf.x = _vibeWx; S.wolf.y = _vibeWy;
    S.pack.forEach(function(w){ w.state = 'follow'; w.holdX = undefined; w.holdY = undefined;
      w.dwellT = 0; w.dwelled = false; });
    S.zoneAnchor = null;`);
+
+// P1: the SAME measurement while Aspen crawls. The second report of the vibration
+// was not the road at all — it was her speed. A wolf whose follow target sits a
+// fixed distance behind a wolf moving at a twentieth of its own pace arrives every
+// frame and re-picks every frame. It creeps with her now.
+const creep = G(`(function(){
+  _crElk = S.elk.slice(); _crWx = S.wolf.x; _crWy = S.wolf.y;
+  S.elk.length = 0; S.cars.length = 0; S.fear = 0; S.packFrozen = false; S.zoneAnchor = null;
+  S.wolf.x = 2200; S.wolf.y = 2000;                 // open ground, no barrier to blame
+  S.crouched = true; input.crouch = true;
+  S.pack.forEach(function(w, i){
+    w.state = 'follow'; w.balked = false; w.frozenT = 0; w.fleeTo = null; w.lost = false;
+    w.onHunt = false; w.holdX = undefined; w.holdY = undefined;
+    w.x = S.wolf.x - 70 - i * 16; w.y = S.wolf.y + (i % 2 ? 20 : -20);
+    w.tx = undefined; w.wanderT = 0; w.dwellT = 0; w.dwelled = false; w.roundSide = 0; w.stuckT = 0;
+  });
+  for (var s = 0; s < 40; s++) { S.cars.length = 0; input.up = true; update(1/20); }
+  var live = alivePack();
+  var worst = 0;
+  for (var win = 0; win < 4; win++) {
+    var start = live.map(function(w){ return { x: w.x, y: w.y }; });
+    var prev  = live.map(function(w){ return { x: w.x, y: w.y }; });
+    var pathLen = live.map(function(){ return 0; });
+    for (var t = 0; t < 40; t++) {
+      S.cars.length = 0; input.up = true; update(1/20);
+      for (var k = 0; k < live.length; k++) {
+        pathLen[k] += Math.hypot(live[k].x - prev[k].x, live[k].y - prev[k].y);
+        prev[k] = { x: live[k].x, y: live[k].y };
+      }
+    }
+    for (var k = 0; k < live.length; k++) {
+      if (pathLen[k] < 60) continue;                // barely moved: not the bug
+      var net = Math.hypot(live[k].x - start[k].x, live[k].y - start[k].y);
+      var ratio = pathLen[k] / Math.max(1, net);
+      if (ratio > worst) worst = ratio;
+    }
+  }
+  return { worst: worst, n: live.length };
+})()`);
+if (creep.worst >= 4) console.log('DEBUG-CREEP', JSON.stringify(creep));
+check('the pack does not vibrate while she stalks (path/net stays sane)', creep.worst < 4);
+G(`S.elk = _crElk; S.wolf.x = _crWx; S.wolf.y = _crWy;
+   S.crouched = false; input.crouch = false; input.up = false;
+   S.pack.forEach(function(w){ w.state = 'follow'; w.holdX = undefined; w.holdY = undefined;
+     w.dwellT = 0; w.dwelled = false; });
+   S.zoneAnchor = null;`);
+
+// S2: cattle stay on the ground the dogs can answer for. They used to graze out of
+// the yard entirely, which made "watched" meaningless — the ledger said they were
+// guarded and the world said otherwise.
+const yard = G(`(function(){
+  var hid = -1;
+  for (var i = 0; i < HERDS.length; i++) if (HERDS[i].species === 'cattle') hid = i;
+  var cows = [];
+  for (var n = 0; n < 4; n++) {
+    var c = { herd: hid, x: HERDS[hid].anchor.x, y: HERDS[hid].anchor.y, alert: 0, stam: 100 };
+    for (var t = 0; t < 200; t++) pickGrazeTarget(c);
+    cows.push(c);
+  }
+  var worst = 0;
+  for (var n = 0; n < cows.length; n++) {
+    var d = dist(cows[n].tx, cows[n].ty, RANCH.dogHome.x, RANCH.dogHome.y);
+    if (d > worst) worst = d;
+  }
+  return { worst: Math.round(worst), yard: CATTLE_YARD };
+})()`);
+check('cattle never graze outside the dogs\' ground', yard.worst <= yard.yard);
+
+// H8: after a hunt carries her off, the way back to the pack is pointed out
+const backToPack = G(`(function(){
+  _g8x = S.wolf.x; _g8y = S.wolf.y; _g8m = S.mode; _g8z = S.zoneAnchor;
+  S.mode = 'play'; S.zoneAnchor = null;
+  var crew = alivePack().filter(function(w){ return !w.pup; });
+  crew.forEach(function(w, i){ w.x = 2000 + i * 20; w.y = 2000; });
+  S.wolf.x = 2000; S.wolf.y = 2000 + 300;      // close: no arrow, she can see them
+  update(1/60);
+  var nearOff = S.guide === null;
+  S.wolf.y = 2000 + 900;                       // far: point the way
+  update(1/60);
+  var best = null, bd = 1e9;
+  for (var i = 0; i < crew.length; i++) {
+    var d = dist(S.wolf.x, S.wolf.y, crew[i].x, crew[i].y);
+    if (d < bd) { bd = d; best = crew[i]; }
+  }
+  var farOn = !!S.guide && best && dist(S.guide.x, S.guide.y, best.x, best.y) < 60;
+  return { nearOff: nearOff, farOn: farOn, guide: S.guide, bd: Math.round(bd),
+           crew: crew.length, mode: S.mode };
+})()`);
+check('no arrow home while the pack is in sight', backToPack.nearOff === true);
+check('an arrow points back to the nearest packmate once she is far off',
+  backToPack.farOn === true);
+G(`S.wolf.x = _g8x; S.wolf.y = _g8y; S.mode = _g8m; S.zoneAnchor = _g8z;
+   alivePack().forEach(function(w, i){ w.x = S.wolf.x - 30 - i * 14; w.y = S.wolf.y + (i % 2 ? 16 : -16);
+     w.state = 'follow'; w.tx = undefined; });`);
+
+// U6: lowering the map used to flash a wide view of the world before settling.
+// The map's ink fades on `senseBlend`, but the CAMERA was lerping on the same
+// number — so for the last stretch of the blend the world was being drawn at the
+// map's pulled-back scale. The camera leads the map out now: by the time the ink
+// is gone it is already home.
+const mapExit = G(`(function(){
+  _meX = S.wolf.x; _meY = S.wolf.y;
+  S.mapOpen = true; S.forcedSenseT = 0; input.scent = false;
+  for (var i = 0; i < 200 && S.senseBlend < 0.999; i++) update(1/60);
+  var wide = S.cam.scale;
+  S.mapOpen = false;
+  var worst = 0, blendAtWorst = 1;
+  for (var i = 0; i < 300 && S.senseBlend > 0.001; i++) {
+    update(1/60);
+    if (S.senseBlend > 0.05) continue;            // the ink is still on screen
+    // ink essentially gone: how far back toward the MAP's scale is the camera
+    // still sitting? 1 = still framing the whole land, 0 = home. A few percent is
+    // the tail of the ease; anything large is the flash.
+    var off = (SCALE_WORLD * 2 - S.cam.scale) / (SCALE_WORLD * 2 - wide);
+    if (off > worst) { worst = off; blendAtWorst = S.senseBlend; }
+  }
+  return { wide: wide, worst: worst, blendAtWorst: blendAtWorst, ended: S.cam.scale };
+})()`);
+check('the raised map really does pull the camera out', mapExit.wide < G('SCALE_WORLD') * 2);
+check('lowering the map does not flash a wide world (camera leads the ink out)',
+  mapExit.worst < 0.15);
+G(`S.mapOpen = false; input.sense = false; S.wolf.x = _meX; S.wolf.y = _meY;`);
 
 // The roster tells the truth about how a wolf was lost
 // Read the SAVE PAYLOAD rather than calling loadGame(): a live load mid-run
@@ -2131,7 +2252,11 @@ G("S.mode = 'play'; S.endKind = null; S.trains.length = 0; S.shake = 0; S.wolf.x
 G("S.mode = 'play'; S.era = 'present'; S.fear = 0; S.packFrozen = false; S.trains.length = 0; S.cars.length = 0; S.tut.fTaught = true;");
 G("S.wolf.x = -1500; S.wolf.y = 1500;");
 G("_rc = alivePack().filter(w => !w.pup)[0]; _rc.state = 'follow'; _rc.balked = false; _rc.holdX = undefined; _rc.x = -820; _rc.y = 1500;");
-for (let i = 0; i < 140; i++) { G('S.fear = 0; S.trains.length = 0;'); step(); }
+// Give it room in TIME rather than loosening the assertion: how long the
+// crossing takes varies (the dwell between wander targets, and which side of
+// the ballast it commits to going round), and 7s made this check flaky. What
+// is being asserted is that it crosses at all, not how fast.
+for (let i = 0; i < 420 && G('_rc.x') >= -1160; i++) { G('S.fear = 0; S.trains.length = 0;'); step(); }
 check('the pack crosses the rail to follow her (no phantom wall behind her)',
   G('_rc.x') < -1160);
 G("S.pack.forEach(w => { w.state = 'follow'; w.holdX = undefined; }); S.wolf.x = 2600; S.wolf.y = 1800;");

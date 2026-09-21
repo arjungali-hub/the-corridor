@@ -548,12 +548,12 @@ function buildBaseLayer() {
     const fe = OBSTACLES.fence;
     const flen = Math.hypot(fe.x1 - fe.x0, fe.y1 - fe.y0);
     const fux = (fe.x1 - fe.x0) / flen, fuy = (fe.y1 - fe.y0) / flen;
-    b.strokeStyle = 'rgba(120,100,70,0.35)';
-    b.lineWidth = 10;
+    b.strokeStyle = 'rgba(126,104,72,0.55)';
+    b.lineWidth = 13;
     b.beginPath(); b.moveTo(fe.x0 + fuy * 16, fe.y0 - fux * 16); b.lineTo(fe.x1 + fuy * 16, fe.y1 - fux * 16); b.stroke();
     for (const off of [2, 5]) {   // wire
-      b.strokeStyle = `rgba(60,55,48,0.${7 - off})`;
-      b.lineWidth = 1.4;
+      b.strokeStyle = `rgba(44,40,34,0.${9 - off})`;
+      b.lineWidth = 2.1;
       b.beginPath(); b.moveTo(fe.x0, fe.y0 - off); b.lineTo(fe.x1, fe.y1 - off); b.stroke();
     }
     for (let s = 0; s <= flen; s += 64) {   // posts
@@ -878,21 +878,37 @@ function drawWillowLying(w) {
   ctx.strokeStyle = tone.dark;
   ctx.lineWidth = Math.max(1, size * 0.075);
   ctx.stroke();
-  // ear, laid back the way a resting wolf carries it
+  // Ear: a small rounded triangle sitting ON the skull. The old one was a long
+  // quadratic sweep off the back of the head, which read as a curved arrow rather
+  // than an ear.
   ctx.fillStyle = tone.dark;
   ctx.beginPath();
-  ctx.moveTo(hx - size * 0.34, hy - size * 0.34);
-  ctx.quadraticCurveTo(hx - size * 0.62, hy - size * 0.72, hx - size * 0.1, hy - size * 0.5);
+  ctx.moveTo(hx - size * 0.30, hy - size * 0.22);
+  ctx.lineTo(hx - size * 0.40, hy - size * 0.52);
+  ctx.lineTo(hx - size * 0.06, hy - size * 0.40);
   ctx.closePath(); ctx.fill();
   // muzzle, tapering to the nose
   ctx.fillStyle = tone.light;
   ctx.beginPath(); ctx.ellipse(hx + size * 0.5, hy + size * 0.3, size * 0.38, size * 0.2, 0.55, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = tone.dark;
   ctx.beginPath(); ctx.arc(hx + size * 0.78, hy + size * 0.46, size * 0.1, 0, Math.PI * 2); ctx.fill();
-  // the eye: open and watching while she is alive, closed once she is not
+  // The eye. Dying, it is half-lidded and soft — not a bright amber bead staring
+  // out of a lying-down wolf, which is what made her read as wrong rather than sad.
   if (w.alive) {
-    ctx.fillStyle = 'rgba(226,182,96,0.95)';
-    ctx.beginPath(); ctx.ellipse(hx + size * 0.16, hy - size * 0.02, size * 0.12, size * 0.085, 0.4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = 'rgba(58,46,34,0.9)';
+    ctx.beginPath();
+    ctx.ellipse(hx + size * 0.16, hy - size * 0.02, size * 0.13, size * 0.055, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(214,180,120,0.45)';   // a little light left in it
+    ctx.beginPath();
+    ctx.ellipse(hx + size * 0.19, hy - size * 0.035, size * 0.05, size * 0.026, 0.35, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = tone.dark;                // the lid, coming down
+    ctx.lineWidth = Math.max(1, size * 0.055);
+    ctx.beginPath();
+    ctx.moveTo(hx + size * 0.02, hy - size * 0.07);
+    ctx.quadraticCurveTo(hx + size * 0.17, hy - size * 0.12, hx + size * 0.31, hy - size * 0.02);
+    ctx.stroke();
   } else {
     ctx.strokeStyle = tone.dark;
     ctx.lineWidth = Math.max(1, size * 0.08);
@@ -1601,6 +1617,7 @@ function drawWorld() {
     S.wolf.moving, S.wolf.gait, isInjured());
   drawAmbushCue();
 
+  drawWestPresence();
   drawPuffs();
   drawWindMotes();
   drawPrologueWorldBits();
@@ -2907,6 +2924,7 @@ function drawHUD() {
   if (!onMap) { ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 5; }
 
   const s = ts();   // 9d text scale
+  let hudLeftBottom = 16;   // how far down the left-hand block reaches this frame
   if (S.hud.day) {
     ctx.font = `bold 17px ${FONT}`;
     ctx.fillStyle = inkText;
@@ -2917,10 +2935,12 @@ function drawHUD() {
     const hudW = canvas.width - 40;
     ctx.fillStyle = onMap ? 'rgba(91,70,50,0.85)' : 'rgba(235,228,208,0.85)';
     const obj = drawFitted(objectiveText(), 20, 38, hudW, 12 * s, 9, 'italic', false);
+    hudLeftBottom = 38 + obj.height;
     // a suggestion: help, never an order — a direction to try, not a task
     if (S.suggestion) {
       ctx.fillStyle = onMap ? 'rgba(120,82,40,0.9)' : 'rgba(226,206,150,0.92)';
-      drawFitted('› ' + S.suggestion.text, 20, 38 + obj.height + 4, hudW, 12 * s, 9, 'italic', false);
+      const sug = drawFitted('› ' + S.suggestion.text, 20, hudLeftBottom + 4, hudW, 12 * s, 9, 'italic', false);
+      hudLeftBottom += 4 + sug.height;
     }
   }
   ctx.shadowBlur = 0;
@@ -2928,7 +2948,9 @@ function drawHUD() {
   // food and water always show; the others only when they have something in
   // them (an empty bar is clutter, not information). Bars drop below the scaled
   // objective/suggestion prose.
-  let by = S.suggestion ? Math.round(38 + 38 * s) : 60;
+  // the bars sit under whatever the prose actually needed, however it wrapped —
+  // a fixed offset put them straight through a two-line suggestion on a phone
+  let by = Math.round(Math.max(60, hudLeftBottom + 8));
   if (S.hud.food) {
     drawBar(20, by, 140, 'FOOD', S.food / 100, S.food < 25 ? '#b0473a' : '#b08d3f');
     drawStreak(168, by + 6);   // the run of good hunts, beside the larder
@@ -2950,7 +2972,8 @@ function drawHUD() {
     ctx.font = `13px ${FONT}`;
     ctx.textAlign = 'right'; ctx.textBaseline = 'top';
     if (!onMap) { ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 5; }
-    let ry = 18;
+    // on touch the settings gear owns the top-right corner: start under it
+    let ry = touchMode ? 18 + clamp(Math.min(canvas.width, canvas.height) * 0.045, 18, 30) * 2 + 16 : 18;
     for (const w of S.pack) {
       // The roster must never say something the wolf is not doing. It used to
       // report every death as "lost to the road" (a train or the western pack got
@@ -2989,13 +3012,16 @@ function drawHUD() {
   }
 
   if (S.msgT > 0) {
-    ctx.font = `italic ${Math.round(16 * s)}px ${FONT}`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     if (!onMap) { ctx.shadowColor = 'rgba(0,0,0,0.6)'; ctx.shadowBlur = 6; }
     ctx.fillStyle = onMap
       ? `rgba(74,58,38,${clamp(S.msgT, 0, 1)})`
       : `rgba(242,234,214,${clamp(S.msgT, 0, 1)})`;
-    ctx.fillText(S.msg, canvas.width / 2, 24);
+    // On a narrow screen the day block (left), the roster (right) and this all
+    // landed on the same line and ran through each other. Drop below the left
+    // block there, and fit the text rather than letting it run off the edge.
+    const msgY = canvas.width < 640 ? Math.max(26, by + 10) : 24;
+    drawFitted(S.msg, canvas.width / 2, msgY, canvas.width - 32, 16 * s, 10, 'italic', false);
     ctx.shadowBlur = 0;
   }
 }
@@ -3180,7 +3206,12 @@ function touchLayout() {
   const pr = clamp(u * 0.16, 66, 150);          // movement-pad radius
   const m = clamp(u * 0.05, 18, 46);            // screen-edge margin
   const pad = { x: w - m - pr, y: h - m - pr, r: pr };
-  const br = clamp(u * 0.072, 30, 60);          // action-button radius
+  // U3: the column has to FIT. With six verbs a naive radius ran off the bottom of
+  // a phone, so the buttons shrink until the whole column is on the screen.
+  const nBtns = 6;
+  const edge = clamp(u * 0.05, 18, 46);
+  const fitR = (canvas.height - edge * 2 - 56) / (nBtns * 2 + (nBtns - 1) * 0.55);
+  const br = Math.min(clamp(u * 0.072, 30, 60), Math.max(15, fitR));
   const gap = br * 0.55;
   const btns = [
     { name: 'scent', label: 'Smell', enabled: true },
@@ -3195,9 +3226,9 @@ function touchLayout() {
     { name: 'wait',  label: 'Wait',  enabled: !!(S && S.tut && S.tut.fTaught && S.mode === 'play') },
     // the stalk's two verbs: Low is held, Leap is a tap and only lights when
     // there is actually something to leap at
-    { name: 'crouch', label: 'Low',  enabled: !!(S && (S.mode === 'play'
+    { name: 'crouch', label: 'Stalk', enabled: !!(S && (S.mode === 'play'
                                        || (S.mode === 'prologue' && S.beat >= 4))) },
-    { name: 'pounce', label: 'Leap', enabled: !!(S && typeof ambushTarget === 'function' && ambushTarget()) },
+    { name: 'pounce', label: 'Pounce', enabled: !!(S && typeof ambushTarget === 'function' && ambushTarget()) },
   ];
   const totalH = btns.length * br * 2 + (btns.length - 1) * gap;
   let by = Math.max(br + m, h / 2 - totalH / 2 + br);
@@ -3223,6 +3254,99 @@ function touchLayout() {
              x: clamp(sx, edge, w - edge), y: clamp(sy, edge, h - edge) };
   }
   return { pad, btns, over, u };
+}
+
+// ── the touch settings menu ──────────────────────────────────────────────────
+// A phone has no O, no M and no R. Everything those keys do lives behind one
+// button in the top-right corner: restart the year (asked twice, because
+// abandoning a year is a real loss), sound, and a way past the prologue.
+function touchMenuLayout() {
+  const w = canvas.width, h = canvas.height;
+  const u = Math.min(w, h);
+  const r = clamp(u * 0.045, 18, 30);
+  const gear = { x: w - r - 14, y: r + 14, r };
+  const pw = Math.min(268, w - 40);
+  const rowH = 46;
+  const items = [];
+  if (S && S.mode === 'prologue') items.push({ id: 'skip', label: 'Skip the prologue' });
+  items.push({ id: 'restart', label: S && S.touchConfirmRestart ? 'Really restart the year?' : 'Restart the year' });
+  items.push({ id: 'sound', label: (typeof muted !== 'undefined' && muted) ? 'Sound: off' : 'Sound: on' });
+  items.push({ id: 'close', label: 'Back' });
+  const ph = items.length * rowH + 16;
+  const px = w - pw - 14, py = gear.y + gear.r + 10;
+  items.forEach((it, i) => {
+    it.x = px + 10; it.y = py + 8 + i * rowH; it.w = pw - 20; it.h = rowH - 8;
+  });
+  return { gear, px, py, pw, ph, items };
+}
+
+// The difficulty fork offers "1 — mild, 2 — hard". A phone has neither key, so it
+// gets two things to tap instead.
+function difficultyLayout() {
+  const w = canvas.width, h = canvas.height;
+  const bw = Math.min(150, (w - 60) / 2), bh = 44;
+  const y = h - 132;
+  return [
+    { id: 'mild', label: 'A mild year', x: w / 2 - bw - 8, y, w: bw, h: bh },
+    { id: 'hard', label: 'A hard year', x: w / 2 + 8,      y, w: bw, h: bh },
+  ];
+}
+function drawDifficultyChoice() {
+  if (!touchMode || !S || !S.askDifficulty) return;
+  resetTransform();
+  ctx.save();
+  for (const b of difficultyLayout()) {
+    ctx.fillStyle = 'rgba(20,22,17,0.9)';
+    ctx.strokeStyle = 'rgba(201,185,142,0.6)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, b.x, b.y, b.w, b.h, 7); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = C_PARCHMENT;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const f = fitLines(b.label, b.w - 16, 15, 10, '');
+    ctx.font = `${Math.round(f.size)}px ${FONT}`;
+    ctx.fillText(f.lines[0], b.x + b.w / 2, b.y + b.h / 2);
+  }
+  ctx.restore();
+}
+
+function drawTouchMenu() {
+  if (!touchMode || !S) return;
+  if (S.mode !== 'play' && S.mode !== 'prologue') return;
+  const L = touchMenuLayout();
+  resetTransform();
+  ctx.save();
+  // the gear itself, always there
+  ctx.globalAlpha = S.touchMenuOpen ? 0.95 : 0.55;
+  ctx.beginPath(); ctx.arc(L.gear.x, L.gear.y, L.gear.r, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(20,18,10,0.55)'; ctx.fill();
+  ctx.strokeStyle = '#efe6cd'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.strokeStyle = '#efe6cd'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    const yy = L.gear.y - L.gear.r * 0.42 + i * L.gear.r * 0.42;
+    ctx.beginPath();
+    ctx.moveTo(L.gear.x - L.gear.r * 0.45, yy);
+    ctx.lineTo(L.gear.x + L.gear.r * 0.45, yy);
+    ctx.stroke();
+  }
+  if (S.touchMenuOpen) {
+    ctx.globalAlpha = 0.97;
+    ctx.fillStyle = 'rgba(18,20,15,0.95)';
+    ctx.strokeStyle = 'rgba(201,185,142,0.6)';
+    ctx.lineWidth = 1.5;
+    rr(ctx, L.px, L.py, L.pw, L.ph, 8); ctx.fill(); ctx.stroke();
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    for (const it of L.items) {
+      const warn = it.id === 'restart' && S.touchConfirmRestart;
+      ctx.fillStyle = warn ? 'rgba(80,36,28,0.65)' : 'rgba(40,44,34,0.6)';
+      rr(ctx, it.x, it.y, it.w, it.h, 5); ctx.fill();
+      ctx.fillStyle = warn ? '#e8b6a4' : C_PARCHMENT;
+      const f = fitLines(it.label, it.w - 18, 14, 10, '');
+      ctx.font = `${Math.round(f.size)}px ${FONT}`;
+      ctx.fillText(f.lines[0], it.x + 10, it.y + it.h / 2);
+    }
+  }
+  ctx.restore();
+  ctx.globalAlpha = 1;
 }
 
 function drawTouchControls() {
@@ -3649,28 +3773,100 @@ function drawVigil() {
   const v = S.vigil || 0;
   if (v <= 0) return;
   resetTransform();
+  const W = canvas.width, H = canvas.height;
+  const p = S.willow ? screenPos(S.willow.x, S.willow.y) : { x: W / 2, y: H / 2 };
+  const far = Math.hypot(W, H) * 0.60;
+
+  // the colour goes out of the land
   ctx.save();
-  ctx.globalAlpha = v * 0.55;
+  ctx.globalAlpha = v * 0.92;
   ctx.globalCompositeOperation = 'saturation';
   ctx.fillStyle = '#808080';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, W, H);
   ctx.restore();
-  // and the light closes in around her
-  const p = S.willow ? screenPos(S.willow.x, S.willow.y)
-                     : { x: canvas.width / 2, y: canvas.height / 2 };
-  const far = Math.hypot(canvas.width, canvas.height) * 0.62;
-  const g = ctx.createRadialGradient(p.x, p.y, far * (0.34 - v * 0.2), p.x, p.y, far);
-  g.addColorStop(0, 'rgba(8,9,12,0)');
-  g.addColorStop(1, `rgba(8,9,12,${v * 0.82})`);
+
+  // everything but the two of them falls away. Two passes: a wide fall-off that
+  // takes the edges to near-black, and a tight one that pulls the horizon in to
+  // arm's length as the hold completes. Both set their own alpha — this runs late
+  // in the frame and inherits whatever the last draw call left behind.
   ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  let g = ctx.createRadialGradient(p.x, p.y, far * (0.30 - v * 0.21), p.x, p.y, far);
+  g.addColorStop(0, 'rgba(6,7,10,0)');
+  g.addColorStop(0.55, `rgba(6,7,10,${v * 0.55})`);
+  g.addColorStop(1, `rgba(6,7,10,${Math.min(0.97, v * 1.05)})`);
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillRect(0, 0, W, H);
+
+  const near = far * (0.40 - v * 0.15);
+  g = ctx.createRadialGradient(p.x, p.y, near * 0.2, p.x, p.y, near);
+  g.addColorStop(0, 'rgba(6,7,10,0)');
+  g.addColorStop(1, `rgba(6,7,10,${v * 0.28})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // and what light is left is the warmth off the two of them — a low glow, not a
+  // stage light: 'lighter' clips to white fast over ground this pale.
+  g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, near);
+  g.addColorStop(0, `rgba(190,146,92,${v * 0.075})`);
+  g.addColorStop(0.45, `rgba(190,146,92,${v * 0.045})`);
+  g.addColorStop(1, 'rgba(190,146,92,0)');
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
   ctx.restore();
   ctx.globalAlpha = 1;
 }
 
 // ── juice ────────────────────────────────────────────────────────────────────
 // Dust where something went down. Cheap, brief, and it makes the catch land.
+// ── the western pack, made readable ──────────────────────────────────────────
+// The game tells the player to read their marks and time their patrol. Both only
+// existed in the scent view and in a function nobody could see, so the advice was
+// unfollowable. Their sign is on the ground now, and the patrol itself is visible
+// at distance — which is the whole basis of timing a crossing.
+function drawWestPresence() {
+  if (typeof westActive !== 'function' || !westActive()) return;
+  if (S.era === 'past') return;
+  const T = WEST_PACK.territory;
+
+  // their marks, scuffed into the ground where anyone can see them
+  for (const m of WEST_PACK.marks) {
+    const fresh = (typeof markFreshness === 'function') ? markFreshness(m) : 0.5;
+    ctx.save();
+    ctx.globalAlpha = 0.30 + 0.35 * fresh;
+    ctx.strokeStyle = '#7d3a30';
+    ctx.lineWidth = 2 + 1.6 * fresh;
+    ctx.lineCap = 'round';
+    for (const off of [-6, 4]) {
+      ctx.beginPath();
+      ctx.moveTo(m.x - 9 + off, m.y - 10);
+      ctx.lineTo(m.x + 8 + off, m.y + 10);
+      ctx.stroke();
+    }
+    // a fresh one is darker earth, recently turned
+    if (fresh > 0.6) {
+      ctx.globalAlpha = (fresh - 0.6) * 0.5;
+      ctx.fillStyle = '#4a2b22';
+      ctx.beginPath(); ctx.ellipse(m.x, m.y, 15, 7, 0.3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+  ctx.globalAlpha = 1;
+
+  // the patrol itself: three wolves walking their round, drawn whenever she is
+  // close enough to the range to have any business timing them
+  const c = patrolCentroid();
+  if (dist(S.wolf.x, S.wolf.y, T.x, T.y) > T.r * 2.1) return;
+  const lead = Math.atan2(c.y - T.y, c.x - T.x) + Math.PI / 2;
+  for (let i = 0; i < 3; i++) {
+    const px = c.x + Math.cos(lead + i * 1.1) * (26 + i * 16);
+    const py = c.y + Math.sin(lead + i * 1.1) * (26 + i * 16);
+    drawWolfBody(px, py, lead, 10, RIVAL_TONES, true, S.time * 120 + i * 40, false);
+  }
+}
+
 function drawPuffs() {
   if (!S.puffs || !S.puffs.length) return;
   ctx.save();
@@ -3966,5 +4162,7 @@ function draw() {
   if (S.mode === 'play') { drawSeasonCard(); drawGoalCard(); }
   drawHelp();
   drawTouchControls();
+  drawTouchMenu();
+  drawDifficultyChoice();
   if (typeof gamePaused !== 'undefined' && gamePaused) drawPause();
 }

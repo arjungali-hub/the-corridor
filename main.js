@@ -233,6 +233,47 @@ canvas.addEventListener('touchstart', (ev) => {
   if (S && S.mode === 'ending') { openLegacy(); return; }
   if (S && S.mode === 'legacy') { beginNextGeneration(); return; }
   if (S && S.vistaWait) { releaseVista(); return; }
+  // the year's one question, answered by tapping rather than by a number key
+  if (S && S.askDifficulty) {
+    for (const t of ev.changedTouches) {
+      for (const b of difficultyLayout()) {
+        if (t.clientX < b.x || t.clientX > b.x + b.w) continue;
+        if (t.clientY < b.y || t.clientY > b.y + b.h) continue;
+        chooseDifficulty(b.id);
+        return;
+      }
+    }
+  }
+
+  // the settings gear owns the top-right corner, and the panel owns its own rows
+  if (S && (S.mode === 'play' || S.mode === 'prologue')) {
+    const M = touchMenuLayout();
+    for (const t of ev.changedTouches) {
+      if (Math.hypot(t.clientX - M.gear.x, t.clientY - M.gear.y) <= M.gear.r * 1.35) {
+        S.touchMenuOpen = !S.touchMenuOpen;
+        S.touchConfirmRestart = false;
+        return;
+      }
+      if (!S.touchMenuOpen) continue;
+      for (const it of M.items) {
+        if (t.clientX < it.x || t.clientX > it.x + it.w) continue;
+        if (t.clientY < it.y || t.clientY > it.y + it.h) continue;
+        if (it.id === 'close') { S.touchMenuOpen = false; S.touchConfirmRestart = false; }
+        else if (it.id === 'sound') { toggleMute(); }
+        else if (it.id === 'skip') { S.touchMenuOpen = false; skipPrologue(); }
+        else if (it.id === 'restart') {
+          // abandoning a year is a real loss: it takes two taps to mean it
+          if (S.touchConfirmRestart) { S.touchMenuOpen = false; S.touchConfirmRestart = false; requestNewYear(); }
+          else S.touchConfirmRestart = true;
+        }
+        return;
+      }
+      // a tap anywhere else closes it rather than falling through to the world
+      S.touchMenuOpen = false; S.touchConfirmRestart = false;
+      return;
+    }
+  }
+
   const L = touchLayout();
   for (const t of ev.changedTouches) {
     const c = classifyTouch(t.clientX, t.clientY, L);

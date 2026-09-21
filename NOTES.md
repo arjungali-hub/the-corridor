@@ -1499,3 +1499,62 @@ the touch handlers in main.js so hit-tests match the drawing. Map mirrors the ma
 key (toggle + input.sense) and is force-enabled in beats 6 and 9 so the lean-in
 and the vigil still work before the map is inherited. capOf() returns button
 names in touchMode, so every teaching prompt reads in touch terms for free.
+
+## 2026-09-21 (Part 38, batch three — the vigil, and three bugs the tests found)
+
+**T4, the vigil.** It was there the whole time and I could not see it, which
+turned out to be the finding. `drawVigil` sets `globalAlpha` for its
+desaturation pass inside a `save`/`restore`, and then drew the vignette without
+setting alpha at all — so the vignette rendered at whatever alpha the previous
+draw call had left on the context. Late in the frame that is rarely 1. The
+effect was running at roughly half strength every frame, and the thing that
+convinced me it was "not rendering" was my own probe: calling `drawVigil()` by
+hand after `draw()` stacked a *second* pass on top of the frame's own, so the
+pixel moved and the live frame looked broken by comparison. The measurement was
+the bug. It now sets its own alpha and composite op explicitly, and the comment
+says why.
+
+Rebuilt the effect while I was in there, because half-strength was not the only
+problem — at full strength it read as haze. It is three passes now: colour out
+of the land (`saturation` at 0.92), a wide fall-off that takes the edges to
+near-black, a tighter one that brings the horizon to arm's length, and a low
+warm glow off the two of them. The glow wanted care: `lighter` clips to white
+almost immediately over ground that pale, and the first version put a stage
+light on her. 0.075 and a mid stop.
+
+**Three bugs, all found by writing the regression check rather than by playing:**
+
+- **H8 never ran.** The arrow that points back to the pack after a hunt carries
+  her off was written inside `prologueUpdate()` — a function that only runs
+  while `S.mode === 'prologue'`. It could not once have fired in the year it was
+  written for. Moved to the shared path. The check asserts both halves: no arrow
+  while they are in sight, an arrow once she is past 620u.
+- **P1 had no check at all.** The roadside vibration has had one since Part 35,
+  but the *second* report — the pack vibrating while she stalks — was fixed on
+  the strength of one browser look. Same measurement (path length vs net
+  displacement), now with Aspen crouched and crawling.
+- **S2 had no check either.** Cattle staying inside the dogs' ground is the
+  whole basis of "watched"; it is asserted now by running `pickGrazeTarget` 200
+  times per cow and checking the furthest target against `CATTLE_YARD`.
+
+**U6** got a check too, and writing it clarified what the item actually meant.
+My first assertion — camera scale within 8% of world scale when the ink goes —
+failed at 8.26%, which is just the tail of an exponential ease, not a flash. The
+right question is *how far back toward the map's scale* the camera still is:
+11.7%, against a threshold of 15%. A raw percentage of the wrong quantity would
+have been a check that fails on tuning and passes on regressions.
+
+**A flake, fixed properly.** `the pack crosses the rail to follow her` failed
+once in three runs. It gave the wolf 7s to cover 340u, and how long the crossing
+takes genuinely varies now (the Part 35 dwell, and which side of the ballast
+`moveAround` commits to). Gave it room in *time* — loop until crossed, up to
+21s — rather than weakening what it asserts. Six consecutive green runs after.
+
+Harness at **537 checks**, green ×6, `NO OVERLAPS`. Verified in the browser:
+the vigil at the real beat 9 (driven through the actual hold, not by setting
+`S.vigil`), the touch settings menu at 390×760, and the western pack's ground
+scuffs and visible patrol (W1).
+
+**Still owed by Arjun, from Part 32's final gate:** play a full year in the
+browser and answer honestly here — was that fun? I cannot judge that, and
+nothing above is a substitute for it.

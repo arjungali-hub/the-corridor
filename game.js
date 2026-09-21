@@ -770,6 +770,7 @@ function inPowerlineCut(x, y) {
   return distSeg(x, y, POWERLINE.x0, POWERLINE.y0, POWERLINE.x1, POWERLINE.y1).d < 60;
 }
 
+const CATTLE_YARD = 620;   // how far from the dogs' home the herd will drift
 function pickGrazeTarget(elk) {
   const H = HERDS[elk.herd];
   // a scattered animal grazes around its own patch; a herd animal around the herd's
@@ -781,6 +782,8 @@ function pickGrazeTarget(elk) {
     const tx = cx0 + Math.cos(a) * r, ty = cy0 + Math.sin(a) * r;
     if (blockedAt(tx, ty, 14, false, APRON)) continue;  // never aim into a wall
     if (inPowerlineCut(tx, ty)) continue;               // nor under the wires
+    // cattle stay inside the ground the dogs can actually answer for
+    if (H.cattle && dist(tx, ty, RANCH.dogHome.x, RANCH.dogHome.y) > CATTLE_YARD) continue;
     elk.tx = tx; elk.ty = ty;
     break;
   }
@@ -1759,16 +1762,18 @@ function packUpdate(dt) {
     const dRoad = S.wolf.x < h.x0 ? h.x0 - S.wolf.x : S.wolf.x > h.x1 ? S.wolf.x - h.x1 : 0;
     if (dRoad < 260 && S.pack.some(w => w.state === 'follow')) {
       S.tut.roadLesson = true;
-      showPrompt('The road. F holds the pack. Cross when it is quiet, then F calls them through.', ['F'], 8);
+      const rc = touchMode ? 'Wait' : 'F';
+      showPrompt(`The road. ${rc} holds the pack. Cross when it is quiet, then ${rc} calls them through.`, [rc], 8);
       saveGame();
     }
   }
 
-  // The pack freezes whenever fear shows in the bar, and only until it drains
-  // back to nothing. At real terror they scatter to safe ground first (so
-  // nothing can corner a rooted pack); a milder fright just roots them where
-  // they stand. Either way, the moment fear is gone, they move again.
-  const scared = S.fear > 0.03;
+  // A real fright roots the pack, and at terror they scatter to safe ground first
+  // so nothing can corner a rooted pack. But it takes a FRIGHT: the bar used to
+  // only have to show 0.03 for the whole roster to read "freezes" while the wolves
+  // were plainly walking around, which is what it looked like to the player too.
+  // Hysteresis, so a long tail of nearly-nothing does not keep them rooted either.
+  const scared = S.packFrozen ? S.fear > 0.06 : S.fear > 0.28;
   if (scared && !S.packFrozen) {
     S.packFrozen = true;
     const flee = S.fear > 0.5;
@@ -1829,6 +1834,24 @@ function packUpdate(dt) {
       }
     }
 
+    // P4 — a wolf wedged INSIDE something (pushed into a trunk, or the land grew
+    // around it) works itself free rather than standing in it for the rest of the
+    // year. Prey has had this since the beginning; wolves never did.
+    if (S.mode !== 'prologue' || S.era !== 'past') {
+      if (inTreeAt(w.x, w.y, WOLF_R * 0.5)) {
+        let best = null, bd = 1e9;
+        for (let a2 = 0; a2 < Math.PI * 2; a2 += Math.PI / 6) {
+          for (const rr2 of [26, 52, 84]) {
+            const nx2 = w.x + Math.cos(a2) * rr2, ny2 = w.y + Math.sin(a2) * rr2;
+            if (inTreeAt(nx2, ny2, WOLF_R * 0.5) || packBlockedAt(nx2, ny2)) continue;
+            if (rr2 < bd) { bd = rr2; best = { x: nx2, y: ny2 }; }
+          }
+          if (best) break;
+        }
+        if (best) { w.x = best.x; w.y = best.y; w.roundSide = 0; w.stuckT = 0; }
+      }
+    }
+
     // wounds heal on their own slow clock; a hurt wolf lags
     w.injuredT = Math.max(0, (w.injuredT || 0) - dt);
     const lag = (w.injuredT > 0 ? 0.65 : 1) * snow;
@@ -1865,10 +1888,24 @@ function packUpdate(dt) {
     // drifting — it will not hunt on its own and it will not wander into an
     // envelope. A wolf still loping back into the zone stays upright, and that
     // is the blunder the player learns to stage away with F.
-    w.crouched = !!S.crouched && dZone <= wzr;
+    // hysteresis: once it is low with her it stays low until it is properly adrift
+    const lowEdge = w.crouched ? wzr * 1.5 : wzr;
+    w.crouched = !!S.crouched && dZone <= lowEdge;
     if (w.crouched) {
       w.onHunt = false;
-      w.moving = false;
+      // it does not freeze — it creeps, at her pace, staying with her. Freezing
+      // is what made the pack judder every time she slowed down.
+      const dc = dist(w.x, w.y, wc.x, wc.y);
+      if (dc > 34) {
+        const sp = PACK_AMBLE * w.mult * lag * CROUCH_SPEED * 1.8;
+        moveAround(w, (wc.x - w.x) / dc * sp * dt, (wc.y - w.y) / dc * sp * dt,
+          (x, y) => packBlockedAt(x, y) || onRoad(x, y), dt);
+        w.heading = Math.atan2(wc.y - w.y, wc.x - w.x);
+        w.gait += sp * dt;
+        w.moving = true;
+      } else {
+        w.moving = false;
+      }
       continue;
     }
 
@@ -3063,7 +3100,7 @@ function rancherUpdate(dt) {
 
   // the dogs: loosed farther the worse the ledger reads. They will run any
   // wolf — Aspen or family — and their teeth cost meat, blood, and nerve.
-  const chaseR = S.conflict > 0.6 ? 1000 : 620;
+  const chaseR = S.conflict > 0.6 ? 1200 : 860;   // a bigger yard to keep
   const quarry = [{ ref: S.wolf, aspen: true }, ...alivePack().map(w => ({ ref: w, aspen: false }))];
   const anyNear = quarry.some(q => dist(q.ref.x, q.ref.y, RANCH.house.x, RANCH.house.y) < 380);
   for (const dog of S.dogs) {
@@ -3076,7 +3113,7 @@ function rancherUpdate(dt) {
         const d = dist(dog.x, dog.y, q.ref.x, q.ref.y);
         if (d < bd) { bd = d; target = q; }
       }
-      tx = target.ref.x; ty = target.ref.y; sp = 272;
+      tx = target.ref.x; ty = target.ref.y; sp = 232;   // slower, but they cover more
       if (bd < 34 && dog.biteCd <= 0) {
         dog.biteCd = 8;
         S.conflict = Math.min(1, S.conflict + 0.05);
@@ -4367,7 +4404,10 @@ function applyPostPrologue() {
   // drains eased and the warnings wider.
   if (typeof OPTIONS !== 'undefined' && OPTIONS && !OPTIONS.difficulty) {
     S.askDifficulty = true;
-    showPrompt('A mild year, or a hard one?   1 — mild, and the land forgives.   2 — hard.', ['1', '2'], 14);
+    showPrompt(touchMode
+      ? 'A mild year, or a hard one?'
+      : 'A mild year, or a hard one?   1 — mild, and the land forgives.   2 — hard.',
+      touchMode ? [] : ['1', '2'], 14);
   }
   // the year's first decision, named at once
   S.tut.denPrompt = true;
@@ -4459,7 +4499,11 @@ function prologueUpdate(dt) {
   switch (S.beat) {
     // Beat 1 — waking in the den: movement and scent, in the calmest place
     case 1:
-      if (S.beatT > 5 && !S.prompt && T.moved < 120) stickyPrompt('Walk — ' + moveCaps().join('') + ' or the arrow keys.', moveCaps());
+      if (S.beatT > 5 && !S.prompt && T.moved < 120) {
+        stickyPrompt(touchMode ? 'Walk — the pad, lower-right.'
+                               : 'Walk — ' + moveCaps().join('') + ' or the arrow keys.',
+                     touchMode ? [] : moveCaps());
+      }
       // before the world, the family: you first, then the pack, each named and
       // pointed out as it wakes
       if (T.moved >= 120 && !T._b1pack) {
@@ -4641,7 +4685,9 @@ function prologueUpdate(dt) {
 
       // ── going low ─────────────────────────────────────────────────────────
       if (H._hWind && !H._hLow) {
-        if (!S.prompt) stickyPrompt(`Go low. Hold ${capOf('crouch')}.`, [capOf('crouch')]);
+        if (!S.prompt || !/Go low/.test(S.prompt.text)) {
+          stickyPrompt(`Go low. Hold ${capOf('crouch')}.`, [capOf('crouch')]);
+        }
         if (S.crouched) H._hLowT = (H._hLowT || 0) + dt;
         if ((H._hLowT || 0) > 1.4) {
           H._hLow = true;
@@ -4679,7 +4725,9 @@ function prologueUpdate(dt) {
 
       // ── closing ───────────────────────────────────────────────────────────
       if (H._hMark && !H._hNear && deer) {
-        if (!S.prompt) stickyPrompt('Closer. Stay low, and stay downwind.', []);
+        if (!S.prompt || !/Closer/.test(S.prompt.text)) {
+          stickyPrompt('Closer. Stay low, and stay downwind.', []);
+        }
         if (dist(S.wolf.x, S.wolf.y, deer.x, deer.y) < preyAmbushR(deer) * 0.92) {
           H._hNear = true;
           clearPrompt();
@@ -4690,7 +4738,7 @@ function prologueUpdate(dt) {
 
       // ── the pounce ────────────────────────────────────────────────────────
       if (H._hNear && !H._hPounced && deer) {
-        if (!S.prompt) {
+        if (!S.prompt || !/take it/.test(S.prompt.text)) {
           stickyPrompt(`The ring means she is close enough. ${capOf('pounce')} — take it.`, [capOf('pounce')]);
         }
         if (deer.ambushed) {
@@ -6173,6 +6221,20 @@ function update(dt) {
   if (S.mode === 'prologue') {
     prologueUpdate(dt);
   } else {
+    // H8: after a hunt has carried her off, point the way back to the pack rather
+    // than leaving her to sweep the land for them. This lived inside
+    // prologueUpdate, where it could never once run in the year it was written for.
+    S.guide = null;
+    if (!S.zoneAnchor) {
+      const crew = alivePack().filter(w => !w.pup);
+      let near = null, nd = 1e9;
+      for (const w of crew) {
+        const d = dist(S.wolf.x, S.wolf.y, w.x, w.y);
+        if (d < nd) { nd = d; near = w; }
+      }
+      if (near && nd > 620) S.guide = { x: near.x, y: near.y };
+    }
+
     // the world keeps changing whether or not you watch it: the calendar
     // never waits — not for tasks, not for anything
     S.clock.min += dt * MIN_PER_SEC;
@@ -6343,12 +6405,14 @@ function update(dt) {
 
   // camera — the raised map pulls out to frame the entire land
   const mblend = smooth(S.senseBlend);
+  // the camera leads the map out: by a quarter of the blend it is already home
+  const camBlend = smooth(clamp((S.senseBlend - 0.25) / 0.75, 0, 1));
   // the world runs close-in (2x); the nose pulls the view back out wide
   const nearScale = input.scent && S.senseBlend < 0.2 ? SCALE_WORLD : SCALE_WORLD * 2;
-  let targetScale = lerp(nearScale, mapFitScale(), mblend);
+  let targetScale = lerp(nearScale, mapFitScale(), camBlend);
   if (S.vistaT > 0) targetScale = SCALE_VISTA;
-  const targetX = lerp(S.wolf.x, ((WORLD.x0 || 0) + WORLD.w) / 2, mblend);
-  const targetY = lerp(S.wolf.y, WORLD.h / 2, mblend);
+  const targetX = lerp(S.wolf.x, ((WORLD.x0 || 0) + WORLD.w) / 2, camBlend);
+  const targetY = lerp(S.wolf.y, WORLD.h / 2, camBlend);
   S.cam.scale += (targetScale - S.cam.scale) * Math.min(1, dt * 8);
   S.cam.x += (targetX - S.cam.x) * Math.min(1, dt * 6);
   S.cam.y += (targetY - S.cam.y) * Math.min(1, dt * 6);
