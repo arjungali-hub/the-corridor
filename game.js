@@ -249,6 +249,7 @@ const KILL_SHARE_R = 200;   // close enough to have been there when it went down
 const HIT_STOP = 0.11;      // seconds of held breath on a catch
 const SLOWMO_T = 0.25;      // …and of slow-motion through a pounce
 const SLOWMO_SCALE = 0.35;
+const POUNCE_TIME = 0.34;   // how long the leap itself takes
 const FEED_TIME = 7;        // how long the pack stays down at a kill
 const IDLE_CHANCE = 0.35;   // …and how readily it plays when there is nothing to do
 const GOAL_CARD_TIME = 3.4; // seconds a goal card sits on screen, blocking nothing
@@ -617,6 +618,7 @@ function newGame() {
     suggestion: null,   // the current non-binding nudge (replaces tasks)
     carcass: null,      // a findable carcass a suggestion has pointed her to
     crouched: false,    // the stalk, resolved once a frame in moveAspen
+    pounce: null,       // the leap, while it is in the air
     ambushT: 0,         // the pounce's afterglow, for the cue and the camera
     pounceMsgCd: 0,     // so a refused pounce explains itself without nagging
     momentCd: 0,        // the gate that keeps teaching moments from piling up
@@ -676,6 +678,7 @@ function newGame() {
     caption: null,     // { text, sub, t, dur }
     inputLockT: 0, vistaT: 0, vistaTMax: 0, vistaWait: false,
     inheritHold: 0, inherited: false, inheritBloom: 0,
+    vigil: 0, vigilFade: 0,   // the world narrowing around the two of them
     ghostPulse: 0, bondGlow: 0,
     prologueElk: false, truckSent: false,
 
@@ -1022,6 +1025,23 @@ function onKnownRoute() {
 }
 
 function moveAspen(dt) {
+  // mid-leap she is not steering: the pounce carries her, and it is the only time
+  // in the game her own input is taken out of her paws
+  if (S.pounce) {
+    const p = S.pounce;
+    const was = p.t;
+    p.t = Math.min(p.dur, p.t + dt);
+    // ease out: fast off the mark, settling as she lands
+    const ease = t => 1 - Math.pow(1 - t / p.dur, 2);
+    const step = (ease(p.t) - ease(was)) * p.d;
+    tryMove(S.wolf, Math.cos(p.a) * step, Math.sin(p.a) * step, wolfBlockedAt);
+    S.wolf.moving = true;
+    S.wolf.gait += step * 1.6;
+    S.crouched = false;
+    S.wolf.crouched = false;
+    if (p.t >= p.dur) S.pounce = null;
+    return;
+  }
   // low and slow, or upright: the stalk's one lever. Resolved before movement so
   // the alertness pass and the renderer read the same frame.
   S.crouched = crouchActive();
@@ -2060,6 +2080,12 @@ function toggleMap() {
   if (S.mode === 'prologue' && S.beat === 6) { S.tut._bond = true; return; }
   if (!mapAllowed()) return;   // no map before the map is hers
   S.mapOpen = !S.mapOpen;
+  // the first raise says how to lower it again — it is a toggle, and nothing on
+  // screen said so
+  if (S.mapOpen && !S.tut.mapCloseTold && S.mode === 'play') {
+    S.tut.mapCloseTold = true;
+    showPrompt(`${capOf('map')} again puts it away.`, [capOf('map')], 6);
+  }
 }
 
 // The beat-6 lean-in, as its own verb. On a keyboard it rides the map key
@@ -2223,7 +2249,7 @@ function respawnMult(H) {
 // Rain drowns scent and is a hunting opportunity. The prologue's golden
 // morning is windless — the first hunt is meant to be won.
 function windDetectMult(hx, hy, ex, ey) {
-  if (!S.wind || S.era === 'past') return 1;
+  if (!S.wind || (S.era === 'past' && !S.windLive)) return 1;
   const d = dist(hx, hy, ex, ey) || 1;
   const align = ((ex - hx) * Math.cos(S.wind.a) + (ey - hy) * Math.sin(S.wind.a)) / d;
   let m = 1 + Math.max(0, align) * 1.1 - Math.max(0, -align) * 0.4;
@@ -2278,7 +2304,8 @@ function inCoverAt(x, y) {
 
 // How loudly a given wolf announces itself to a given animal.
 function alertWindMult(wx, wy, ex, ey) {
-  if (!S.wind || S.era === 'past') return ALERT_CROSSWIND;
+  // the past is windless EXCEPT during the lesson that teaches the wind
+  if (!S.wind || (S.era === 'past' && !S.windLive)) return ALERT_CROSSWIND;
   const d = dist(wx, wy, ex, ey) || 1;
   // dot of the wind with (wolf → animal): positive = the air carries her scent
   // onto it. Same sign convention as windDetectMult.
@@ -2362,6 +2389,11 @@ function commitAmbush() {
   e.jumpyT = JUMPY_TIME;
   e.ambushed = true;
   e.ambushFromGrazing = fromGrazing;
+  // the leap itself: she launches at it and carries a little past, which is what
+  // makes the window feel like a window rather than a proximity check
+  const lunge = Math.min(preyAmbushR(e) + 40, dist(S.wolf.x, S.wolf.y, e.x, e.y) + 34);
+  S.pounce = { t: 0, dur: POUNCE_TIME, a: Math.atan2(e.y - S.wolf.y, e.x - S.wolf.x), d: lunge };
+  S.wolf.heading = S.pounce.a;
   S.ambushT = 0.45;            // the cue's afterglow
   S.slowMoT = SLOWMO_T;        // the one slow-motion in the game, and it is this
   playWhoosh();                // the coil and the spring; Part 6 gives it its own voice
@@ -3579,7 +3611,14 @@ function waterFouled(x, y) {
   return false;
 }
 
+// the ford's shallows, in the era when the creek still ran that way
+const FORD_WATER = { x: 1600, y: 1640, r: 150, name: 'the shallows at the Old Ford' };
+function fordWaterAt(x, y) {
+  return S && S.era === 'past' && dist(x, y, FORD_WATER.x, FORD_WATER.y) < FORD_WATER.r;
+}
+
 function waterAt(x, y) {
+  if (fordWaterAt(x, y)) return { clean: true, name: FORD_WATER.name };
   for (const p of PONDS) {
     if (dist(x, y, p.x, p.y) < p.r) return { clean: !waterFouled(p.x, p.y), name: p.name };
   }
@@ -4528,10 +4567,13 @@ function prologueUpdate(dt) {
         // can SEE what she is being told to run down.
         const ford = NbyId.get('oldFord');
         const ea = Math.atan2(ford.y - S.wolf.y, ford.x - S.wolf.x);
-        const ex = S.wolf.x + clamp(Math.cos(ea) * 330, -250, 250);
-        const ey = S.wolf.y + clamp(Math.sin(ea) * 330, -150, 150);
+        // far enough to be stalked, near enough to be SEEN: the close prologue
+        // camera shows about 290 across and 180 down, so it is clamped inside that
+        const ex = S.wolf.x + clamp(Math.cos(ea) * 300, -235, 235);
+        const ey = S.wolf.y + clamp(Math.sin(ea) * 300, -140, 140);
+        const deerHerd = HERDS.findIndex(h => h.species === 'deer');
         S.elk.push({
-          herd: 0, x: ex, y: ey,
+          herd: deerHerd, x: ex, y: ey,
           heading: Math.PI / 2, stamina: 32, fleeing: false, gait: 0,
           bull: false, skittish: 0.8, grazeT: 99, tx: ex, ty: ey,
           frail: 0.55,   // winter-thin: the first hunt is meant to be won
@@ -4542,20 +4584,134 @@ function prologueUpdate(dt) {
           // never catch, so beat 4 simply never ended.
           scripted: true, homeX: ex, homeY: ey,
         });
-        setCaption('An elk, winter-thin.', 3.5);
-        showPrompt('Run it down.', [], 6);
+        // the lesson names it when the beat gets there, not here
       }
       break;
 
-    // Beat 4 — first hunt, tuned generous
-    case 4:
-      // "Run it down." retires the moment the chase is on or the elk is down —
-      // a bottom-line instruction that no longer applies must not linger
-      if (S.prompt && S.prompt.text === 'Run it down.'
-          && (S.elk.length === 0 || (S.elk[0] && S.elk[0].fleeing))) clearPrompt();
+    // Beat 4 — the ford, and the hunt. This is the longest lesson in the game and
+    // deliberately so: drinking, the wind, going low, reading an animal's head,
+    // closing the distance, and the pounce — one at a time, each waited for, none
+    // of it hurried and none of it left to be discovered after she is alone.
+    case 4: {
+      const H = S.tut;
+      const deer = S.elk[0];
+
+      // ── the shallows: she drinks, and so do you ───────────────────────────
+      if (!H._hDrank) {
+        if (!H._hDrinkSaid && S.beatT > 1.2) {
+          H._hDrinkSaid = true;
+          setCaption('The Old Ford.', 3.5, 'she drinks before she hunts');
+          stickyPrompt(`Stand in the shallows and hold ${capOf('drink')}.`, [capOf('drink')]);
+        }
+        if (H._hDrinkSaid && input.drink && fordWaterAt(S.wolf.x, S.wolf.y)) {
+          H._hDrinkT = (H._hDrinkT || 0) + dt;
+          S.water = Math.min(100, S.water + 26 * dt);
+          if (H._hDrinkT > 1.6) {
+            H._hDrank = true;
+            H.drinkTaught = true; H.drinkHintDone = true;   // never taught again
+            clearPrompt();
+            say('Water, before the work. She will not always have it this easy.');
+            S.momentCd = 2.2;
+          }
+        }
+        break;
+      }
+
+      // ── the deer ──────────────────────────────────────────────────────────
+      if (!H._hSeen && S.beatT > 0) {
+        if (!deer) break;
+        H._hSeen = true;
+        S.windLive = true;                      // the wind matters now, and is taught
+        // blowing from the deer to her: the good side, so the lesson can be won
+        S.wind = { a: Math.atan2(S.wolf.y - deer.y, S.wolf.x - deer.x) };
+        pointOut('elk', 3.5);
+        setCaption('A deer, and she is downwind of it.', 4);
+        S.momentCd = 3;
+      }
+      if (!deer) { /* it got away or went down; handled below */ }
+
+      // ── the wind ──────────────────────────────────────────────────────────
+      if (H._hSeen && !H._hWind && momentFree()) {
+        H._hWind = true;
+        queueCallout('wind');
+        showPrompt('The air is moving from it to her. Keep it that way and it will not smell her.', [], 7);
+        claimMoment();
+        break;
+      }
+
+      // ── going low ─────────────────────────────────────────────────────────
+      if (H._hWind && !H._hLow) {
+        if (!S.prompt) stickyPrompt(`Go low. Hold ${capOf('crouch')}.`, [capOf('crouch')]);
+        if (S.crouched) H._hLowT = (H._hLowT || 0) + dt;
+        if ((H._hLowT || 0) > 1.4) {
+          H._hLow = true;
+          clearPrompt();
+          say('Low, and slow. Everything about her is quieter now.');
+          S.momentCd = 2;
+        }
+        break;
+      }
+
+      // ── reading its head ──────────────────────────────────────────────────
+      // A scripted twitch of alarm, so the mark over its head is SEEN and named
+      // while there is nothing at stake.
+      if (H._hLow && !H._hMark && deer) {
+        if (!H._hMarkSet) {
+          H._hMarkSet = true;
+          deer.alert = Math.max(deer.alert, ALERT_WARY + 0.06);
+          deer.headUp = true;
+          H._hMarkT = 0;
+        }
+        H._hMarkT = (H._hMarkT || 0) + dt;
+        if (H._hMarkT < 2.4) deer.alert = Math.max(deer.alert, ALERT_WARY + 0.06);
+        if (H._hMarkT > 0.5 && momentFree()) {
+          H._hMark = true;
+          queueCallout('alertmark');
+          showPrompt('Its head is up — that mark means it has heard something. Two marks, and it is already leaving.', [], 8);
+          claimMoment();
+        }
+        break;
+      }
+
+      if (H._hMark && !H._hPounced && deer) {
+        deer.alert = Math.min(deer.alert, ALERT_ALARMED - 0.06);
+      }
+
+      // ── closing ───────────────────────────────────────────────────────────
+      if (H._hMark && !H._hNear && deer) {
+        if (!S.prompt) stickyPrompt('Closer. Stay low, and stay downwind.', []);
+        if (dist(S.wolf.x, S.wolf.y, deer.x, deer.y) < preyAmbushR(deer) * 0.92) {
+          H._hNear = true;
+          clearPrompt();
+          S.momentCd = 0;
+        }
+        break;
+      }
+
+      // ── the pounce ────────────────────────────────────────────────────────
+      if (H._hNear && !H._hPounced && deer) {
+        if (!S.prompt) {
+          stickyPrompt(`The ring means she is close enough. ${capOf('pounce')} — take it.`, [capOf('pounce')]);
+        }
+        if (deer.ambushed) {
+          H._hPounced = true;
+          clearPrompt();
+        }
+        break;
+      }
+
+      // "Run it down" only if the pounce went wrong and it is running
+      if (S.prompt && /take it/.test(S.prompt.text) && deer && deer.fleeing) clearPrompt();
+      if (H._hPounced && deer && deer.fleeing && !H._hRun) {
+        H._hRun = true;
+        showPrompt('Run it down. It will not last long.', [], 6);
+      }
+
       if (S.elk.length === 0) {
         S.beat = 5; S.beatT = 0;
         S.prologueElk = false;
+        S.windLive = false;
+        clearPrompt();
         setCaption('The pack eats first from her kill. Then yours.', 4);
         willowSetPath([
           { x: 1240, y: 1500, ink: 'oldFord-sageFlat', node: 'sageFlat' },
@@ -4563,6 +4719,8 @@ function prologueUpdate(dt) {
         ]);
       }
       break;
+    }
+
 
     // Beat 5 — the crossing, safe version: a quiet gravel road
     case 5:
@@ -4710,9 +4868,29 @@ function prologueUpdate(dt) {
         }
         if (T._b9ask && nearHer && input.sense) {
           S.inheritHold += dt;
+          // everything else in the world backs away while she holds
+          const k = Math.min(1, S.inheritHold / INHERIT_HOLD);
+          S.vigil = k;                       // render: desaturation, vignette, hush
+          S.inheritBloom = Math.max(S.inheritBloom, k * 0.5);
+          w.breathSlow = 1 - k * 0.85;       // her breathing goes out like a tide
+          // the pack draws in and settles, one after another, rather than milling
+          const ring = alivePack();
+          for (let i = 0; i < ring.length; i++) {
+            const pw = ring[i];
+            if (k < 0.25 + i * 0.12) continue;
+            const a2 = Math.PI * 2 * (i / Math.max(1, ring.length)) + 0.6;
+            pw.tx = w.x + Math.cos(a2) * 66; pw.ty = w.y + Math.sin(a2) * 66;
+            pw.wanderT = 9; pw.dwellT = 9; pw.idle = 'rest'; pw.idleT = 9;
+          }
+          if (!T._b9half && k > 0.5) {
+            T._b9half = true;
+            setCaption('She leans her head into you.', 3);
+          }
           if (S.inheritHold > INHERIT_HOLD) {
             S.inherited = true;
             w.alive = false;           // her breathing loop simply stops
+            w.breathSlow = 0;
+            S.vigil = 1; S.vigilFade = 2.6;   // the hush lets go slowly afterwards
             S.inheritBloom = 1;        // her warmth blooms around Aspen
             playMotif('inherit');      // five soft notes — the only ceremony
             S.tut.sawMap = true;       // the map is hers now
@@ -4723,6 +4901,8 @@ function prologueUpdate(dt) {
           }
         } else {
           S.inheritHold = Math.max(0, S.inheritHold - dt * 2);
+          S.vigil = Math.max(0, (S.vigil || 0) - dt * 1.5);
+          if (w) w.breathSlow = 1;
         }
       } else {
         // lowering the map — or walking away — begins the passage
@@ -5504,6 +5684,10 @@ function packIdleUpdate(dt) {
     if (w.idle) { w.idle = null; w.idleCd = 6 + Math.random() * 14; }
     w.idleCd = Math.max(0, (w.idleCd || 0) - dt);
     if (!calm || w.moving || w.state === 'balk' || w.pup) continue;
+    // …and never when it has somewhere to be. A wolf trailing behind her sat down
+    // to rest instead of catching up, which read as the pack simply giving up.
+    const zc = zoneCenter();
+    if (dist(w.x, w.y, zc.x, zc.y) > 210) continue;
     if (w.idleCd > 0) continue;
     if (Math.random() > IDLE_CHANCE * dt * 8) continue;
     // a yearling with another yearling plays; a wolf on its own lies down or
@@ -5607,6 +5791,45 @@ function goalsUpdate(dt) {
 
 // A tear bridged: if every tear that has opened this year is walked around, and
 // there were enough of them to mean it, the map is hers again.
+// Name a thing the FIRST time the player can see it, once, through the same gate
+// that keeps teaching moments apart. Returns true if it spoke.
+function teachOnce(flag, text, callout) {
+  if (!S || S.mode !== 'play' || S.tut[flag]) return false;
+  if (!momentFree()) return false;
+  S.tut[flag] = true;
+  if (callout) queueCallout(callout);
+  showPrompt(text, [], 8);
+  claimMoment();
+  return true;
+}
+
+// Everything the fun pass put on screen, explained as it first turns up.
+function teachNewMarks() {
+  if (S.mode !== 'play') return;
+  // the alert marks over prey — taught in the prologue hunt, but a player who
+  // skipped it still meets them here
+  if (!S.tut.markTaught && S.elk.some(e => (e.alertState || 'grazing') !== 'grazing'
+      && dist(e.x, e.y, S.wolf.x, S.wolf.y) < 620)) {
+    teachOnce('markTaught', 'Its head is up. One mark over an animal means it has heard her; two, and it is already going.', 'alertmark');
+    return;
+  }
+  // the three tier shapes on the roster, the moment one of them fills
+  if (!S.tut.tiersTaught && [S.wolf, ...alivePack()].some(w => huntTier(w) + nerveTier(w) + endTier(w) > 0)) {
+    teachOnce('tiersTaught', 'Marks beside their names: what each of them is becoming — hunting, nerve, and the miles in their legs.', 'tiers');
+    return;
+  }
+  // the streak dots by the food bar
+  if (!S.tut.streakTaught && (S.streak || 0) >= 1) {
+    teachOnce('streakTaught', 'A mark by the larder for each hunt running. They go the moment a chase comes to nothing.', 'streak');
+    return;
+  }
+  // and the one number for the pack
+  if (!S.tut.strengthTaught && packStrength() >= 2) {
+    teachOnce('strengthTaught', 'The pack, as one number. It climbs with everything they learn — and it falls with everything they lose.', 'strength');
+    return;
+  }
+}
+
 function goalsCheckCartographer() {
   const torn = TEAR_GROUPS.filter(g => groupTorn(g));
   if (torn.length >= 3 && torn.every(g => S.bridged.has(g.key))) awardGoal('cartographer');
@@ -5926,6 +6149,10 @@ function update(dt) {
   S.injuredT = Math.max(0, S.injuredT - dt);
   S.passageFade = Math.max(0, (S.passageFade || 0) - dt);
   S.ambushT = Math.max(0, (S.ambushT || 0) - dt);
+  if ((S.vigilFade || 0) > 0) {
+    S.vigilFade = Math.max(0, S.vigilFade - dt);
+    S.vigil = S.vigilFade / 2.6;
+  }
   S.pounceMsgCd = Math.max(0, (S.pounceMsgCd || 0) - dt);
   S.momentCd = Math.max(0, (S.momentCd || 0) - dt);   // one teaching moment at a time
   // count how many times the ambush window has OPENED (not frames it was open),
@@ -6003,6 +6230,7 @@ function update(dt) {
     barrierNerveUpdate();
     tierUpTick();
     goalsUpdate(dt);
+    teachNewMarks();
     juiceUpdate(dt);
     packIdleUpdate(dt);
     goalCardTick(dt);

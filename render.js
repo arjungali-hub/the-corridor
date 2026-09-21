@@ -849,7 +849,9 @@ function drawWillowLying(w) {
   ctx.save();
   ctx.translate(w.x, w.y);
   ctx.rotate(0.25);
-  const breath = w.alive ? 1 + 0.035 * Math.sin(S.time * 1.4) : 1;
+  // her breathing goes out like a tide while Aspen holds at her side
+  const bs = w.breathSlow === undefined ? 1 : w.breathSlow;
+  const breath = w.alive ? 1 + 0.035 * bs * Math.sin(S.time * 1.4 * (0.35 + 0.65 * bs)) : 1;
   ctx.scale(1, breath);
   ctx.fillStyle = tone.base;
   ctx.beginPath(); ctx.ellipse(0, 0, size * 1.9, size * 1.0, 0, 0, Math.PI * 2); ctx.fill();
@@ -1582,8 +1584,20 @@ function drawWorld() {
     else drawWolfBody(S.willow.x, S.willow.y, S.willow.heading, 13,
       WOLF_TONES.willow, S.willow.moving, S.willow.gait, false);
   }
-  // crouched she draws lower and longer — the body reads the verb without a word
-  drawWolfBody(S.wolf.x, S.wolf.y, S.wolf.heading, S.crouched ? 9.2 : 11, WOLF_TONES.aspen,
+  // Crouched she draws lower and longer. Mid-leap she lifts off the ground, and
+  // her shadow drops away beneath her — without that the pounce was invisible.
+  const pj = S.pounce ? Math.sin(Math.PI * (S.pounce.t / S.pounce.dur)) : 0;
+  if (pj > 0) {
+    ctx.save();
+    ctx.globalAlpha = 0.24 * (1 - pj * 0.55);
+    ctx.fillStyle = 'rgb(20,25,15)';
+    ctx.beginPath();
+    ctx.ellipse(S.wolf.x + 3, S.wolf.y + 8, 20 * (1 - pj * 0.25), 9 * (1 - pj * 0.3), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+  drawWolfBody(S.wolf.x, S.wolf.y - pj * 13, S.wolf.heading,
+    S.crouched ? 9.2 : (11 + pj * 1.8), WOLF_TONES.aspen,
     S.wolf.moving, S.wolf.gait, isInjured());
   drawAmbushCue();
 
@@ -2588,6 +2602,12 @@ const CALLOUT_TEXT = {
   gold: 'Prey passed here. Brighter is fresher.',
   violet: 'The human noise. The nose is blind inside it.',
   red: "Another pack's marks. That ground is claimed.",
+  // the things the fun pass added, each named the first time it is seen
+  wind: 'The wind. Keep it in her face and it carries nothing of her.',
+  alertmark: 'Its head is up. One mark: it has heard. Two: it is leaving.',
+  tiers: 'What each of them is becoming: hunting, nerve, and the miles in their legs.',
+  streak: 'Hunts running, one mark each. They go when a chase comes to nothing.',
+  strength: 'The pack, as one number. It climbs with everything they learn.',
 };
 
 function calloutAnchor(id) {
@@ -2621,6 +2641,15 @@ function calloutAnchor(id) {
       return { x: mid.x, y: mid.y };
     }
     case 'goal': { const wr = NbyId.get('winterRange'); return { x: wr.x, y: wr.y }; }
+    case 'wind': return { x: S.wolf.x, y: S.wolf.y - 90 };
+    case 'alertmark': {
+      const e = S.elk.find(x => (x.alertState || 'grazing') !== 'grazing') || S.elk[0];
+      return e ? { x: e.x, y: e.y } : null;
+    }
+    case 'tiers': case 'streak': case 'strength': {
+      const w = alivePack()[0] || S.wolf;
+      return { x: w.x, y: w.y };
+    }
     case 'gold': return near(S.scent, p => p);
     case 'violet': return near(SCENT_VIOLET, p => p);
     case 'red': return near(SCENT_RED, p => p);
@@ -3613,6 +3642,33 @@ function drawPassage() {
 }
 
 
+// The vigil at her mother's side: the colour goes out of the land and everything
+// but the two of them falls away. This is the game's one held moment, and it used
+// to be a progress ring and nothing else.
+function drawVigil() {
+  const v = S.vigil || 0;
+  if (v <= 0) return;
+  resetTransform();
+  ctx.save();
+  ctx.globalAlpha = v * 0.55;
+  ctx.globalCompositeOperation = 'saturation';
+  ctx.fillStyle = '#808080';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  // and the light closes in around her
+  const p = S.willow ? screenPos(S.willow.x, S.willow.y)
+                     : { x: canvas.width / 2, y: canvas.height / 2 };
+  const far = Math.hypot(canvas.width, canvas.height) * 0.62;
+  const g = ctx.createRadialGradient(p.x, p.y, far * (0.34 - v * 0.2), p.x, p.y, far);
+  g.addColorStop(0, 'rgba(8,9,12,0)');
+  g.addColorStop(1, `rgba(8,9,12,${v * 0.82})`);
+  ctx.save();
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.restore();
+  ctx.globalAlpha = 1;
+}
+
 // ── juice ────────────────────────────────────────────────────────────────────
 // Dust where something went down. Cheap, brief, and it makes the catch land.
 function drawPuffs() {
@@ -3905,6 +3961,7 @@ function draw() {
   drawPassage();
   drawPrompt();
   drawCaption();
+  drawVigil();
   drawEscapePulse();
   if (S.mode === 'play') { drawSeasonCard(); drawGoalCard(); }
   drawHelp();
