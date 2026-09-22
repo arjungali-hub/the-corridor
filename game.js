@@ -5136,7 +5136,13 @@ function toggleMute() {
 // and they fall silent. (No music. The land is the score.)
 
 let amb = null;
-const SEASON_WIND = [0.045, 0.03, 0.05, 0.08];   // spring summer autumn winter
+// The one sound that never stops, so it is the one that has to be almost not
+// there. These were 0.045/0.03/0.05/0.08 and read as a drone rather than as
+// weather — the complaint was not that the land was noisy but that ONE
+// continuous thing was, for the whole hour. At roughly a third, winter is still
+// audibly heavier than summer, which is all the bed is for.
+const SEASON_WIND = [0.015, 0.010, 0.017, 0.028];   // spring summer autumn winter
+const ROAD_HUM = 0.018;   // was 0.05, and constant the whole time she is near it
 
 function ensureAmbience() {
   if (amb) return;
@@ -5154,9 +5160,12 @@ function ensureAmbience() {
   const g = ac.createGain(); g.gain.value = 0;
   src.connect(filt); filt.connect(g); g.connect(masterGain);
   src.start();
-  // the road's low hum, faded in only when she stands near the asphalt
+  // the road's low hum, faded in only when she stands near the asphalt.
+  // A sawtooth at 52Hz is a buzz, not a hum — every harmonic of it lands in the
+  // range the ear is most tired by, and it never stops while she is near the
+  // road. A triangle keeps the weight and loses the rasp.
   const hum = ac.createOscillator(), hg = ac.createGain();
-  hum.type = 'sawtooth'; hum.frequency.value = 52;
+  hum.type = 'triangle'; hum.frequency.value = 52;
   hg.gain.value = 0;
   hum.connect(hg); hg.connect(masterGain); hum.start();
   amb = { gain: g, filt, hum: hg, clankT: 6, birdT: 5, locT: 0, nearCreek: false };
@@ -5183,14 +5192,14 @@ function ambienceUpdate(dt) {
 
   // wind bed: season sets the weight; water brightens and lifts it
   const target = !live ? 0
-    : (S.era === 'past' ? 0.028 : SEASON_WIND[seasonIndex()]) * (amb.nearCreek ? 1.5 : 1);
+    : (S.era === 'past' ? 0.010 : SEASON_WIND[seasonIndex()]) * (amb.nearCreek ? 1.5 : 1);
   amb.gain.gain.value += (target - amb.gain.gain.value) * Math.min(1, dt * 0.5);
   amb.filt.frequency.value += ((amb.nearCreek ? 900 : 420) - amb.filt.frequency.value) * Math.min(1, dt * 1.5);
 
   // traffic: a low hum that grows as she nears the asphalt
   const h = OBSTACLES.highway;
   const dRoad = S.wolf.x < h.x0 ? h.x0 - S.wolf.x : S.wolf.x > h.x1 ? S.wolf.x - h.x1 : 0;
-  const humT = (live && S.era !== 'past') ? 0.05 * clamp(1 - dRoad / 500, 0, 1) : 0;
+  const humT = (live && S.era !== 'past') ? ROAD_HUM * clamp(1 - dRoad / 500, 0, 1) : 0;
   amb.hum.gain.value += (humT - amb.hum.gain.value) * Math.min(1, dt * 0.8);
 
   // birdsong in the green woods, by day

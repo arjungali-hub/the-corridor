@@ -24,6 +24,9 @@ const anything = new Proxy(function () {}, {
 
 const winListeners = {};
 const canvasListeners = {};
+const docListeners = {};
+const oscTypes = [];
+let docFocused = true;
 let lastAC = null;   // the most recently constructed stub AudioContext (Part 2)
 const canvasStub = {
   width: 1280, height: 800,
@@ -35,6 +38,11 @@ const sandbox = {
   document: {
     getElementById: () => canvasStub,
     createElement: () => ({ width: 0, height: 0, getContext: () => anything }),
+    // driveable attention state: a real browser answers both of these, and the
+    // land must be silent unless BOTH say the player is there
+    hidden: false,
+    hasFocus() { return docFocused; },
+    addEventListener: (ev, fn) => { docListeners[ev] = fn; },
   },
   window: {
     innerWidth: 1280, innerHeight: 800,
@@ -43,8 +51,25 @@ const sandbox = {
       constructor() { this.state = 'suspended'; this.__resumed = false; lastAC = this; }
       get currentTime() { return 0; }
       get destination() { return {}; }
-      createOscillator() { return anything; }
+      // record the waveform each voice asks for, and swallow everything else
+      // exactly as `anything` does — the drone's type is a real behaviour and
+      // grepping game.js for it is not a test
+      createOscillator() {
+        const o = new Proxy({}, {
+          get(t, p) { if (p === Symbol.toPrimitive) return () => 0; return anything; },
+          set(t, p, v) { if (p === 'type') oscTypes.push(v); return true; },
+          apply() { return anything; },
+        });
+        return o;
+      }
       createGain() { return anything; }
+      // the ambience bed bails out unless the context can really make a noise
+      // buffer, so without these the one sound that plays for the whole hour was
+      // never once built under test
+      get sampleRate() { return 8000; }
+      createBuffer(ch, len) { return { getChannelData: () => new Float32Array(len) }; }
+      createBufferSource() { return anything; }
+      createBiquadFilter() { return anything; }
       resume() { this.state = 'running'; this.__resumed = true; return Promise.resolve(); }
     },
   },
@@ -2286,6 +2311,63 @@ G('toggleMute();');                          // manual mute ON
 G('setTabHidden(true); setTabHidden(false);');
 check('a manual mute survives a tab leave/return', G('muted') === true);
 G('toggleMute(); tabHidden = false;');       // back to audible for later tests
+
+// ATTENTION IS A STATE, NOT A TRANSITION. The old wiring listened for
+// visibilitychange/blur/focus and never asked what the page LOADED into: a game
+// opened in a background tab, or in a window behind another application, started
+// audible and stayed that way until an event happened to fire. And "visible" is
+// not enough on its own — a visible tab in an unfocused window is exactly as
+// unwanted. Both conditions, resolved by syncAttention().
+G('muted = false;');
+sandbox.document.hidden = false; docFocused = true;
+G('syncAttention();');
+check('a visible, focused window plays', G('tabHidden') === false);
+
+sandbox.document.hidden = true; docFocused = true;
+G('syncAttention();');
+check('a hidden tab is silent', G('tabHidden') === true);
+
+sandbox.document.hidden = false; docFocused = false;
+G('syncAttention();');
+check('a visible tab in an unfocused window is silent too', G('tabHidden') === true);
+
+// the case the events could never cover: the state the page STARTED in
+sandbox.document.hidden = false; docFocused = false;
+G('tabHidden = false;');                      // as a fresh load would leave it
+G('syncAttention();');                        // main.js calls this at boot
+check('starting unfocused starts silent, with no event to tell us',
+  G('tabHidden') === true);
+sandbox.document.hidden = true; docFocused = true;
+G('tabHidden = false;');
+G('syncAttention();');
+check('starting in a background tab starts silent', G('tabHidden') === true);
+
+// a gesture is attention: it must clear a stale silence rather than leave the
+// game mute for the rest of the run
+sandbox.document.hidden = false; docFocused = true;
+key('z');
+check('a gesture resolves attention', G('tabHidden') === false);
+
+// and none of it overrides the player
+G('toggleMute();');                           // manual mute ON
+sandbox.document.hidden = false; docFocused = true;
+G('syncAttention();');
+check('regaining attention never overrides a manual mute', G('muted') === true);
+G('toggleMute(); tabHidden = false;');
+
+// THE DRONE. The wind bed and the road hum are the only two sounds that never
+// stop, which is exactly why they have to sit under everything else. Arjun
+// played an hour of it and asked for it softer; these ceilings are what "softer"
+// meant, and a later tune should have to argue with this check.
+check('the always-on wind bed stays under 0.03 in every season',
+  G('SEASON_WIND').every(v => v <= 0.03));
+check('the road hum stays under 0.02', G('ROAD_HUM') <= 0.02);
+G('amb = null; audioCtx = null; masterGain = null; audioUnlocked = false;');
+oscTypes.length = 0;
+G('ensureAmbience();');
+check('the ambience builds its voices', oscTypes.length > 0);
+check('the road hum is not a sawtooth (a 52Hz saw is a buzz, not a hum)',
+  oscTypes.indexOf('sawtooth') === -1);
 
 // Part 4: an uncaught error mid-year must halt into a gentle card, not a frozen
 // canvas. A deliberate throw inside update() should be caught by the frame

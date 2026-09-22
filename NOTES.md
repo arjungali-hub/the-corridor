@@ -1558,3 +1558,47 @@ scuffs and visible patrol (W1).
 **Still owed by Arjun, from Part 32's final gate:** play a full year in the
 browser and answer honestly here — was that fun? I cannot judge that, and
 nothing above is a substitute for it.
+
+## 2026-09-22 (audio: attention, and the drone)
+
+Two reports from Arjun, both about the one sound that never stops.
+
+**Attention is a STATE, not a pair of transitions.** The old wiring listened for
+`visibilitychange`, `blur` and `focus` and acted on each — which meant the state
+the page *loaded into* was never asked. A game opened in a background tab, or in
+a window sitting behind another application, started at `tabHidden = false` and
+played until some event happened to fire. There was also only one condition
+where there are two: a visible tab in an unfocused window is exactly as unwanted
+as a hidden one, and `document.hidden` is false for both.
+
+It resolves through one function now — `pageAttended()` = visible AND focused —
+which every event calls, and which **boot calls too**, for the case no event can
+cover. A gesture also calls it: a keydown or a tap is attention by definition,
+and that clears any stale silence left over from a load.
+
+A nice consequence fell out in the browser check: dispatching a synthetic `blur`
+at a focused window does *not* silence it, because the resolver asks
+`document.hasFocus()` rather than trusting the event. The old transition-based
+code would have muted on a spurious event. Verified all four states against a
+real browser's own `masterGain.gain.value`: focused 1, unfocused 0, loaded-
+unfocused 0, refocused 1.
+
+**The drone.** Two sounds run continuously: the filtered-noise wind bed and the
+road hum. The hum was a **sawtooth at 52 Hz**, which is a buzz rather than a hum
+— every harmonic of it lands where the ear tires fastest, and it holds the whole
+time she is anywhere near the road. Triangle now, which keeps the weight and
+loses the rasp. Both beds came down to roughly a third: `SEASON_WIND`
+0.045/0.03/0.05/0.08 → 0.015/0.010/0.017/0.028, road hum 0.05 → 0.018, past-era
+wind 0.028 → 0.010. Winter is still audibly heavier than summer, which is the
+only thing the bed is there to do.
+
+**The harness was never building the ambience at all.** `ensureAmbience()` bails
+unless the context can really make a noise buffer, and the stub `AudioContext`
+had no `createBuffer`/`createBufferSource`/`createBiquadFilter`/`sampleRate` — so
+the one sound that plays for the entire hour had never once been constructed
+under test. It has those now, and the stub's oscillators record the waveform they
+are asked for, so "the road hum is not a sawtooth" is a real assertion about
+runtime rather than a grep of game.js. The volume ceilings are checked too: a
+later tune should have to argue with the check rather than quietly undo this.
+
+Harness **548 checks**, green ×4.

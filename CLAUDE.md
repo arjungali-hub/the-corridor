@@ -30,7 +30,7 @@ the ending card.
   `requestAnimationFrame` exists, so the whole game runs headless under
   Node's `vm` for testing (stub `document`/`window`/`localStorage`, call
   `update`/`draw` directly).
-- `test/harness.js` — the headless harness, 537 checks, no dependencies:
+- `test/harness.js` — the headless harness, 548 checks, no dependencies:
   `npm test` (or `node test/harness.js`). Drives the real keydown handler and
   the real `update(dt)` through the prologue and the year. Must print
   `ALL CHECKS PASSED` before every commit. Three stack traces just before the
@@ -225,6 +225,15 @@ the ending card.
   it; Willow's inherited map appears beside it; a dotted line for the next
   generation appears **only if** a surviving yearling walked new routes. Then
   the game's one editorial sentence.
+- **The land is silent unless the player is THERE.** Attention is resolved as a
+  state — `pageAttended()` = tab visible AND window focused — not as a set of
+  transitions, and **boot resolves it too**: a page loaded into a background tab
+  or an unfocused window has no event coming to tell it. A gesture counts as
+  attention. `tabHidden` never overrides a manual mute. The two continuous beds
+  (`SEASON_WIND`, `ROAD_HUM`) are the only sounds that never stop, so they sit
+  under everything else and are capped by test; the road hum is a triangle, never
+  a sawtooth — a 52Hz saw is a buzz, and it holds for as long as she is near the
+  road.
 - **Audio**: tear sting (A3 sawtooth + Eb4 square) is the sound of the map
   being wrong — reused by every tear forever. Patch chime = soft G4→D5
   triangles. Near-miss whoosh. No music.

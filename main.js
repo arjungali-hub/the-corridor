@@ -96,6 +96,7 @@ window.addEventListener('keydown', (ev) => {
   if (k === ' ' || k.startsWith('arrow')) ev.preventDefault();
 
   resumeAudio();   // the first gesture unlocks a suspended AudioContext (Safari/iOS/Chrome)
+  syncAttention(); // a gesture IS attention — clears any stale silence from boot
 
   // the options screen owns all input while it is up
   if (optionsOpen) { handleOptionsKey(k); return; }
@@ -164,6 +165,7 @@ window.addEventListener('keyup', (ev) => {
 canvas.addEventListener('click', (ev) => {
   if (touchMode) return;   // touch handles its own taps (and a touch fires a synthetic click)
   resumeAudio();
+  syncAttention();
   if (!S || (S.mode !== 'play' && S.mode !== 'prologue')) return;
   const wx = (ev.clientX - canvas.width / 2) / S.cam.scale + S.cam.x;
   const wy = (ev.clientY - canvas.height / 2) / S.cam.scale + S.cam.y;
@@ -220,6 +222,7 @@ function classifyTouch(px, py, L) {
 
 canvas.addEventListener('touchstart', (ev) => {
   resumeAudio();
+  syncAttention();
   ev.preventDefault();
   if (crashed) { try { location.reload(); } catch (_) {} return; }
   // full-screen "any key" moments: a single tap advances them, and nothing else
@@ -313,19 +316,34 @@ window.addEventListener('blur', () => {
   input.up = input.down = input.left = input.right = input.sense = input.scent = input.drink = input.crouch = false;
 });
 
-// Leaving the tab mutes the land (its constant ambience shouldn't play into a
-// tab you've walked away from); returning reopens the valve — unless you had
-// muted by hand, which setTabHidden preserves. visibilitychange is the reliable
-// signal; blur/focus back it up for browsers that fire it late.
-function goHidden() { if (typeof setTabHidden === 'function') setTabHidden(true); }
-function goVisible() { if (typeof setTabHidden === 'function') setTabHidden(false); }
-if (typeof document !== 'undefined' && document.addEventListener) {
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) goHidden(); else goVisible();
-  });
+// The land's constant ambience shouldn't play into a window you are not looking
+// at. Two conditions, not one: the tab must be VISIBLE and the window must have
+// FOCUS — a game in a visible tab behind another application is exactly as
+// unwanted as one in a background tab.
+//
+// This is resolved as a STATE, never as a pair of transitions. Wiring only the
+// events left the initial state unasked: a page opened in a background tab, or
+// in a window that never had focus, started at `tabHidden = false` and played
+// until something happened to fire an event. `syncAttention()` is called at boot
+// for exactly that reason.
+function pageAttended() {
+  if (typeof document === 'undefined') return true;
+  if (document.hidden) return false;
+  // hasFocus() is missing under the test harness's stub DOM and in a few old
+  // browsers; absent an answer, assume attended rather than shipping silent.
+  if (typeof document.hasFocus !== 'function') return true;
+  try { return document.hasFocus(); } catch (_) { return true; }
 }
-window.addEventListener('blur', goHidden);
-window.addEventListener('focus', goVisible);
+function syncAttention() {
+  if (typeof setTabHidden === 'function') setTabHidden(!pageAttended());
+}
+if (typeof document !== 'undefined' && document.addEventListener) {
+  document.addEventListener('visibilitychange', syncAttention);
+}
+window.addEventListener('blur', syncAttention);
+window.addEventListener('focus', syncAttention);
+window.addEventListener('pageshow', syncAttention);
+syncAttention();   // the state the page LOADED in, which no event will tell us
 
 // ── boot ─────────────────────────────────────────────────────────────────────
 
